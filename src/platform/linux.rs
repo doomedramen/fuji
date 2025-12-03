@@ -3,13 +3,13 @@
 use super::{Platform, MountInfo, Signal};
 use crate::mount::MountType;
 use anyhow::{anyhow, Result};
-use nix::sys::stat::{Mode, SFlag};
-use nix::unistd::{self, Gid, Uid};
+use nix::unistd;
 use std::fs;
+use std::os::linux::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 pub struct LinuxPlatform;
 
@@ -37,7 +37,7 @@ impl Platform for LinuxPlatform {
 
                     // Check if we have write permission
                     let uid = unistd::getuid().is_root();
-                    let gid = unistd::getgid() == metadata.st_gid();
+                    let gid = unistd::getgid().as_raw() == metadata.st_gid();
 
                     let writable = if uid {
                         mode & 0o200 != 0  // Owner write
@@ -75,12 +75,15 @@ impl Platform for LinuxPlatform {
     }
 
     fn get_current_user(&self) -> Result<String> {
-        unistd::getlogin()
-            .map_err(|e| anyhow!("Failed to get username: {}", e))
+        // Try USER env var first, then LOGNAME
+        std::env::var("USER")
+            .or_else(|_| std::env::var("LOGNAME"))
+            .or_else(|_| std::env::var("USERNAME"))
+            .map_err(|_| anyhow!("Could not determine username"))
     }
 
     fn get_current_pid(&self) -> u32 {
-        unistd::getpid().as_raw()
+        unistd::getpid().as_raw() as u32
     }
 
     fn is_root(&self) -> bool {

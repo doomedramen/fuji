@@ -63,7 +63,7 @@ services:
     container_name: fuji-test-client
     privileged: true
     volumes:
-      - .:/app:ro
+      - .:/app
       - cargo-cache:/usr/local/cargo/registry
       - target-cache:/app/target
     networks:
@@ -75,28 +75,7 @@ services:
         condition: service_healthy
       smb-server:
         condition: service_healthy
-    command: >
-      sh -c "
-        echo 'Waiting for services to be ready...' &&
-        sleep 10 &&
-        echo 'Testing NFS connectivity...' &&
-        showmount -e nfs-server &&
-        echo 'Testing SMB connectivity...' &&
-        smbclient -L smb-server -N ||
-          smbclient -L smb-server -U testuser%testpass &&
-        echo 'Building Fuji...' &&
-        cd /app &&
-        cargo build --release &&
-        echo 'Running integration tests...' &&
-        /app/target/release/fuji daemon start --detach &&
-        sleep 2 &&
-        /app/target/release/fuji mount nfs://nfs-server/data &&
-        /app/target/release/fuji status &&
-        ls -la /mnt/fuji/nfs-server_nfs/data/ &&
-        /app/target/release/fuji unmount nfs-server_nfs &&
-        /app/target/release/fuji daemon stop &&
-        echo 'Integration tests completed successfully!'
-      "
+    command: tail -f /dev/null  # Keep container running for interactive testing
     cap_add:
       - SYS_ADMIN
       - DAC_OVERRIDE

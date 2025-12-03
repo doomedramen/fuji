@@ -9,7 +9,6 @@ RUN apt-get update && apt-get install -y \
     nfs-common \
     cifs-utils \
     smbclient \
-    showmount \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust
@@ -23,11 +22,5 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN mkdir -p /mnt/fuji
 
 WORKDIR /app
-
-# Copy source code
-COPY . .
-
-# Build
-RUN cargo build --release
 
 CMD ["/bin/bash"]
