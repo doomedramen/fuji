@@ -256,14 +256,34 @@ impl Platform for LinuxPlatform {
             }
         }
 
-        // Try primary location first
-        let primary = PathBuf::from("/run/fuji/fuji.sock");
-        if self.can_access_path(&primary).unwrap_or(false) {
-            return primary;
+        // Check if running as root for system-wide socket
+        if self.is_root() {
+            // System daemon: use /run/fuji/fuji.sock
+            // Ensure directory exists with proper permissions
+            let run_dir = PathBuf::from("/run/fuji");
+            if let Err(e) = self.ensure_dir_exists(&run_dir) {
+                debug!("Failed to create /run/fuji: {}, falling back to /tmp/fuji", e);
+                PathBuf::from("/tmp/fuji/fuji.sock")
+            } else {
+                // Set proper permissions (root only)
+                if let Err(e) = std::fs::set_permissions(&run_dir, std::fs::Permissions::from_mode(0o755)) {
+                    debug!("Failed to set permissions on /run/fuji: {}", e);
+                }
+                run_dir.join("fuji.sock")
+            }
+        } else {
+            // User daemon: use /run/user/<uid>/fuji/fuji.sock
+            if let Some(run_user) = std::env::var_os("XDG_RUNTIME_DIR") {
+                let user_socket = PathBuf::from(run_user).join("fuji/fuji.sock");
+                if let Ok(parent) = user_socket.parent() {
+                    let _ = self.ensure_dir_exists(parent);
+                }
+                user_socket
+            } else {
+                // Fallback to temp directory
+                PathBuf::from("/tmp/fuji/fuji.sock")
+            }
         }
-
-        // Fallback to temp
-        PathBuf::from("/tmp/fuji/fuji.sock")
     }
 
     fn get_config_dir(&self) -> PathBuf {
@@ -287,7 +307,24 @@ impl Platform for LinuxPlatform {
     }
 
     fn get_mount_dir(&self) -> PathBuf {
-        PathBuf::from("/mnt/fuji")
+        // Primary mount directory
+        let mount_dir = PathBuf::from("/mnt/fuji");
+
+        // Create if doesn't exist
+        if let Err(e) = self.ensure_dir_exists(&mount_dir) {
+            debug!("Failed to create /mnt/fuji: {}", e);
+            // Fallback to user mount directory if not root
+            if !self.is_root() {
+                let user_mount = std::env::var_os("HOME")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from("/tmp"))
+                    .join("fuji-mounts");
+                let _ = self.ensure_dir_exists(&user_mount);
+                return user_mount;
+            }
+        }
+
+        mount_dir
     }
 }
 
