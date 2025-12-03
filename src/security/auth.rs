@@ -36,7 +36,7 @@ pub struct JWTAuthenticator {
     /// Public key for verification (derived from key_pair)
     public_key: UnparsedPublicKey<[u8; 32]>,
     /// Raw public key bytes
-    public_key_bytes: [u8; 32],
+    public_key_array: [u8; 32],
     /// Token expiration duration
     expiration: Duration,
     /// Issuer identifier
@@ -144,7 +144,7 @@ impl JWTAuthenticator {
         let mut validation = Validation::new(Algorithm::EdDSA);
         validation.set_issuer(&[&self.issuer]);
 
-        let decoding_key = DecodingKey::from_ed_der(&self.public_key_bytes);
+        let decoding_key = DecodingKey::from_ed_der(&self.public_key_array);
 
         let token_data = decode::<FujiClaims>(token, &decoding_key, &validation)
             .map_err(|e| anyhow!("Invalid token: {}", e))?;
@@ -161,7 +161,7 @@ impl JWTAuthenticator {
 
     /// Get public key for external verification
     pub fn get_public_key(&self) -> &[u8] {
-        &self.public_key_bytes
+        &self.public_key_array
     }
 
     /// Check if user has permission to access a mount
