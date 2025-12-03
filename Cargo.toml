@@ -11,6 +11,10 @@ repository = "https://github.com/DoomedRamen/fuji"
 name = "fuji"
 path = "src/main.rs"
 
+[[bin]]
+name = "cleanup-warnings"
+path = "scripts/cleanup-warnings.rs"
+
 [dependencies]
 # Core dependencies
 tokio = { version = "1.35", features = ["full"] }
