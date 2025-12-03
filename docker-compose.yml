@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  nfs-server:
+    image: alpine:latest
+    container_name: fuji-nfs-server
+    hostname: nfs-server
+    privileged: true
+    volumes:
+      - ./docker/nfs-server:/etc/exports.d
+      - nfs-exports:/exports
+    networks:
+      - fuji-test
+    command: >
+      sh -c "
+        apk add --no-cache nfs-utils &&
+        echo '/exports *(rw,sync,no_subtree_check,no_root_squash)' > /etc/exports &&
+        echo '/exports/data *(rw,sync,no_subtree_check,no_root_squash)' >> /etc/exports &&
+        echo '/exports/media *(ro,sync,no_subtree_check,no_root_squash)' >> /etc/exports &&
+        mkdir -p /exports/data /exports/media /exports/iso &&
+        echo 'This is the data export' > /exports/data/test.txt &&
+        echo 'This is the media export' > /exports/media/test.txt &&
+        echo 'This is the iso export' > /exports/iso/test.txt &&
+        rpcbind &&
+        rpc.statd &&
+        rpc.mountd &&
+        nfsd &&
+        exportfs -ra &&
+        tail -f /dev/null
+      "
+    healthcheck:
+      test: ["CMD", "showmount", "-e", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "2049:2049"
+      - "111:111"
+      - "32765:32765"
+      - "32766:32766"
+      - "32767:32767"
+
+  smb-server:
+    image: dperson/samba
+    container_name: fuji-smb-server
+    hostname: smb-server
+    privileged: true
+    volumes:
+      - smb-shares:/shares
+    networks:
+      - fuji-test
+    command: >
+      -s "data;/shares/data;yes;no;yes;all;testuser;testpass"
+      -s "media;/shares/media;yes;no;yes;all;testuser;testpass"
+      -s "public;/shares/public;yes;no;yes;all;guest;none"
+      -p
+      -u "testuser;testpass"
+    healthcheck:
+      test: ["CMD", "smbclient", "-L", "localhost", "-N"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "139:139"
+      - "445:445"
+
+  debian-test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.debian
+    container_name: fuji-test-client
+    privileged: true
+    volumes:
+      - .:/app:ro
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/app/target
+    networks:
+      - fuji-test
+    environment:
+      - RUST_LOG=debug
+    depends_on:
+      nfs-server:
+        condition: service_healthy
+      smb-server:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for services to be ready...' &&
+        sleep 10 &&
+        echo 'Testing NFS connectivity...' &&
+        showmount -e nfs-server &&
+        echo 'Testing SMB connectivity...' &&
+        smbclient -L smb-server -N ||
+          smbclient -L smb-server -U testuser%testpass &&
+        echo 'Building Fuji...' &&
+        cd /app &&
+        cargo build --release &&
+        echo 'Running integration tests...' &&
+        /app/target/release/fuji daemon start --detach &&
+        sleep 2 &&
+        /app/target/release/fuji mount nfs://nfs-server/data &&
+        /app/target/release/fuji status &&
+        ls -la /mnt/fuji/nfs-server_nfs/data/ &&
+        /app/target/release/fuji unmount nfs-server_nfs &&
+        /app/target/release/fuji daemon stop &&
+        echo 'Integration tests completed successfully!'
+      "
+    cap_add:
+      - SYS_ADMIN
+      - DAC_OVERRIDE
+
+volumes:
+  nfs-exports:
+  smb-shares:
+  cargo-cache:
+  target-cache:
+
+networks:
+  fuji-test:
+    driver: bridge

@@ -1,29 +1,46 @@
 [package]
 name = "fuji"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2021"
-authors = ["Fuji Team"]
-description = "Network File System Manager - Rust Implementation"
+authors = ["Martin Page <m@rtin.page>"]
+description = "A network file system mount manager with daemon-based architecture"
+license = "ISC"
+repository = "https://github.com/DoomedRamen/fuji"
+
+[[bin]]
+name = "fuji"
+path = "src/main.rs"
 
 [dependencies]
-tokio = { version = "1.40", features = ["full", "net"] }
-tokio-util = { version = "0.7", features = ["codec", "net"] }
-tokio-stream = { version = "0.1", features = ["net"] }
-futures = "0.3"
+# Core dependencies
+tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
-chrono = { version = "0.4", features = ["serde"] }
-clap = { version = "4.5", features = ["derive"] }
-nix = { version = "0.29", features = ["fs", "mount", "net"] }
+clap = { version = "4.4", features = ["derive", "env"] }
 anyhow = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-uuid = { version = "1.11", features = ["v4"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "chrono"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
 url = "2.5"
-users = "0.11"
+
+
+# Platform-specific dependencies
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.27", features = ["mount", "process", "signal", "fs", "socket", "user"] }
+libc = "0.2"
+
+# Additional dependencies
+async-trait = "0.1"
+dirs = "5.0"
 
 [dev-dependencies]
-tempfile = "3.12"
-test-log = "0.2"
+tempfile = "3.8"
+pretty_assertions = "1.4"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
