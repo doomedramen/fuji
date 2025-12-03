@@ -257,4 +257,20 @@ impl MountHandler for NfsHandler {
             Err(anyhow!("Invalid URL format"))
         }
     }
+
+    fn generate_mount_point(&self, url: &str) -> Result<PathBuf> {
+        let parsed = Url::parse(url)?;
+        let host = parsed.host_str().ok_or_else(|| anyhow!("No host in URL"))?;
+
+        // Base: /mnt/fuji/{host}_nfs
+        let mut mount_point = self.get_mount_base_dir().join(format!("{}_nfs", host));
+
+        // Append the path from the URL, preserving directory structure
+        let path = parsed.path();
+        if !path.is_empty() && path != "/" {
+            mount_point = mount_point.join(path.trim_start_matches('/'));
+        }
+
+        Ok(mount_point)
+    }
 }

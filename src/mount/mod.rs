@@ -127,6 +127,9 @@ pub trait MountHandler: Send + Sync {
     /// Generate a mount ID for a given URL
     fn generate_mount_id(&self, url: &str) -> Result<String>;
 
+    /// Generate mount point path from URL (preserving directory structure)
+    fn generate_mount_point(&self, url: &str) -> Result<PathBuf>;
+
     /// Get the base mount directory
     fn get_mount_base_dir(&self) -> PathBuf {
         PathBuf::from("/mnt/fuji")

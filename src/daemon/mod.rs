@@ -285,9 +285,11 @@ async fn handle_mount_request(
         }
     }
 
-    // Generate mount point
-    let mount_point = handler.get_mount_base_dir()
-        .join(&mount_id);
+    // Generate mount point (preserving directory structure from URL)
+    let mount_point = match handler.generate_mount_point(&url) {
+        Ok(path) => path,
+        Err(e) => return Response::Error(e.to_string()),
+    };
 
     // Create mount config
     let mut mount_config = MountConfig::new(url.clone(), mount_type, mount_point);
