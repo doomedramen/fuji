@@ -1,0 +1,5 @@
+// Platform module - Re-export the platform implementations
+pub mod mod;
+
+// Re-export the main types for convenience
+pub use mod::{Platform, MountInfo, MountType, get_platform};

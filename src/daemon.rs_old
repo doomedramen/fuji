@@ -1,0 +1,616 @@
+use crate::config::Config;
+use crate::error::{FujiError, Result};
+use crate::platform::{get_platform, MountInfo};
+use chrono;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::UnixListener;
+use tokio::sync::{Arc, Mutex};
+use tracing::{error, info, trace, warn};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Command {
+    Ping,
+    Status,
+    Mount { url: String },
+    Unmount { mount_id: String },
+    Stop,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Response {
+    pub success: bool,
+    pub message: Option<String>,
+    pub error: Option<String>,
+    pub data: Option<ResponseData>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ResponseData {
+    Pong {
+        timestamp: u64,
+    },
+    Status {
+        pid: u32,
+        uptime_seconds: u64,
+        mounts: Vec<MountInfo>,
+        socket_path: String,
+    },
+    Mount {
+        mount_id: String,
+        mount_point: String,
+    },
+    Unmount {
+        mount_id: String,
+    },
+}
+
+pub struct Daemon {
+    config: Config,
+    platform: Arc<dyn crate::platform::Platform + Send + Sync>,
+    mounts: Arc<Mutex<HashMap<String, MountInfo>>>,
+    start_time: std::time::Instant,
+    no_automount: bool,
+    socket_path: PathBuf,
+}
+
+impl Daemon {
+    pub fn new(config: Config, no_automount: bool) -> Result<Self> {
+        let platform = get_platform()?;
+        
+        Ok(Self {
+            config,
+            platform,
+            mounts: Arc::new(Mutex::new(HashMap::new())),
+            start_time: std::time::Instant::now(),
+            no_automount,
+            socket_path: config.socket_path().to_path_buf(),
+        })
+    }
+
+    pub async fn run(self) -> Result<()> {
+        let daemon = Arc::new(self);
+        
+        // Set up signal handlers for graceful shutdown
+        let (tx, mut rx) = tokio::sync::oneshot::channel::<()>();
+
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::{signal, SignalKind};
+
+            let tx = std::sync::Arc::new(std::sync::Mutex::new(Some(tx)));
+
+            let tx_sigterm = std::sync::Arc::clone(&tx);
+            let tx_sigint = std::sync::Arc::clone(&tx);
+
+            tokio::spawn(async move {
+                let mut sigterm = signal(SignalKind::terminate()).expect("Failed to setup SIGTERM handler");
+                let mut sigint = signal(SignalKind::interrupt()).expect("Failed to setup SIGINT handler");
+
+                tokio::select! {
+                    _ = sigterm.recv() => {
+                        error!("🚨 Received SIGTERM signal");
+                        if let Some(tx) = tx_sigterm.lock().unwrap().take() {
+                            let _ = tx.send(());
+                        }
+                    }
+                    _ = sigint.recv() => {
+                        error!("🚨 Received SIGINT signal");
+                        if let Some(tx) = tx_sigint.lock().unwrap().take() {
+                            let _ = tx.send(());
+                        }
+                    }
+                }
+            });
+        }
+
+        let socket_path = daemon.socket_path.clone();
+
+        // Remove existing socket if it exists
+        if socket_path.exists() {
+            info!("Removing existing socket file: {:?}", socket_path);
+            std::fs::remove_file(&socket_path).map_err(|e| {
+                FujiError::Socket(format!("Failed to remove existing socket: {}", e))
+            })?;
+        }
+
+        info!("Attempting to bind to socket: {}", socket_path.display());
+        let listener = UnixListener::bind(&socket_path)
+            .map_err(|e| {
+                error!("Failed to bind to socket {}: {}", socket_path.display(), e);
+                FujiError::Socket(format!("Failed to bind to socket {}: {}", socket_path.display(), e))
+            })?;
+
+        info!("Daemon successfully bound and listening on: {:?}", socket_path);
+
+        // Auto-mount enabled shares on startup (unless disabled)
+        if !daemon.no_automount {
+            daemon.auto_mount_enabled_shares().await?;
+        } else {
+            info!("Skipping auto-mount due to --no-automount flag");
+        }
+
+        // Spawn the connection handler with shared state
+        let daemon_handler = Arc::clone(&daemon);
+        let server_task = tokio::spawn(async move {
+            loop {
+                match listener.accept().await {
+                    Ok((mut stream, _addr)) => {
+                        let daemon = Arc::clone(&daemon_handler);
+                        tokio::spawn(async move {
+                            if let Err(e) = daemon.handle_client(&mut stream).await {
+                                error!("Failed to handle client connection: {}", e);
+                            }
+                        });
+                    }
+                    Err(e) => {
+                        error!("Failed to accept connection: {}", e);
+                    }
+                }
+            }
+        });
+
+        // Spawn the monitoring task
+        let daemon_monitor = Arc::clone(&daemon);
+        let monitoring_task = tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                if let Err(e) = daemon_monitor.monitor_connections().await {
+                    error!("Error in connection monitoring: {}", e);
+                }
+            }
+        });
+
+        // Wait for shutdown signal
+        rx.await.map_err(|_| FujiError::DaemonNotRunning)?;
+
+        info!("Shutdown signal received, stopping daemon...");
+
+        // Cancel the tasks
+        server_task.abort();
+        monitoring_task.abort();
+
+        // Clean up socket file
+        if socket_path.exists() {
+            if let Err(e) = std::fs::remove_file(&socket_path) {
+                warn!("Failed to remove socket file during shutdown: {}", e);
+            }
+        }
+
+        info!("Daemon stopped successfully");
+        Ok(())
+    }
+
+    async fn handle_client(&self, stream: &mut tokio::net::UnixStream) -> Result<()> {
+        let mut buffer = vec![0u8; 1024];
+        let n = stream
+            .read(&mut buffer)
+            .await
+            .map_err(|e| FujiError::Socket(format!("Failed to read from socket: {}", e)))?;
+
+        let command_json = String::from_utf8_lossy(&buffer[..n]);
+        let command: Command = serde_json::from_str(&command_json)
+            .map_err(|e| FujiError::InvalidCommand(format!("Failed to parse command: {}", e)))?;
+
+        let response = self.process_command(command).await;
+        let response_json = serde_json::to_string(&response)
+            .map_err(|e| FujiError::Socket(format!("Failed to serialize response: {}", e)))?;
+
+        stream
+            .write_all(response_json.as_bytes())
+            .await
+            .map_err(|e| FujiError::Socket(format!("Failed to write to socket: {}", e)))?;
+        stream
+            .flush()
+            .await
+            .map_err(|e| FujiError::Socket(format!("Failed to flush socket: {}", e)))?;
+
+        Ok(())
+    }
+
+    async fn process_command(&self, command: Command) -> Response {
+        match command {
+            Command::Ping => Response {
+                success: true,
+                message: Some("Pong".to_string()),
+                error: None,
+                data: Some(ResponseData::Pong {
+                    timestamp: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs(),
+                }),
+            },
+            Command::Status => {
+                let mounts = self.mounts.lock().await.clone().into_values().collect();
+                
+                Response {
+                    success: true,
+                    message: Some("Status retrieved".to_string()),
+                    error: None,
+                    data: Some(ResponseData::Status {
+                        pid: std::process::id(),
+                        uptime_seconds: self.start_time.elapsed().as_secs(),
+                        mounts,
+                        socket_path: self.config.socket_path().display().to_string(),
+                    }),
+                }
+            }
+            Command::Mount { url } => {
+                // Validate URL format
+                if !url.starts_with("nfs://") && !url.starts_with("smb://") && !url.starts_with("cifs://") {
+                    return Response {
+                        success: false,
+                        message: None,
+                        error: Some(format!(
+                            "Invalid mount URL: {}. URL must start with 'nfs://', 'smb://', or 'cifs://'",
+                            url
+                        )),
+                        data: None,
+                    };
+                }
+
+                match self.platform.mount(&url, "") {
+                    Ok(mount_info) => {
+                        // Save to configuration
+                        let now = chrono::Utc::now().to_rfc3339();
+                        let mount_config = crate::config::MountConfig {
+                            id: mount_info.id.clone(),
+                            url: url.clone(),
+                            mount_point: mount_info.mount_point.clone(),
+                            enabled: true,
+                            created_at: now.clone(),
+                            updated_at: now,
+                            alias: None,
+                        };
+
+                        // Update internal tracking
+                        self.mounts.lock().await.insert(mount_info.id.clone(), mount_info.clone());
+
+                        // Update config
+                        self.config
+                            .app_config_mut()
+                            .mounts
+                            .insert(mount_info.id.clone(), mount_config);
+                        if let Err(e) = self.config.save() {
+                            warn!("Failed to save config file: {}", e);
+                        }
+
+                        Response {
+                            success: true,
+                            message: Some(format!("Successfully mounted {} at {}", url, mount_info.mount_point)),
+                            error: None,
+                            data: Some(ResponseData::Mount {
+                                mount_id: mount_info.id,
+                                mount_point: mount_info.mount_point,
+                            }),
+                        }
+                    }
+                    Err(e) => Response {
+                        success: false,
+                        message: None,
+                        error: Some(format!("Mount failed: {}", e)),
+                        data: None,
+                    },
+                }
+            }
+            Command::Unmount { mount_id } => {
+                // Check if mount exists
+                {
+                    let mounts = self.mounts.lock().await;
+                    if !mounts.contains_key(&mount_id) {
+                        return Response {
+                            success: false,
+                            message: None,
+                            error: Some(format!(
+                                "Mount not found: {}. Check mount ID with 'fuji status'",
+                                mount_id
+                            )),
+                            data: None,
+                        };
+                    }
+                }
+
+                match self.platform.unmount(&mount_id) {
+                    Ok(_) => {
+                        // Update mount config to mark as disabled
+                        if let Some(mount_config) =
+                            self.config.app_config_mut().mounts.get_mut(&mount_id)
+                        {
+                            mount_config.enabled = false;
+                            mount_config.updated_at = chrono::Utc::now().to_rfc3339();
+
+                            // Save config to file
+                            if let Err(e) = self.config.save() {
+                                warn!("Failed to save config file: {}", e);
+                            }
+                        }
+
+                        // Remove from internal tracking
+                        self.mounts.lock().await.remove(&mount_id);
+
+                        Response {
+                            success: true,
+                            message: Some(format!("Successfully unmounted {}", mount_id)),
+                            error: None,
+                            data: Some(ResponseData::Unmount { mount_id }),
+                        }
+                    }
+                    Err(e) => Response {
+                        success: false,
+                        message: None,
+                        error: Some(format!("Unmount failed: {}", e)),
+                        data: None,
+                    },
+                }
+            }
+            Command::Stop => {
+                error!("Received stop command, shutting down daemon NOW!");
+                std::process::exit(0);
+            }
+        }
+    }
+
+    async fn auto_mount_enabled_shares(&self) -> Result<()> {
+        info!("Auto-mounting enabled shares...");
+
+        let enabled_mounts = self.config.get_enabled_mounts();
+        let mount_count = enabled_mounts.len();
+
+        if mount_count == 0 {
+            info!("No enabled mounts found");
+            return Ok(());
+        }
+
+        info!("Found {} enabled mount(s)", mount_count);
+
+        for (i, mount_config) in enabled_mounts.into_iter().enumerate() {
+            info!(
+                "Mounting {}/{} ({} of {})",
+                mount_config.id,
+                mount_config.url,
+                i + 1,
+                mount_count
+            );
+
+            match self.platform.mount(&mount_config.url, &mount_config.mount_point) {
+                Ok(mount_info) => {
+                    self.mounts.lock().await.insert(mount_config.id.clone(), mount_info);
+                    info!("Successfully mounted {}", mount_config.id);
+                }
+                Err(e) => {
+                    warn!("Failed to auto-mount {}: {}", mount_config.id, e);
+                }
+            }
+
+            // Stagger mounts to avoid overwhelming the network
+            if i < mount_count - 1 {
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn monitor_connections(&self) -> Result<()> {
+        info!("Checking connection status of all mounts");
+
+        // Get current list of active mounts from system
+        let current_mounts = match self.platform.list_mounts() {
+            Ok(mounts) => mounts,
+            Err(e) => {
+                warn!("Failed to list mounts: {}", e);
+                return Ok(());
+            }
+        };
+
+        // Get internally tracked mounts
+        let tracked_mounts = self.mounts.lock().await.clone();
+        
+        // Check which tracked mounts are not in system mounts (disconnected)
+        let mut missing_mounts = Vec::new();
+        for (mount_id, _mount_info) in &tracked_mounts {
+            if !current_mounts.iter().any(|m| m.id == *mount_id) {
+                missing_mounts.push(mount_id.clone());
+            }
+        }
+
+        // Attempt to reconnect missing mounts
+        if !missing_mounts.is_empty() {
+            info!(
+                "Found {} missing mount(s), attempting to reconnect",
+                missing_mounts.len()
+            );
+
+            for mount_id in &missing_mounts {
+                if let Some(mount_config) = self.config.get_mount(mount_id) {
+                    match self.platform.mount(&mount_config.url, &mount_config.mount_point) {
+                        Ok(mount_info) => {
+                            self.mounts.lock().await.insert(mount_id.clone(), mount_info);
+                            info!("Successfully reconnected mount: {}", mount_id);
+                        }
+                        Err(e) => {
+                            warn!("Failed to reconnect {}: {}", mount_id, e);
+                        }
+                    }
+                }
+            }
+        }
+
+        if missing_mounts.is_empty() {
+            info!("All tracked mounts are active");
+        }
+
+        Ok(())
+    }
+}
+
+pub struct DaemonClient {
+    socket_path: PathBuf,
+}
+
+impl DaemonClient {
+    pub fn new(socket_path: PathBuf) -> Self {
+        Self { socket_path }
+    }
+
+    pub async fn send_command(&self, command: Command) -> Result<()> {
+        tracing::info!("Attempting to connect to daemon at: {:?}", self.socket_path);
+        tracing::debug!("Command to send: {:?}", command);
+
+        let mut stream = tokio::net::UnixStream::connect(&self.socket_path)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to connect to daemon at {:?}: {}", self.socket_path, e);
+                tracing::debug!("Socket file exists: {}", self.socket_path.exists());
+                tracing::debug!("Socket file metadata: {:?}", std::fs::metadata(&self.socket_path));
+                FujiError::DaemonNotRunning
+            })?;
+
+        tracing::info!("Successfully connected to daemon");
+
+        let command_json = serde_json::to_string(&command)
+            .map_err(|e| FujiError::Socket(format!("Failed to serialize command: {}", e)))?;
+
+        tracing::debug!("Sending command JSON: {}", command_json);
+
+        stream
+            .write_all(command_json.as_bytes())
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to write to socket: {}", e);
+                FujiError::Socket(format!("Failed to write to socket: {}", e))
+            })?;
+        stream
+            .flush()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to flush socket: {}", e);
+                FujiError::Socket(format!("Failed to flush socket: {}", e))
+            })?;
+
+        tracing::debug!("Command sent successfully, waiting for response...");
+        let mut buffer = vec![0u8; 4096];
+        let n = stream
+            .read(&mut buffer)
+            .await
+            .map_err(|e| FujiError::Socket(format!("Failed to read from socket: {}", e)))?;
+
+        let response_json = String::from_utf8_lossy(&buffer[..n]);
+        let response: Response = serde_json::from_str(&response_json)
+            .map_err(|e| FujiError::Socket(format!("Failed to parse response: {}", e)))?;
+
+        self.handle_response(response)?;
+        Ok(())
+    }
+
+    fn handle_response(&self, response: Response) -> Result<()> {
+        if response.success {
+            if let Some(message) = response.message {
+                println!("{}", message);
+            }
+
+            if let Some(data) = response.data {
+                match data {
+                    ResponseData::Pong { timestamp } => {
+                        println!("Daemon is running (timestamp: {})", timestamp);
+                    }
+                    ResponseData::Status {
+                        pid,
+                        uptime_seconds,
+                        mounts,
+                        socket_path,
+                    } => {
+                        println!("Daemon Status:");
+                        println!("  PID: {}", pid);
+                        println!("  Uptime: {}s", uptime_seconds);
+                        println!("  Socket: {}", socket_path);
+                        if mounts.is_empty() {
+                            println!("  Active Mounts: None");
+                        } else {
+                            println!("  Active Mounts:");
+                            for mount in mounts {
+                                println!(
+                                    "    - {}: {} -> {}",
+                                    mount.id, mount.url, mount.mount_point
+                                );
+                            }
+                        }
+                    }
+                    ResponseData::Mount {
+                        mount_id,
+                        mount_point,
+                    } => {
+                        println!("Mount successful:");
+                        println!("  Mount ID: {}", mount_id);
+                        println!("  Mount Point: {}", mount_point);
+                    }
+                    ResponseData::Unmount { mount_id } => {
+                        println!("Unmount successful:");
+                        println!("  Mount ID: {}", mount_id);
+                    }
+                }
+            }
+        } else {
+            if let Some(error) = response.error {
+                eprintln!("Error: {}", error);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+pub async fn start_daemon(config: Config, detach: bool, no_automount: bool) -> Result<()> {
+    // Fork the daemon process
+    let exe_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("/usr/local/bin/fuji"));
+
+    let mut command = std::process::Command::new(exe_path);
+    command
+        .arg("--daemon-mode")
+        .arg("--config")
+        .arg(config.config_path().display().to_string());
+
+    // Add no-automount flag if specified
+    if no_automount {
+        command.arg("--no-automount");
+    }
+
+    // If in detach mode, redirect stdout/stderr to /dev/null
+    if detach {
+        command
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+    }
+
+    match command.spawn() {
+        Ok(child) => {
+            if detach {
+                println!("Daemon process started with PID: {}", child.id());
+                // Don't wait for daemon to start in detach mode
+                Ok(())
+            } else {
+                info!("Daemon process started with PID: {}", child.id());
+
+                // Give the daemon a moment to start
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+                // Check if daemon is responsive
+                let client = DaemonClient::new(config.socket_path().clone());
+                if let Err(e) = client.send_command(Command::Ping).await {
+                    warn!("Daemon ping failed: {}", e);
+                    return Err(FujiError::DaemonNotRunning);
+                }
+
+                println!("Daemon started successfully");
+                Ok(())
+            }
+        }
+        Err(e) => Err(FujiError::CommandFailed(format!(
+            "Failed to start daemon: {}",
+            e
+        ))),
+    }
+}
