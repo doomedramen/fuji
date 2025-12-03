@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use aes_gcm::aead::{Aead, OsRng};
 use pbkdf2::pbkdf2_hmac;
+use rand::Rng;
 use sha2::Sha256;
 use serde_json;
 use std::collections::HashMap;

@@ -93,7 +93,7 @@ impl MountPointValidator {
                 if name.len() > 255 {
                     return Err(anyhow!(
                         "Path component too long: {} (max 255 bytes)",
-                        component.display()
+                        name
                     ));
                 }
             }

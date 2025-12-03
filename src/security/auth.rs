@@ -33,6 +33,8 @@ pub struct FujiClaims {
 pub struct JWTAuthenticator {
     /// Ed25519 key pair for signing
     key_pair: Ed25519KeyPair,
+    /// PKCS#8 encoded key pair bytes for encoding
+    key_pair_bytes: Vec<u8>,
     /// Public key for verification (derived from key_pair)
     public_key: UnparsedPublicKey<[u8; 32]>,
     /// Raw public key bytes
@@ -53,6 +55,7 @@ impl JWTAuthenticator {
         let key_pair_bytes = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng)
             .map_err(|e| anyhow!("Failed to generate key pair: {}", e))?;
 
+        let key_pair_bytes_vec = key_pair_bytes.as_ref().to_vec();
         let key_pair = Ed25519KeyPair::from_pkcs8(key_pair_bytes.as_ref())
             .map_err(|e| anyhow!("Failed to parse key pair: {}", e))?;
 
@@ -64,6 +67,7 @@ impl JWTAuthenticator {
 
         Ok(Self {
             key_pair,
+            key_pair_bytes: key_pair_bytes_vec,
             public_key,
             public_key_array,
             expiration: Duration::from_secs(3600), // 1 hour default
@@ -73,7 +77,8 @@ impl JWTAuthenticator {
     }
 
     /// Create authenticator from existing key pair
-    pub fn from_key_pair(key_pair: Ed25519KeyPair) -> Result<Self> {
+    /// Note: This requires the original PKCS#8 encoded bytes for signing
+    pub fn from_key_pair_with_bytes(key_pair: Ed25519KeyPair, key_pair_bytes: Vec<u8>) -> Result<Self> {
         let public_key_bytes = key_pair.public_key().as_ref();
         let mut public_key_array = [0u8; 32];
         public_key_array.copy_from_slice(&public_key_bytes[..32]);
@@ -81,6 +86,7 @@ impl JWTAuthenticator {
 
         Ok(Self {
             key_pair,
+            key_pair_bytes,
             public_key,
             public_key_array,
             expiration: Duration::from_secs(3600),
@@ -122,8 +128,8 @@ impl JWTAuthenticator {
         };
 
         let header = Header::new(Algorithm::EdDSA);
-        let key_pair_bytes = self.key_pair.as_ref();
-        let encoding_key = EncodingKey::from_ed_der(key_pair_bytes);
+        // For EdDSA, we need to use the PKCS#8 encoded private key
+        let encoding_key = EncodingKey::from_ed_der(&self.key_pair_bytes);
 
         encode(&header, &claims, &encoding_key)
             .map_err(|e| anyhow!("Failed to encode token: {}", e))

@@ -32,7 +32,7 @@ impl EnvironmentCredentialProvider {
         mount_id
             .chars()
             .map(|c| match c {
-                'a'..='z' | 'A'..='Z' | '0'..='9' => c.to_uppercase(),
+                'a'..='z' | 'A'..='Z' | '0'..='9' => c.to_ascii_uppercase(),
                 '-' | '.' | '_' => '_',
                 _ => '_',
             })

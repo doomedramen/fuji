@@ -3,7 +3,7 @@
 //! Manages Unix domain socket creation with proper permissions and ownership.
 
 use anyhow::{anyhow, Result};
-use libc::{chmod, chown, mode_t, uid_t, gid_t};
+use libc::{chmod, chown, uid_t, gid_t};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -15,7 +15,7 @@ pub struct SocketManager {
     socket_path: PathBuf,
     owner_uid: Option<uid_t>,
     owner_gid: Option<gid_t>,
-    permissions: mode_t,
+    permissions: u32,
 }
 
 impl SocketManager {
@@ -37,7 +37,7 @@ impl SocketManager {
     }
 
     /// Set socket permissions (default: 0o600)
-    pub fn with_permissions(mut self, permissions: mode_t) -> Self {
+    pub fn with_permissions(mut self, permissions: u32) -> Self {
         self.permissions = permissions;
         self
     }
@@ -89,7 +89,7 @@ impl SocketManager {
 
         // Set permissions
         unsafe {
-            if chmod(path_cstr.as_ptr(), self.permissions) != 0 {
+            if chmod(path_cstr.as_ptr(), self.permissions as libc::mode_t) != 0 {
                 let error = std::io::Error::last_os_error();
                 error!("Failed to set socket permissions: {}", error);
                 return Err(anyhow!("Failed to set socket permissions: {}", error));
@@ -164,12 +164,12 @@ pub fn create_secure_socket(socket_path: PathBuf) -> Result<SocketManager> {
     #[cfg(unix)]
     {
         use nix::unistd::{getuid, getgid};
-        manager.with_owner(getuid().as_raw(), getgid().as_raw())
+        Ok(manager.with_owner(getuid().as_raw(), getgid().as_raw()))
     }
 
     #[cfg(not(unix))]
     {
-        manager
+        Ok(manager)
     }
 }
 

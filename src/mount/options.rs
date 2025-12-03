@@ -175,7 +175,7 @@ impl MountOptionParser {
         performance: &mut PerformanceOptions,
     ) -> Result<()> {
         // Check if it's a known filesystem option
-        if let Some(fs_specific) = self.fs_options.get(&self.normalize_fs_type(options.get("type").unwrap_or("auto"))) {
+        if let Some(fs_specific) = self.fs_options.get(&self.normalize_fs_type(options.get("type").unwrap_or(&"auto".to_string()))) {
             if fs_specific.contains(key) {
                 options.insert(key.to_string(), value.to_string());
                 return Ok(());
@@ -185,10 +185,10 @@ impl MountOptionParser {
         // Security options
         match key {
             "uid" => {
-                security.uid = value.parse().map_err(|_| anyhow!("Invalid UID: {}", value))?;
+                security.uid = Some(value.parse().map_err(|_| anyhow!("Invalid UID: {}", value))?);
             }
             "gid" => {
-                security.gid = value.parse().map_err(|_| anyhow!("Invalid GID: {}", value))?;
+                security.gid = Some(value.parse().map_err(|_| anyhow!("Invalid GID: {}", value))?);
             }
             "fmode" => {
                 security.fmode = Some(
@@ -200,7 +200,9 @@ impl MountOptionParser {
                     u32::from_str_radix(value, 8).map_err(|_| anyhow!("Invalid dir mode: {}", value))?
                 );
             }
-            _ => options.insert(key.to_string(), value.to_string()),
+            _ => {
+                options.insert(key.to_string(), value.to_string());
+            },
         }
 
         // Performance options
@@ -227,7 +229,7 @@ impl MountOptionParser {
                     performance.vers_smb = Some(value.to_string());
                 }
             }
-            _ => {}
+            _ => (), // Don't modify for other options
         }
 
         Ok(())
