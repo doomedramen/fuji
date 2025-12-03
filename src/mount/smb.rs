@@ -53,7 +53,7 @@ impl MountHandler for SmbHandler {
             username,
             password,
             domain: None,
-            options: vec![],
+            options: self.get_default_options(),
         })
     }
 

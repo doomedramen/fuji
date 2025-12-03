@@ -53,7 +53,7 @@ impl MountHandler for NfsHandler {
         Ok(MountType::NFS {
             host,
             share,
-            options: vec![],
+            options: self.get_default_options(),
         })
     }
 
