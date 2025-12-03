@@ -149,7 +149,7 @@ impl PersistenceManager {
         // Check if migrations table exists
         let exists: bool = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'")
             .map_err(|e| anyhow!("Failed to check migrations table: {}", e))?
-            .exists(Ok)
+            .exists([])
             .unwrap_or(false);
 
         if !exists {
@@ -373,25 +373,11 @@ impl PersistenceManager {
             _ => MountStatus::Disabled,
         };
 
-        // Parse timestamp
-        let created_at = match DateTime::parse_from_rfc3339(&state.created_at) {
-            Ok(dt) => dt,
-            Err(e) => {
-                error!("Failed to parse created_at for {}: {}", state.id, e);
-                Utc::now()
-            }
-        };
+        // Use timestamps directly
+        let created_at = state.created_at;
+        let updated_at = state.updated_at;
 
-        let updated_at = match DateTime::parse_from_rfc3339(&state.updated_at) {
-            Ok(dt) => dt,
-            Err(e) => {
-                error!("Failed to parse updated_at for {}: {}", state.id, e);
-                Utc::now()
-            }
-        };
-
-        let last_connected = state.last_connected
-            .and_then(|s| DateTime::parse_from_rfc3339(&s).ok());
+        let last_connected = state.last_connected;
 
         Some(MountConfig {
             id: state.id.clone(),

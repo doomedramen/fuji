@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tokio_cron_scheduler::{Job, JobScheduler, JobSchedulerError};
+use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -199,7 +199,7 @@ impl HealthCheckScheduler {
                 let check_types = if let Some(job) = health_checks.get(&mount_id) {
                     job.check_types.clone()
                 } else {
-                    return Err(JobSchedulerError::tokio_cron_scheduler("Health check not found".to_string()));
+                    return;
                 };
 
                 // Run health checks
@@ -208,11 +208,9 @@ impl HealthCheckScheduler {
                         // Update last status
                         let mut last_statuses = last_statuses.write().await;
                         last_statuses.insert(mount_id, status);
-                        Ok(())
                     }
                     Err(e) => {
                         warn!("Health check failed for {}: {}", mount_id, e);
-                        Err(JobSchedulerError::tokio_cron_scheduler(e.to_string()))
                     }
                 }
             })
@@ -249,7 +247,7 @@ impl HealthCheckScheduler {
         let mut healthy_count = 0;
         let mut total_count = check_types.len();
         let mut last_error = None;
-        let mut health_score = 100;
+        let mut health_score: u32 = 100;
 
         for check_type in check_types {
             match health_checks::run_check(mount_id, check_type).await {
@@ -276,17 +274,17 @@ impl HealthCheckScheduler {
             HealthState::Failed
         };
 
+        debug!("Health check result for {}: {:?} (score: {})",
+               mount_id, status, health_score);
+
         let health_status = HealthStatus {
             mount_id: mount_id.to_string(),
             status,
             last_check: Utc::now(),
             failure_count: 0, // TODO: Track consecutive failures
             last_error,
-            health_score,
+            health_score: health_score as u8,
         };
-
-        debug!("Health check result for {}: {:?} (score: {})",
-               mount_id, status, health_score);
 
         Ok(health_status)
     }

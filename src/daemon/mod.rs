@@ -248,6 +248,10 @@ async fn handle_request(
         Request::Doctor => {
             handle_doctor_request().await
         }
+
+        Request::Health { verbose, checks, json, watch } => {
+            handle_health_request(verbose, checks, json, watch, config, monitor).await
+        }
     }
 }
 
@@ -567,6 +571,89 @@ async fn handle_doctor_request() -> Response {
         issues: vec![],
         suggestions: vec![],
     }
+}
+
+/// Handle health request
+async fn handle_health_request(
+    verbose: bool,
+    _checks: Option<Vec<String>>,
+    _json: bool,
+    _watch: bool,
+    config: Arc<RwLock<Config>>,
+    monitor: Arc<MountMonitor>,
+) -> Response {
+    use crate::socket::protocol::DaemonHealthInfo;
+    use crate::monitoring::HealthStatus;
+    use chrono::Utc;
+    use std::time::Duration;
+
+    // For now, use a placeholder uptime
+    let uptime = Duration::from_secs(0);
+
+    // Get mount health statuses
+    let mount_health = match get_all_health_statuses_from_monitor(&monitor).await {
+        Some(statuses) => statuses,
+        None => vec![],
+    };
+
+    // Check daemon health
+    let mut issues = Vec::new();
+
+    // Check if we have any failed mounts
+    let failed_count = mount_health.iter()
+        .filter(|h| matches!(h.status, crate::monitoring::HealthState::Failed))
+        .count();
+
+    if failed_count > 0 {
+        issues.push(format!("{} mounts are in failed state", failed_count));
+    }
+
+    let daemon_health = DaemonHealthInfo {
+        healthy: failed_count == 0,
+        uptime: Some(uptime),
+        last_check: Some(Utc::now()),
+        issues,
+    };
+
+    Response::HealthStatus {
+        daemon_health,
+        mount_health,
+    }
+}
+
+/// Convert monitor health states to HealthStatus structs
+async fn get_all_health_statuses_from_monitor(
+    monitor: &MountMonitor,
+) -> Option<Vec<crate::monitoring::HealthStatus>> {
+    use crate::monitoring::{HealthState, HealthStatus};
+    use chrono::Utc;
+
+    let health_states = monitor.get_all_health().await;
+    if health_states.is_empty() {
+        return None;
+    }
+
+    let mut health_statuses = Vec::new();
+    for (mount_id, state) in health_states {
+        let health_state = if state.accessible && state.health_score > 80 {
+            HealthState::Healthy
+        } else if state.accessible && state.health_score > 40 {
+            HealthState::Degraded
+        } else {
+            HealthState::Failed
+        };
+
+        health_statuses.push(HealthStatus {
+            mount_id,
+            status: health_state,
+            last_check: Utc::now(),
+            failure_count: 0,
+            last_error: None,
+            health_score: state.health_score,
+        });
+    }
+
+    Some(health_statuses)
 }
 
 /// Run the monitoring loop

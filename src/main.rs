@@ -7,7 +7,7 @@ mod cli;
 mod config;
 mod daemon;
 mod mount;
-// mod monitoring; // TODO: Re-enable after fixing API compatibility issues
+mod monitoring;
 mod platform;
 mod security;
 mod socket;

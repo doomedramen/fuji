@@ -6,6 +6,7 @@ use anyhow::{anyhow, Context, Result};
 use petgraph::{
     algo::toposort,
     graph::{DiGraph, NodeIndex},
+    visit::EdgeRef,
     Directed,
     EdgeDirection::Outgoing,
 };
@@ -44,6 +45,12 @@ pub enum DependencyType {
     Soft,
     /// Order preference - startup order preference but not required
     Order,
+}
+
+impl Default for DependencyType {
+    fn default() -> Self {
+        DependencyType::Soft
+    }
 }
 
 /// Dependency validation result
@@ -94,7 +101,7 @@ impl DependencyGraph {
 
         // Update indexes
         mounts.insert(mount_id.clone(), node_index);
-        reverse_index.insert(node_index, mount_id);
+        reverse_index.insert(node_index, mount_id.clone());
 
         debug!("Added mount {} to dependency graph", mount_id);
         Ok(())
@@ -112,20 +119,20 @@ impl DependencyGraph {
             reverse_index.remove(&node_index);
 
             // Remove node from graph
-            if graph.remove_node(node_index).is_err() {
+            if graph.remove_node(node_index).is_none() {
                 // Node might have dependencies, remove edges first
-                let edges_to_remove: Vec<_> = graph
+                let outgoing_edge_ids: Vec<_> = graph
                     .edges_directed(node_index, Outgoing)
-                    .map(|(edge, _)| edge)
+                    .map(|edge| edge.id())
                     .collect();
 
-                for edge in edges_to_remove {
-                    let _ = graph.remove_edge(edge);
+                for edge_id in outgoing_edge_ids {
+                    let _ = graph.remove_edge(edge_id);
                 }
 
                 // Now try removing the node again
-                if let Err(e) = graph.remove_node(node_index) {
-                    error!("Failed to remove node {} from graph: {}", node_index.index(), e);
+                if graph.remove_node(node_index).is_none() {
+                    error!("Failed to remove node {} from graph", node_index.index());
                 }
             }
 
@@ -154,11 +161,11 @@ impl DependencyGraph {
 
         // Create edge
         let edge = DependencyEdge {
-            dependency_type,
+            dependency_type: dependency_type.clone(),
             metadata: metadata.unwrap_or_default(),
         };
 
-        graph.add_edge(dependent_index, dependency_index, edge);
+        graph.add_edge(*dependent_index, *dependency_index, edge);
 
         debug!("Added dependency: {} -> {} ({:?})",
                dependent_id, dependency_id, dependency_type);
@@ -180,14 +187,14 @@ impl DependencyGraph {
         let dependency_index = mounts.get(dependency_id)
             .ok_or_else(|| anyhow!("Dependency mount {} not found", dependency_id))?;
 
-        // Find and remove edge
-        let edges_to_remove: Vec<_> = graph
-            .edges_connecting(dependent_index, dependency_index)
+        // Find and remove edges
+        let edge_ids: Vec<_> = graph
+            .edges_connecting(*dependent_index, *dependency_index)
             .map(|edge| edge.id())
             .collect();
 
-        for edge_id in edges_to_remove {
-            if graph.remove_edge(edge_id).is_ok() {
+        for edge_id in edge_ids {
+            if graph.remove_edge(edge_id).is_some() {
                 debug!("Removed dependency: {} -> {}", dependent_id, dependency_id);
             }
         }
@@ -238,7 +245,7 @@ impl DependencyGraph {
 
         // Perform topological sort
         let sorted_indices = toposort(&*graph, None)
-            .map_err(|e| anyhow!("Failed to sort dependencies: {}", e))?;
+            .map_err(|e| anyhow!("Failed to sort dependencies: cycle detected in dependency graph"))?;
 
         // Convert indices to mount IDs
         let mount_ids: Vec<String> = sorted_indices
@@ -292,25 +299,29 @@ impl DependencyGraph {
                     continue;
                 }
 
-                // Get node index
-                if let Some(node_index) = reverse_index.get(&current_id) {
-                    // Check incoming edges (dependencies)
-                    let mut has_unprocessed_deps = false;
-                    for edge in graph.edges_directed(node_index, petgraph::Direction::Incoming) {
-                        let source_id = reverse_index.get(&edge.source())
-                            .unwrap_or(&"unknown".to_string());
-                        if !processed.contains(source_id) {
-                            has_unprocessed_deps = true;
-                            break;
-                        }
-                    }
+                // Get node index - search reverse_index for the node
+                let node_index = if let Some((idx, _)) = reverse_index.iter().find(|(_, id)| *id == &current_id) {
+                    *idx
+                } else {
+                    continue;
+                };
 
-                    if has_unprocessed_deps {
-                        can_add = false;
-                    } else {
-                        group.push(current_id.clone());
-                        processed.insert(current_id.clone());
+                // Check incoming edges (dependencies)
+                let mut has_unprocessed_deps = false;
+                for edge in graph.edges_directed(node_index, petgraph::Direction::Incoming) {
+                    let source_id = reverse_index.get(&edge.source()).cloned()
+                        .unwrap_or_else(|| "unknown".to_string());
+                    if !processed.contains(&source_id) {
+                        has_unprocessed_deps = true;
+                        break;
                     }
+                }
+
+                if has_unprocessed_deps {
+                    can_add = false;
+                } else {
+                    group.push(current_id.clone());
+                    processed.insert(current_id.clone());
                 }
             }
 
@@ -330,11 +341,11 @@ impl DependencyGraph {
 
         if let Some(node_index) = mounts.get(mount_id) {
             let dependencies: Vec<String> = graph
-                .edges_directed(node_index, Outgoing)
-                .map(|(_edge, target_index)| {
-                    reverse_index.get(&target_index)
-                        .unwrap_or(&"unknown".to_string())
-                        .clone()
+                .edges_directed(*node_index, Outgoing)
+                .map(|edge| {
+                    reverse_index.get(&edge.target())
+                        .cloned()
+                        .unwrap_or_else(|| "unknown".to_string())
                 })
                 .collect();
 
@@ -352,11 +363,11 @@ impl DependencyGraph {
 
         if let Some(node_index) = mounts.get(mount_id) {
             let dependents: Vec<String> = graph
-                .edges_directed(node_index, petgraph::Direction::Incoming)
-                .map(|(source_index, _target)| {
-                    reverse_index.get(&source_index)
-                        .unwrap_or(&"unknown".to_string())
-                        .clone()
+                .edges_directed(*node_index, petgraph::Direction::Incoming)
+                .map(|edge| {
+                    reverse_index.get(&edge.source())
+                        .cloned()
+                        .unwrap_or_else(|| "unknown".to_string())
                 })
                 .collect();
 
@@ -376,7 +387,7 @@ impl DependencyGraph {
         let mut visited = HashSet::new();
         let mut stack = Vec::new();
 
-        for (node_index, _node) in graph.node_indices() {
+        for node_index in graph.node_indices() {
             if !visited.contains(&node_index) {
                 if let Some(cycle) = self.dfs_find_cycle(
                     &*graph,
@@ -423,7 +434,7 @@ impl DependencyGraph {
         }
 
         // Visit neighbors
-        for (_edge, neighbor) in graph.neighbors(node) {
+        for neighbor in graph.neighbors(node) {
             if let Some(cycle) = self.dfs_find_cycle(graph, reverse_index, neighbor, visited, stack) {
                 return Some(cycle);
             }
@@ -445,7 +456,7 @@ impl DependencyGraph {
         dot.push_str("  rankdir=LR;\n");
 
         // Add nodes
-        for (node_index, _node) in graph.node_indices() {
+        for node_index in graph.node_indices() {
             if let Some(mount_id) = reverse_index.get(&node_index) {
                 dot.push_str(&format!("  \"{}\";\n", mount_id));
             }
@@ -454,9 +465,11 @@ impl DependencyGraph {
         // Add edges
         for edge in graph.edge_references() {
             let source = reverse_index.get(&edge.source())
-                .unwrap_or(&"unknown".to_string());
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string());
             let target = reverse_index.get(&edge.target())
-                .unwrap_or(&"unknown".to_string());
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string());
 
             let edge_style = match edge.weight().dependency_type {
                 DependencyType::Hard => "style=solid",

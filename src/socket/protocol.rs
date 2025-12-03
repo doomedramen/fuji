@@ -76,6 +76,14 @@ pub enum Request {
 
     /// Check system for issues
     Doctor,
+
+    /// Get health status
+    Health {
+        verbose: bool,
+        checks: Option<Vec<String>>,
+        json: bool,
+        watch: bool,
+    },
 }
 
 /// Response from daemon to CLI
@@ -129,6 +137,12 @@ pub enum Response {
         suggestions: Vec<String>,
     },
 
+    /// Health status
+    HealthStatus {
+        daemon_health: DaemonHealthInfo,
+        mount_health: Vec<crate::monitoring::HealthStatus>,
+    },
+
     /// Error response
     Error(String),
 }
@@ -146,6 +160,15 @@ pub struct MountStatusInfo {
     pub last_connected: Option<DateTime<Utc>>,
     pub reconnect_attempts: u32,
     pub health_score: Option<u8>,
+}
+
+/// Information about daemon health
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DaemonHealthInfo {
+    pub healthy: bool,
+    pub uptime: Option<std::time::Duration>,
+    pub last_check: Option<DateTime<Utc>>,
+    pub issues: Vec<String>,
 }
 
 /// System issue identified by doctor

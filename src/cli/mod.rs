@@ -114,6 +114,25 @@ pub enum Commands {
 
     /// Check system for issues
     Doctor,
+
+    /// Health monitoring and checks
+    Health {
+        /// Show detailed health information
+        #[arg(short, long)]
+        verbose: bool,
+
+        /// Run specific health check types
+        #[arg(long, value_delimiter = ',')]
+        checks: Option<Vec<String>>,
+
+        /// Output in JSON format
+        #[arg(short, long)]
+        json: bool,
+
+        /// Continuously monitor health
+        #[arg(short, long)]
+        watch: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -187,6 +206,9 @@ pub async fn run(cli: Cli, platform: Box<dyn Platform>) -> Result<()> {
         }
         Commands::Doctor => {
             handle_doctor(platform).await
+        }
+        Commands::Health { verbose, checks, json, watch } => {
+            handle_health(verbose, checks, json, watch, platform).await
         }
     }
 }
@@ -578,6 +600,87 @@ async fn handle_doctor(platform: Box<dyn Platform>) -> Result<()> {
         }
         Ok(Response::Error(msg)) => {
             error!("Doctor failed: {}", msg);
+            Err(anyhow!(msg))
+        }
+        Ok(_) => Err(anyhow!("Unexpected response")),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Handle health command
+async fn handle_health(
+    verbose: bool,
+    checks: Option<Vec<String>>,
+    json: bool,
+    watch: bool,
+    platform: Box<dyn Platform>,
+) -> Result<()> {
+    if watch {
+        // TODO: Implement watch mode for health
+        warn!("Health watch mode not yet implemented");
+    }
+
+    let request = Request::Health { verbose, checks, json, watch };
+    let client = create_socket_client(platform.as_ref()).await?;
+    let response = client.send_request(request).await;
+
+    match response {
+        Ok(Response::HealthStatus { daemon_health, mount_health }) => {
+            if json {
+                let health_output = serde_json::json!({
+                    "daemon": daemon_health,
+                    "mounts": mount_health
+                });
+                println!("{}", serde_json::to_string_pretty(&health_output)?);
+            } else {
+                // Daemon health
+                println!("Daemon Health:");
+                let status_icon = if daemon_health.healthy { "✅" } else { "❌" };
+                println!("  {} Status: {}", status_icon, if daemon_health.healthy { "Healthy" } else { "Unhealthy" });
+                println!("  Uptime: {:?}", daemon_health.uptime);
+                if let Some(last_check) = daemon_health.last_check {
+                    println!("  Last check: {}", last_check.format("%Y-%m-%d %H:%M:%S UTC"));
+                }
+
+                if verbose && !daemon_health.issues.is_empty() {
+                    println!("  Issues:");
+                    for issue in daemon_health.issues {
+                        println!("    • {}", issue);
+                    }
+                }
+
+                // Mount health
+                println!("\nMount Health:");
+                if mount_health.is_empty() {
+                    println!("  No mounts configured");
+                } else {
+                    for health in mount_health {
+                        let status_icon = match health.status {
+                            crate::monitoring::HealthState::Healthy => "✅",
+                            crate::monitoring::HealthState::Degraded => "⚠️",
+                            crate::monitoring::HealthState::Failed => "❌",
+                            _ => "❓",
+                        };
+
+                        println!("  {} {} ({}%)", status_icon, health.mount_id, health.health_score);
+
+                        if verbose {
+                            println!("    Status: {:?}", health.status);
+                            println!("    Last check: {}", health.last_check.format("%Y-%m-%d %H:%M:%S UTC"));
+                            if let Some(error) = health.last_error {
+                                println!("    Last error: {}", error);
+                            }
+                            if health.failure_count > 0 {
+                                println!("    Failures: {}", health.failure_count);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+        Ok(Response::Error(msg)) => {
+            error!("Health check failed: {}", msg);
             Err(anyhow!(msg))
         }
         Ok(_) => Err(anyhow!("Unexpected response")),

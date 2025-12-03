@@ -5,6 +5,7 @@
 
 use anyhow::{anyhow, Result};
 use backoff::{backoff::Backoff, ExponentialBackoff};
+use chrono;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -107,7 +108,7 @@ impl CircuitBreakerState {
         }
 
         if let Some(opened_at) = self.opened_at {
-            let elapsed = chrono::Utc::now() - *opened_at;
+            let elapsed = chrono::Utc::now() - opened_at;
             if elapsed.to_std().unwrap_or(Duration::MAX) >= self.open_timeout {
                 info!("Circuit breaker timeout elapsed, allowing attempt");
                 return true;
@@ -124,7 +125,7 @@ impl CircuitBreakerState {
         }
 
         if let Some(opened_at) = self.opened_at {
-            let elapsed = chrono::Utc::now() - *opened_at;
+            let elapsed = chrono::Utc::now() - opened_at;
             let elapsed_std = elapsed.to_std().unwrap_or(Duration::MAX);
 
             if elapsed_std < self.open_timeout {
@@ -214,12 +215,12 @@ impl RetryHandler {
     {
         let policy = self.get_policy(mount_id).await;
         let mut backoff = ExponentialBackoff::default();
-        backoff.current_interval = Some(policy.initial_delay);
+        backoff.current_interval = policy.initial_delay;
         backoff.initial_interval = policy.initial_delay;
         backoff.max_interval = policy.max_delay;
         backoff.multiplier = policy.multiplier;
         backoff.max_elapsed_time = Some(Duration::from_secs(3600)); // 1 hour max
-        backoff.start_time = Some(std::time::Instant::now());
+        backoff.start_time = std::time::Instant::now();
         // Note: jitter is handled differently in newer backoff versions
 
         let start_time = std::time::Instant::now();

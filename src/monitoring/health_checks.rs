@@ -264,15 +264,23 @@ impl HealthCheck for ProtocolHealthCheck {
         let elapsed = start.elapsed();
         let response_time_ms = elapsed.as_millis() as u64;
 
-        let result = HealthCheckResult {
-            passed: mount_state.accessible,
-            message: mount_state.last_error,
-            response_time_ms,
-            metadata: {
-                let mut meta = std::collections::HashMap::new();
-                meta.insert("health_score".to_string(), mount_state.health_score.to_string());
-                meta.insert("last_check".to_string(), mount_state.last_health_check.to_rfc3339());
-                meta
+        let result = match mount_state {
+            Ok(state) => HealthCheckResult {
+                passed: state.accessible,
+                message: state.last_error,
+                response_time_ms,
+                metadata: {
+                    let mut meta = std::collections::HashMap::new();
+                    meta.insert("health_score".to_string(), state.health_score.to_string());
+                    meta.insert("last_check".to_string(), state.last_health_check.to_rfc3339());
+                    meta
+                },
+            },
+            Err(e) => HealthCheckResult {
+                passed: false,
+                message: Some(e.to_string()),
+                response_time_ms,
+                metadata: std::collections::HashMap::new(),
             },
         };
 

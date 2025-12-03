@@ -10,6 +10,7 @@ pub mod persistence;
 pub mod dependency;
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
@@ -98,15 +99,15 @@ impl MonitoringManager {
         // Validate dependencies
         self.dependency_graph.validate_dependencies(&mount_config)?;
 
+        // Register health checks before moving
+        self.scheduler.register_health_checks(&mount_config).await?;
+
         // Add to persistence
         self.persistence.save_mount_state(&mount_config).await?;
 
         // Add to memory
         let mut mounts = self.mounts.write().await;
         mounts.push(mount_config);
-
-        // Register health checks
-        self.scheduler.register_health_checks(&mount_config).await?;
 
         Ok(())
     }
@@ -134,8 +135,21 @@ impl MonitoringManager {
         let mut statuses = Vec::new();
 
         for mount in mounts.iter() {
-            let status = self.scheduler.get_health_status(&mount.id).await;
-            statuses.push(status);
+            match self.scheduler.get_health_status(&mount.id).await {
+                Ok(status) => statuses.push(status),
+                Err(e) => {
+                    warn!("Failed to get health status for {}: {}", mount.id, e);
+                    // Create a failed health status
+                    statuses.push(HealthStatus {
+                        mount_id: mount.id.clone(),
+                        status: HealthState::Failed,
+                        last_check: chrono::Utc::now(),
+                        failure_count: 0,
+                        last_error: Some(e.to_string()),
+                        health_score: 0,
+                    });
+                }
+            }
         }
 
         Ok(statuses)
@@ -176,7 +190,7 @@ impl MonitoringManager {
 }
 
 /// Health status of a mount
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthStatus {
     /// Mount ID
     pub mount_id: String,
@@ -193,7 +207,7 @@ pub struct HealthStatus {
 }
 
 /// Health states
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HealthState {
     /// Mount is healthy
     Healthy,
