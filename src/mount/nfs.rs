@@ -234,6 +234,7 @@ impl MountHandler for NfsHandler {
         vec![
             "soft".to_string(),
             "intr".to_string(),
+            "nolock".to_string(),  // No remote locking (avoids rpc.statd requirement)
             "rsize=1048576".to_string(),
             "wsize=1048576".to_string(),
             "timeo=300".to_string(),
