@@ -299,6 +299,47 @@ impl Platform for MacOSPlatform {
     fn get_mount_dir(&self) -> PathBuf {
         PathBuf::from("/mnt/fuji")
     }
+
+    fn list_system_mounts(&self) -> Result<Vec<(PathBuf, crate::platform::MountInfo)>> {
+        let mut mounts = Vec::new();
+
+        // Use mount command on macOS
+        let output = std::process::Command::new("mount")
+            .output()
+            .map_err(|e| anyhow::anyhow!("Failed to execute mount command: {}", e))?;
+
+        let output_str = String::from_utf8_lossy(&output.stdout);
+
+        for line in output_str.lines() {
+            // Parse mount output format: "device on mount_point (fs_type, options)"
+            if let Some(start) = line.find(" on ") {
+                let device_part = &line[..start];
+                let rest = &line[start + 4..];
+
+                if let Some(end) = rest.find(" (") {
+                    let mount_point = PathBuf::from(rest[..end].trim());
+                    let options_part = &rest[end + 2..];
+                    let options_part = options_part.trim_end_matches(')');
+
+                    // Split into fs_type and options
+                    let mut parts = options_part.split(',');
+                    let fs_type = parts.next().unwrap_or("unknown").to_string();
+                    let options: Vec<String> = parts.map(|s| s.trim().to_string()).collect();
+
+                    let mount_info = crate::platform::MountInfo {
+                        device: device_part.to_string(),
+                        mount_point: mount_point.clone(),
+                        fs_type,
+                        options,
+                    };
+
+                    mounts.push((mount_point, mount_info));
+                }
+            }
+        }
+
+        Ok(mounts)
+    }
 }
 
 pub fn get_platform() -> Box<dyn Platform> {

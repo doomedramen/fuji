@@ -10,8 +10,10 @@ use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use url::Url;
 
-pub mod nfs;
-pub mod smb;
+pub mod drivers;
+pub mod state_machine;
+pub mod point;
+pub mod options;
 
 /// Mount types supported by Fuji
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -229,8 +231,9 @@ impl MountConfig {
 /// Factory function to get the appropriate mount handler
 pub fn get_mount_handler(protocol: &str) -> Result<Box<dyn MountHandler>> {
     match protocol.to_lowercase().as_str() {
-        "nfs" => Ok(Box::new(nfs::NfsHandler::new())),
-        "smb" | "cifs" => Ok(Box::new(smb::SmbHandler::new())),
+        "nfs" => Ok(Box::new(drivers::NfsHandler::new())),
+        "smb" | "cifs" => Ok(Box::new(drivers::SmbHandler::new())),
+        "sshfs" | "ssh" => Ok(Box::new(drivers::SshfsHandler::new())),
         _ => Err(anyhow::anyhow!("Unsupported protocol: {}", protocol)),
     }
 }

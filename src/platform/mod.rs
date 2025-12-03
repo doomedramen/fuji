@@ -88,6 +88,9 @@ pub trait Platform: Send + Sync {
 
     /// Get the mount directory path
     fn get_mount_dir(&self) -> PathBuf;
+
+    /// List all system mounts
+    fn list_system_mounts(&self) -> Result<Vec<(PathBuf, MountInfo)>>;
 }
 
 /// Mount information from the system

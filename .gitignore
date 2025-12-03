@@ -24,11 +24,12 @@ node_modules/
 # OS specific
 .DS_Store
 
-# Task files
-# tasks.json
-# tasks/ 
 /target
 /.taskmaster
 .mcp.json
 /.cursor
 CLAUDE.md
+
+# Task files
+# tasks.json
+# tasks/ 

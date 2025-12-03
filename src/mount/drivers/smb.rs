@@ -1,6 +1,7 @@
-//! NFS mount handler implementation
+//! SMB/CIFS mount handler implementation
 
-use super::{MountHandler, MountConfig, MountState, MountType};
+use crate::mount::{MountHandler, MountConfig, MountState, MountType};
+use crate::mount::options::{MountOptionParser, MountOptions};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::path::PathBuf;
@@ -9,34 +10,25 @@ use tokio::fs;
 use tracing::{debug, error, info, warn};
 use url::Url;
 
-pub struct NfsHandler;
+pub struct SmbHandler;
 
-impl NfsHandler {
+impl SmbHandler {
     pub fn new() -> Self {
         Self
-    }
-
-    /// Check if showmount is available
-    async fn check_showmount(&self) -> bool {
-        Command::new("which")
-            .arg("showmount")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
     }
 }
 
 #[async_trait]
-impl MountHandler for NfsHandler {
+impl MountHandler for SmbHandler {
     fn protocol(&self) -> &'static str {
-        "nfs"
+        "smb"
     }
 
     fn parse_url(&self, url: &str) -> Result<MountType> {
         let parsed = Url::parse(url)?;
 
-        if parsed.scheme() != "nfs" {
-            return Err(anyhow!("Invalid scheme for NFS: {}", parsed.scheme()));
+        if !matches!(parsed.scheme(), "smb" | "cifs") {
+            return Err(anyhow!("Invalid scheme for SMB/CIFS: {}", parsed.scheme()));
         }
 
         let host = parsed.host_str()
@@ -44,64 +36,80 @@ impl MountHandler for NfsHandler {
             .to_string();
 
         let share = if parsed.path().is_empty() || parsed.path() == "/" {
-            // Default export if none specified
-            "".to_string()
+            return Err(anyhow!("SMB/CIFS requires a share name"));
         } else {
-            parsed.path().to_string()
+            parsed.path().trim_start_matches('/').to_string()
         };
 
-        Ok(MountType::NFS {
+        let username = if parsed.username().is_empty() {
+            None
+        } else {
+            Some(parsed.username().to_string())
+        };
+        let password = parsed.password().map(|p| p.to_string());
+
+        Ok(MountType::SMB {
             host,
             share,
+            username,
+            password,
+            domain: None,
             options: self.get_default_options(),
         })
     }
 
     fn validate_config(&self, config: &MountConfig) -> Result<()> {
         match &config.mount_type {
-            MountType::NFS { host,  .. } => {
+            MountType::SMB { host, share, .. } => {
                 if host.is_empty() {
-                    return Err(anyhow!("NFS host cannot be empty"));
+                    return Err(anyhow!("SMB host cannot be empty"));
                 }
-                // Share can be empty (defaults to root export)
+                if share.is_empty() {
+                    return Err(anyhow!("SMB share cannot be empty"));
+                }
                 Ok(())
             }
-            _ => Err(anyhow!("Invalid mount type for NFS handler")),
+            _ => Err(anyhow!("Invalid mount type for SMB handler")),
         }
     }
 
     async fn discover_shares(&self, host: &str) -> Result<Vec<String>> {
-        if !self.check_showmount().await {
-            warn!("showmount not available, cannot discover NFS shares");
-            return Ok(vec![]);
-        }
-
-        info!("Discovering NFS shares on {}", host);
+        info!("Discovering SMB shares on {}", host);
 
         let host_owned = host.to_owned();
+        // Use smbclient to list shares
         let output = tokio::task::spawn_blocking(move || {
-            Command::new("showmount")
-                .arg("-e")
+            Command::new("smbclient")
+                .arg("-L")
                 .arg(&host_owned)
+                .arg("-N")
                 .output()
         }).await??;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow!("Failed to discover shares: {}", stderr));
+            warn!("Failed to discover SMB shares: {}", stderr);
+            return Ok(vec![]);
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let mut shares = Vec::new();
 
-        for line in stdout.lines().skip(1) {
-            // Skip header line
-            if let Some(share) = line.split_whitespace().nth(0) {
-                shares.push(share.to_string());
+        // Parse smbclient output
+        let in_shares = stdout.lines()
+            .skip_while(|l| !l.contains("Sharename"))
+            .skip(2)  // Skip header lines
+            .take_while(|l| !l.is_empty());
+
+        for line in in_shares {
+            if let Some(share) = line.split_whitespace().next() {
+                if share != "IPC$" && share != "ADMIN$" {
+                    shares.push(share.to_string());
+                }
             }
         }
 
-        info!("Discovered {} NFS shares on {}", shares.len(), host);
+        info!("Discovered {} SMB shares on {}", shares.len(), host);
         Ok(shares)
     }
 
@@ -109,26 +117,49 @@ impl MountHandler for NfsHandler {
         self.validate_config(config)?;
 
         match &config.mount_type {
-            MountType::NFS { host, share, options } => {
-                info!("Mounting NFS share {}:{} to {}", host, share, mount_point.display());
+            MountType::SMB { host, share, username, password, domain, options } => {
+                info!("Mounting SMB share //{}/{}/ to {}", host, share, mount_point.display());
+
+                // Parse and validate options using MountOptionParser
+                let parser = MountOptionParser::new();
+
+                // Build options string including credentials
+                let mut opts_vec = options.clone();
+
+                // Add credentials to options
+                if let Some(user) = username {
+                    opts_vec.push(format!("username={}", user));
+                }
+                if let Some(pass) = password {
+                    opts_vec.push(format!("password={}", pass));
+                }
+                if let Some(d) = domain {
+                    opts_vec.push(format!("domain={}", d));
+                }
+
+                let options_str = if opts_vec.is_empty() {
+                    ""
+                } else {
+                    &opts_vec.join(",")
+                };
+                let parsed_options = parser.parse(options_str, "cifs")?;
+
+                // Format options for mount command
+                let formatted_options = parser.format(&parsed_options);
+                debug!("Using SMB mount options: {}", formatted_options);
 
                 // Ensure mount point exists
                 fs::create_dir_all(mount_point).await?;
 
                 // Build mount command
                 let mut cmd = Command::new("mount");
-                cmd.arg("-t").arg("nfs");
+                cmd.arg("-t").arg("cifs");
 
-                if !options.is_empty() {
-                    cmd.arg("-o").arg(options.join(","));
+                if !formatted_options.is_empty() {
+                    cmd.arg("-o").arg(&formatted_options);
                 }
 
-                let remote_path = if share.is_empty() {
-                    format!("{}:/", host)
-                } else {
-                    format!("{}:{}", host, share)
-                };
-
+                let remote_path = format!("//{}/{}", host, share);
                 cmd.arg(&remote_path);
                 cmd.arg(mount_point);
 
@@ -138,18 +169,18 @@ impl MountHandler for NfsHandler {
                 if !output.status.success() {
                     let stderr = String::from_utf8_lossy(&output.stderr);
                     error!("Mount failed: {}", stderr);
-                    return Err(anyhow!("Failed to mount NFS share: {}", stderr));
+                    return Err(anyhow!("Failed to mount SMB share: {}", stderr));
                 }
 
-                info!("Successfully mounted NFS share {}:{} to {}", host, share, mount_point.display());
+                info!("Successfully mounted SMB share //{}/{}/ to {}", host, share, mount_point.display());
                 Ok(())
             }
-            _ => Err(anyhow!("Invalid mount type for NFS handler")),
+            _ => Err(anyhow!("Invalid mount type for SMB handler")),
         }
     }
 
     async fn unmount(&self, mount_point: &PathBuf) -> Result<()> {
-        info!("Unmounting NFS share at {}", mount_point.display());
+        info!("Unmounting SMB share at {}", mount_point.display());
 
         let mount_point_clone = mount_point.clone();
         let output = tokio::task::spawn_blocking(move || {
@@ -169,12 +200,12 @@ impl MountHandler for NfsHandler {
             warn!("Could not remove mount point directory: {}", e);
         }
 
-        info!("Successfully unmounted NFS share at {}", mount_point.display());
+        info!("Successfully unmounted SMB share at {}", mount_point.display());
         Ok(())
     }
 
     async fn check_health(&self, mount_point: &PathBuf) -> Result<MountState> {
-        // Check if mount point exists
+        // Similar to NFS health check
         if !mount_point.exists() {
             return Ok(MountState {
                 accessible: false,
@@ -184,24 +215,19 @@ impl MountHandler for NfsHandler {
             });
         }
 
-        // Try to stat a file in the mount to verify it's accessible
+        // Try to stat the mount point
         let test_path = mount_point.join(".fuji_health_check");
         let health_result = tokio::task::spawn_blocking(move || {
-            // Create a temporary file to test write access
+            // Test write access
             std::fs::write(&test_path, b"health_check")?;
-
-            // Read it back
             std::fs::read(&test_path)?;
-
-            // Clean up
             let _ = std::fs::remove_file(&test_path);
-
             Ok::<(), std::io::Error>(())
         }).await;
 
         match health_result {
             Ok(Ok(())) => {
-                debug!("NFS mount at {} is healthy", mount_point.display());
+                debug!("SMB mount at {} is healthy", mount_point.display());
                 Ok(MountState {
                     accessible: true,
                     last_error: None,
@@ -210,7 +236,7 @@ impl MountHandler for NfsHandler {
                 })
             }
             Ok(Err(e)) => {
-                warn!("NFS mount at {} has health issues: {}", mount_point.display(), e);
+                warn!("SMB mount at {} has health issues: {}", mount_point.display(), e);
                 Ok(MountState {
                     accessible: false,
                     last_error: Some(e.to_string()),
@@ -219,7 +245,7 @@ impl MountHandler for NfsHandler {
                 })
             }
             Err(e) => {
-                error!("Health check failed for NFS mount at {}: {}", mount_point.display(), e);
+                error!("Health check failed for SMB mount at {}: {}", mount_point.display(), e);
                 Ok(MountState {
                     accessible: false,
                     last_error: Some(e.to_string()),
@@ -231,23 +257,15 @@ impl MountHandler for NfsHandler {
     }
 
     fn get_default_options(&self) -> Vec<String> {
-        vec![
-            "soft".to_string(),
-            "intr".to_string(),
-            "nolock".to_string(),  // No remote locking (avoids rpc.statd requirement)
-            "rsize=1048576".to_string(),
-            "wsize=1048576".to_string(),
-            "timeo=300".to_string(),
-            "retrans=2".to_string(),
-        ]
+        vec![]
     }
 
     fn generate_mount_id(&self, url: &str) -> Result<String> {
         if let Ok(parsed) = Url::parse(url) {
             let host = parsed.host_str().unwrap_or("unknown");
-            let mut id = format!("{}_nfs", host);
+            let mut id = format!("{}_smb", host);
 
-            // Add path if present and not root
+            // Add share name with underscores for path separators
             if !parsed.path().is_empty() && parsed.path() != "/" {
                 id.push('_');
                 id.push_str(&parsed.path().trim_start_matches('/').replace('/', "_"));
@@ -263,8 +281,8 @@ impl MountHandler for NfsHandler {
         let parsed = Url::parse(url)?;
         let host = parsed.host_str().ok_or_else(|| anyhow!("No host in URL"))?;
 
-        // Base: /mnt/fuji/{host}_nfs
-        let mut mount_point = self.get_mount_base_dir().join(format!("{}_nfs", host));
+        // Base: /mnt/fuji/{host}_smb
+        let mut mount_point = self.get_mount_base_dir().join(format!("{}_smb", host));
 
         // Append the path from the URL, preserving directory structure
         let path = parsed.path();

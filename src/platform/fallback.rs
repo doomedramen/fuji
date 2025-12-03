@@ -216,6 +216,39 @@ impl Platform for FallbackPlatform {
     fn get_mount_dir(&self) -> PathBuf {
         PathBuf::from("/mnt/fuji")
     }
+
+    fn list_system_mounts(&self) -> Result<Vec<(PathBuf, MountInfo)>> {
+        let mut mounts = Vec::new();
+
+        // Try to use mount command as a fallback
+        if let Ok(output) = Command::new("mount").output() {
+            if output.status.success() {
+                let mount_str = String::from_utf8(output.stdout)?;
+                for line in mount_str.lines() {
+                    // Very basic parsing - just extract what we can
+                    if let Some(start) = line.find(" on ") {
+                        let device_part = &line[..start];
+                        let rest = &line[start + 4..];
+
+                        if let Some(space_pos) = rest.find(' ') {
+                            let mount_point = PathBuf::from(&rest[..space_pos]);
+
+                            let mount_info = MountInfo {
+                                device: device_part.to_string(),
+                                mount_point: mount_point.clone(),
+                                fs_type: "unknown".to_string(),
+                                options: vec![],
+                            };
+
+                            mounts.push((mount_point, mount_info));
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(mounts)
+    }
 }
 
 pub fn get_platform() -> Box<dyn Platform> {

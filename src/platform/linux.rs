@@ -275,7 +275,7 @@ impl Platform for LinuxPlatform {
             // User daemon: use /run/user/<uid>/fuji/fuji.sock
             if let Some(run_user) = std::env::var_os("XDG_RUNTIME_DIR") {
                 let user_socket = PathBuf::from(run_user).join("fuji/fuji.sock");
-                if let Ok(parent) = user_socket.parent() {
+                if let Some(parent) = user_socket.parent() {
                     let _ = self.ensure_dir_exists(parent);
                 }
                 user_socket
@@ -325,6 +325,38 @@ impl Platform for LinuxPlatform {
         }
 
         mount_dir
+    }
+
+    fn list_system_mounts(&self) -> Result<Vec<(PathBuf, crate::platform::MountInfo)>> {
+        let mut mounts = Vec::new();
+
+        // Read /proc/mounts
+        let mounts_content = std::fs::read_to_string("/proc/mounts")
+            .map_err(|e| anyhow::anyhow!("Failed to read /proc/mounts: {}", e))?;
+
+        for line in mounts_content.lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 4 {
+                let device = parts[0].to_string();
+                let mount_point = PathBuf::from(parts[1]);
+                let fs_type = parts[2].to_string();
+                let options_str = parts[3];
+
+                // Parse options
+                let options = options_str.split(',').map(|s| s.to_string()).collect();
+
+                let mount_info = crate::platform::MountInfo {
+                    device,
+                    mount_point: mount_point.clone(),
+                    fs_type,
+                    options,
+                };
+
+                mounts.push((mount_point, mount_info));
+            }
+        }
+
+        Ok(mounts)
     }
 }
 

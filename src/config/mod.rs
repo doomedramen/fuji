@@ -1,24 +1,31 @@
 //! Configuration management for Fuji
 //!
 //! This module handles loading, saving, and managing configuration using TOML format.
+//! Provides atomic writes, validation, and conflict detection.
 
 use crate::mount::{MountConfig, MountStatus};
 use crate::platform::Platform;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
-use tracing::{debug, info, warn};
-use chrono::Duration;
+use tokio::io::{AsyncWriteExt, AsyncReadExt};
+use tracing::{debug, info, warn, error};
+use chrono::{DateTime, Utc, Duration};
+use validator::Validate;
+use regex::Regex;
+use std::sync::Arc;
 
 /// Global configuration structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct Config {
     /// Version of the configuration file format
+    #[validate(length(min = 1, max = 10))]
     pub version: String,
     /// Mount configurations indexed by ID
     #[serde(flatten)]
+    #[validate(custom = "validate_mounts")]
     pub mounts: HashMap<String, MountConfigWrapper>,
     /// Reconnection settings
     pub reconnection: ReconnectionConfig,
@@ -37,24 +44,30 @@ pub struct MountConfigWrapper {
 }
 
 /// Reconnection configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct ReconnectionConfig {
     /// Maximum number of reconnection attempts
+    #[validate(range(min = 1, max = 100))]
     pub max_retries: u32,
     /// Initial delay between reconnection attempts (in milliseconds)
+    #[validate(range(min = 100, max = 300000))]
     pub initial_delay_ms: u64,
     /// Maximum delay between reconnection attempts (in milliseconds)
+    #[validate(range(min = 1000, max = 3600000))]
     pub max_delay_ms: u64,
     /// Backoff multiplier
+    #[validate(range(min = 1.0, max = 10.0))]
     pub backoff_multiplier: f64,
 }
 
 /// Global configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct GlobalConfig {
     /// Health check interval (in seconds)
+    #[validate(range(min = 5, max = 3600))]
     pub health_check_interval_secs: u64,
     /// Log level
+    #[validate(custom = "validate_log_level")]
     pub log_level: String,
     /// Whether to automatically mount enabled shares on startup
     pub auto_mount: bool,
@@ -283,6 +296,122 @@ impl Config {
             .clone()
             .unwrap_or_else(|| platform.get_mount_dir())
     }
+
+    /// Save configuration atomically to prevent corruption
+    pub async fn save_atomic(&self, platform: &dyn Platform) -> Result<()> {
+        let config_path = Self::get_preferred_config_path(platform);
+
+        // Ensure config directory exists
+        if let Some(parent) = config_path.parent() {
+            platform.ensure_dir_exists(parent)?;
+        }
+
+        // Validate configuration before saving
+        self.validate_config()
+            .map_err(|e| anyhow!("Configuration validation failed: {}", e))?;
+
+        // Write to temporary file first
+        let temp_path = config_path.with_extension("tmp");
+        let content = toml::to_string_pretty(self)
+            .map_err(|e| anyhow!("Failed to serialize configuration: {}", e))?;
+
+        fs::write(&temp_path, content).await
+            .map_err(|e| anyhow!("Failed to write temporary configuration: {}", e))?;
+
+        // Atomic rename
+        fs::rename(&temp_path, &config_path).await
+            .map_err(|e| anyhow!("Failed to rename temporary configuration: {}", e))?;
+
+        info!("Configuration saved atomically to {:?}", config_path);
+        Ok(())
+    }
+
+    /// Validate the entire configuration
+    pub fn validate_config(&self) -> Result<(), validator::ValidationErrors> {
+        use validator::Validate;
+        self.validate()
+    }
+
+    /// Check for mount conflicts with system
+    pub async fn detect_mount_conflicts(&self, platform: &dyn Platform) -> Result<Vec<String>> {
+        let mut conflicts = Vec::new();
+
+        for mount_config in self.get_all_mounts() {
+            if platform.path_exists(&mount_config.mount_point) {
+                // Check if there's already something mounted at this point
+                if let Ok(Some(existing_mount)) = platform.get_mount_info(&mount_config.mount_point) {
+                    conflicts.push(format!(
+                        "Mount point {} already has {} mounted",
+                        mount_config.mount_point.display(),
+                        existing_mount.device
+                    ));
+                }
+            }
+        }
+
+        Ok(conflicts)
+    }
+
+    /// Sync configuration with actual system state
+    pub async fn sync_with_system(&mut self, platform: &dyn Platform) -> Result<()> {
+        info!("Syncing configuration with system state...");
+
+        // Get all active mounts from the system
+        let system_mounts = platform.list_system_mounts()?;
+
+        // Update mount status based on system state
+        for (_, wrapper) in self.mounts.iter_mut() {
+            let is_mounted = system_mounts.iter()
+                .any(|(point, _)| point == &wrapper.mount.mount_point);
+
+            if is_mounted && wrapper.mount.enabled {
+                wrapper.mount.update_status(MountStatus::Active);
+            } else if !is_mounted && wrapper.mount.status == MountStatus::Active {
+                wrapper.mount.update_status(MountStatus::Failed);
+            }
+        }
+
+        info!("Configuration sync complete");
+        Ok(())
+    }
+}
+
+// Validation functions
+fn validate_mounts(mounts: &HashMap<String, MountConfigWrapper>) -> Result<(), validator::ValidationError> {
+    // Check for duplicate mount points
+    let mut mount_points = std::collections::HashSet::new();
+    for wrapper in mounts.values() {
+        if !mount_points.insert(&wrapper.mount.mount_point) {
+            return Err(validator::ValidationError::new("duplicate_mount_point"));
+        }
+    }
+
+    // Check each mount configuration
+    for (id, wrapper) in mounts {
+        if id != &wrapper.mount.id {
+            return Err(validator::ValidationError::new("id_mismatch"));
+        }
+
+        // Validate URL format
+        if wrapper.mount.url.is_empty() {
+            return Err(validator::ValidationError::new("empty_url"));
+        }
+
+        // Check mount point is absolute
+        if !wrapper.mount.mount_point.is_absolute() {
+            return Err(validator::ValidationError::new("relative_mount_point"));
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_log_level(log_level: &str) -> Result<(), validator::ValidationError> {
+    let valid_levels = ["trace", "debug", "info", "warn", "error"];
+    if !valid_levels.contains(&log_level) {
+        return Err(validator::ValidationError::new("invalid_log_level"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

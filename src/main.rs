@@ -7,7 +7,9 @@ mod cli;
 mod config;
 mod daemon;
 mod mount;
+mod monitoring;
 mod platform;
+mod security;
 mod socket;
 
 use clap::Parser;
