@@ -27,13 +27,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    # Ports not exposed to host - containers communicate via Docker network
-    # ports:
-    #   - "2049:2049"
-    #   - "111:111"
-    #   - "32765:32765"
-    #   - "32766:32766"
-    #   - "32767:32767"
+    ports:
+      - "2049:2049"
+      - "10111:111"  # rpcbind - mapped to 10111 to avoid conflict with macOS
+      - "32765-32767:32765-32767"
 
   smb-server:
     image: dperson/samba
@@ -55,10 +52,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    # Ports not exposed to host - containers communicate via Docker network
-    # ports:
-    #   - "139:139"
-    #   - "445:445"
+    ports:
+      - "139:139"
+      - "445:445"
 
   debian-test:
     build:
