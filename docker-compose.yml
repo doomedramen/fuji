@@ -2,43 +2,38 @@ version: '3.8'
 
 services:
   nfs-server:
-    image: alpine:latest
+    image: erichough/nfs-server:latest
     container_name: fuji-nfs-server
     hostname: nfs-server
     privileged: true
     volumes:
-      - ./docker/nfs-server:/etc/exports.d
       - nfs-exports:/exports
     networks:
       - fuji-test
+    environment:
+      - NFS_EXPORT_0=/exports                   *(rw,sync,no_subtree_check,no_root_squash,insecure)
+      - NFS_EXPORT_1=/exports/data              *(rw,sync,no_subtree_check,no_root_squash,insecure)
+      - NFS_EXPORT_2=/exports/media             *(ro,sync,no_subtree_check,no_root_squash,insecure)
     command: >
       sh -c "
-        apk add --no-cache nfs-utils &&
-        echo '/exports *(rw,sync,no_subtree_check,no_root_squash)' > /etc/exports &&
-        echo '/exports/data *(rw,sync,no_subtree_check,no_root_squash)' >> /etc/exports &&
-        echo '/exports/media *(ro,sync,no_subtree_check,no_root_squash)' >> /etc/exports &&
         mkdir -p /exports/data /exports/media /exports/iso &&
         echo 'This is the data export' > /exports/data/test.txt &&
         echo 'This is the media export' > /exports/media/test.txt &&
         echo 'This is the iso export' > /exports/iso/test.txt &&
-        rpcbind &&
-        rpc.statd &&
-        rpc.mountd &&
-        nfsd &&
-        exportfs -ra &&
-        tail -f /dev/null
+        /usr/local/bin/entrypoint.sh
       "
     healthcheck:
       test: ["CMD", "showmount", "-e", "localhost"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 10
-    ports:
-      - "2049:2049"
-      - "111:111"
-      - "32765:32765"
-      - "32766:32766"
-      - "32767:32767"
+    # Ports not exposed to host - containers communicate via Docker network
+    # ports:
+    #   - "2049:2049"
+    #   - "111:111"
+    #   - "32765:32765"
+    #   - "32766:32766"
+    #   - "32767:32767"
 
   smb-server:
     image: dperson/samba
@@ -60,9 +55,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    ports:
-      - "139:139"
-      - "445:445"
+    # Ports not exposed to host - containers communicate via Docker network
+    # ports:
+    #   - "139:139"
+    #   - "445:445"
 
   debian-test:
     build:
