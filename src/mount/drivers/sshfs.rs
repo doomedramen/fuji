@@ -1,10 +1,9 @@
 //! SSHFS mount handler implementation
 
 use crate::mount::{MountHandler, MountConfig, MountState, MountType};
-use crate::mount::options::{MountOptionParser, MountOptions};
+use crate::mount::options::MountOptionParser;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use url::Url;
 use std::path::PathBuf;
 use std::process::Command;
 use tokio::fs;

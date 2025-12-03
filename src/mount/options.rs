@@ -4,7 +4,6 @@
 
 use anyhow::{anyhow, bail, Result};
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 
 /// Parsed mount options with metadata
 #[derive(Debug, Clone)]

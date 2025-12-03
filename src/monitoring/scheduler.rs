@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio_cron_scheduler::{Job, JobScheduler};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use super::{health_checks, HealthState, HealthStatus};

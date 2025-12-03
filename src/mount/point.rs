@@ -5,10 +5,10 @@
 
 use anyhow::{anyhow, Context, Result};
 use nix::unistd::{getuid, getgid};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tracing::{debug, info, warn};
 
-use crate::platform::{Platform, MountInfo};
+use crate::platform::Platform;
 use crate::security::permissions::{PermissionManager, PermissionConfig};
 
 /// Mount point validator and manager

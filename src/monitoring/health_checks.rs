@@ -5,10 +5,9 @@
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use std::path::Path;
 use std::time::Duration;
 use tokio::fs;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, warn};
 
 use crate::platform::Platform;
 use crate::mount::{get_mount_handler, MountType};

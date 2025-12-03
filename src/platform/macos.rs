@@ -3,6 +3,7 @@
 use super::{Platform, MountInfo, Signal};
 use crate::mount::MountType;
 use anyhow::{anyhow, Result};
+use nix::unistd;
 use std::fs;
 use std::os::darwin::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;

@@ -1,7 +1,7 @@
 //! NFS mount handler implementation
 
 use crate::mount::{MountHandler, MountConfig, MountType, MountState};
-use crate::mount::options::{MountOptionParser, MountOptions};
+use crate::mount::options::MountOptionParser;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::path::PathBuf;
