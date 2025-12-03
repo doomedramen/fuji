@@ -212,7 +212,7 @@ impl DependencyGraph {
 
         // Check for self-dependency
         let mount_id = &mount_config.id;
-        for dep_str in mount_config.metadata.get("depends_on") {
+        if let Some(dep_str) = mount_config.metadata.get("depends_on") {
             for dep_id in dep_str.split(',') {
                 let dep_id = dep_id.trim();
                 if dep_id == mount_id {

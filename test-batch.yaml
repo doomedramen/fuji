@@ -1,0 +1,54 @@
+# Test batch operations file
+# This file demonstrates batch mount operations
+
+operations:
+  # Add some test mounts (these will fail in test environment but show batch functionality)
+  - type: Mount
+    url: "nfs://192.168.1.100/data"
+    mount-point: "/tmp/nfs-data"
+    options: ["rw", "soft", "timeo=30"]
+    disable: true
+
+  - type: Mount
+    url: "smb://192.168.1.200/share"
+    mount-point: "/tmp/smb-share"
+    options: ["rw", "guest"]
+    disable: true
+
+  - type: Echo
+    message: "Mount configurations added (disabled)"
+
+  - type: Wait
+    seconds: 1
+
+  # Enable the mounts
+  - type: Enable
+    mount-id: "nfs-192-168-1-100-data"
+
+  - type: Enable
+    mount-id: "smb-192-168-1-200-share"
+
+  - type: Echo
+    message: "Mounts enabled"
+
+  - type: Wait
+    seconds: 1
+
+  # Try to mount (will fail without actual servers)
+  - type: Mount
+    url: "nfs://192.168.1.100/data"
+    disable: false
+
+  - type: Wait
+    seconds: 2
+
+  
+  # Clean up
+  - type: Remove
+    mount-id: "nfs-192-168-1-100-data"
+
+  - type: Remove
+    mount-id: "smb-192-168-1-200-share"
+
+  - type: Echo
+    message: "Batch operations complete"

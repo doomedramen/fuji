@@ -5,7 +5,7 @@
 
 use crate::mount::{MountConfig, MountStatus};
 use crate::platform::Platform;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

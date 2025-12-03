@@ -163,7 +163,6 @@ impl PingHealthCheck {
         match &mount_config.mount_type {
             MountType::NFS { host, .. } => Ok(host.clone()),
             MountType::SMB { host, .. } => Ok(host.clone()),
-            _ => Err(anyhow!("Unsupported mount type for ping check")),
         }
     }
 }
@@ -253,7 +252,6 @@ impl HealthCheck for ProtocolHealthCheck {
         let protocol = match &mount_config.mount_type {
             MountType::NFS { .. } => "nfs",
             MountType::SMB { .. } => "smb",
-            _ => return Err(anyhow!("Unsupported mount type")),
         };
 
         let handler = get_mount_handler(protocol)?;

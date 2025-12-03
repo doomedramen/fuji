@@ -14,8 +14,11 @@ pub enum Request {
     /// Mount a network share
     Mount {
         url: String,
+        mount_point: Option<String>,
+        options: Option<Vec<String>>,
         disable: bool,
         dry_run: bool,
+        progress: bool,
     },
 
     /// Unmount a share
@@ -29,6 +32,9 @@ pub enum Request {
         verbose: bool,
         watch: bool,
         json: bool,
+        filter_url: Option<String>,
+        filter_type: Option<String>,
+        filter_point: Option<String>,
     },
 
     /// List all configured mounts
@@ -36,6 +42,9 @@ pub enum Request {
         enabled_only: bool,
         disabled_only: bool,
         json: bool,
+        filter_url: Option<String>,
+        filter_type: Option<String>,
+        filter_point: Option<String>,
     },
 
     /// Stop the daemon
@@ -76,14 +85,6 @@ pub enum Request {
 
     /// Check system for issues
     Doctor,
-
-    /// Get health status
-    Health {
-        verbose: bool,
-        checks: Option<Vec<String>>,
-        json: bool,
-        watch: bool,
-    },
 }
 
 /// Response from daemon to CLI
@@ -108,6 +109,7 @@ pub enum Response {
     Status {
         mounts: Vec<MountStatusInfo>,
         daemon_running: bool,
+        daemon_health: Option<DaemonHealthInfo>,
     },
 
     /// List of mounts
@@ -137,12 +139,7 @@ pub enum Response {
         suggestions: Vec<String>,
     },
 
-    /// Health status
-    HealthStatus {
-        daemon_health: DaemonHealthInfo,
-        mount_health: Vec<crate::monitoring::HealthStatus>,
-    },
-
+    
     /// Error response
     Error(String),
 }

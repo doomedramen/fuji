@@ -3,7 +3,6 @@
 use super::{Platform, MountInfo, Signal};
 use crate::mount::MountType;
 use anyhow::{anyhow, Result};
-use nix::unistd::{self};
 use std::fs;
 use std::os::darwin::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
@@ -101,24 +100,13 @@ impl Platform for MacOSPlatform {
     }
 
     fn daemonize(&self) -> Result<()> {
+        // Built-in daemonization is not supported
         // On macOS, use launchd for proper daemonization
-        // For now, we'll do a simple background process
-        info!("Note: On macOS, consider using launchd for proper daemonization");
+        // For development/testing, use nohup:
+        //   nohup fuji daemon start --no-automount > /tmp/fuji.log 2>&1 &
+        info!("Built-in daemonization not supported. See documentation for proper daemon management.");
 
-        use nix::unistd::{fork, ForkResult};
-
-        unsafe {
-            match fork() {
-                Ok(ForkResult::Parent { child: _ }) => {
-                    std::process::exit(0);
-                }
-                Ok(ForkResult::Child) => {
-                    info!("Successfully backgrounded on macOS");
-                    Ok(())
-                }
-                Err(e) => Err(anyhow!("Fork failed: {}", e)),
-            }
-        }
+        Err(anyhow!("Built-in daemonization is not supported. Use nohup, launchd, or systemd instead."))
     }
 
     fn write_pid_file(&self, pid_file: &Path) -> Result<()> {

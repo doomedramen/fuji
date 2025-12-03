@@ -3,7 +3,6 @@
 use super::{Platform, MountInfo, Signal};
 use crate::mount::MountType;
 use anyhow::{anyhow, Result};
-use nix::unistd::{self};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -67,8 +66,13 @@ impl Platform for FallbackPlatform {
     }
 
     fn daemonize(&self) -> Result<()> {
-        warn!("Using generic daemonization - consider using platform-specific service manager");
-        Ok(())
+        // Built-in daemonization is not supported
+        // Use your platform's service manager (systemd, launchd, etc.)
+        // For development/testing, use nohup:
+        //   nohup fuji daemon start --no-automount > /tmp/fuji.log 2>&1 &
+        warn!("Built-in daemonization not supported. See documentation for proper daemon management.");
+
+        Err(anyhow!("Built-in daemonization is not supported. Use nohup or your platform's service manager instead."))
     }
 
     fn write_pid_file(&self, pid_file: &Path) -> Result<()> {

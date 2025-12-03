@@ -6,10 +6,13 @@ use crate::config::Config;
 use crate::mount::{get_mount_handler, MountConfig, MountStatus, MountState};
 use crate::platform::Platform;
 use crate::socket::{SocketServer, Request, Response, MountStatusInfo};
+use crate::socket::protocol::DaemonHealthInfo;
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
+use regex;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::{RwLock, oneshot};
 use tokio::time::{interval, Duration};
 use tracing::{error, info, warn};
@@ -28,6 +31,8 @@ pub struct Daemon {
     monitor: Arc<MountMonitor>,
     /// Shutdown channel receiver
     shutdown_rx: Arc<RwLock<Option<oneshot::Receiver<()>>>>,
+    /// Daemon start time for uptime tracking
+    start_time: Instant,
 }
 
 /// Internal mount state tracking
@@ -47,12 +52,14 @@ impl Daemon {
         let config = Config::load(platform.as_ref()).await?;
         let config = Arc::new(RwLock::new(config));
         let monitor = Arc::new(MountMonitor::new());
+        let start_time = Instant::now();
 
         Ok(Self {
             platform,
             config,
             monitor,
             shutdown_rx: Arc::new(RwLock::new(None)),
+            start_time,
         })
     }
 
@@ -101,13 +108,14 @@ impl Daemon {
         let monitor = Arc::clone(&self.monitor);
         let platform = self.platform.as_ref() as *const dyn Platform;
 
+        let start_time = self.start_time;
         let server_handle = tokio::spawn(async move {
             server.run(move |request| {
                 let config = Arc::clone(&config);
                 let monitor = Arc::clone(&monitor);
 
                 async move {
-                    handle_request(request, config, monitor).await
+                    handle_request(request, config, monitor, start_time).await
                 }
             }).await
         });
@@ -192,24 +200,25 @@ async fn handle_request(
     request: Request,
     config: Arc<RwLock<Config>>,
     monitor: Arc<MountMonitor>,
+    start_time: Instant,
 ) -> Response {
     match request {
         Request::Ping => Response::Pong,
 
-        Request::Mount { url, disable, dry_run } => {
-            handle_mount_request(url, disable, dry_run, config).await
+        Request::Mount { url, mount_point, options, disable, dry_run, progress } => {
+            handle_mount_request(url, mount_point, options, disable, dry_run, progress, config).await
         }
 
         Request::Unmount { mount_id, force } => {
             handle_unmount_request(mount_id, force, config).await
         }
 
-        Request::Status { verbose, watch, json } => {
-            handle_status_request(verbose, watch, json, config, monitor).await
+        Request::Status { verbose, watch, json, filter_url, filter_type, filter_point } => {
+            handle_status_request(verbose, watch, json, filter_url, filter_type, filter_point, config, monitor, start_time).await
         }
 
-        Request::List { enabled_only, disabled_only, json } => {
-            handle_list_request(enabled_only, disabled_only, json, config).await
+        Request::List { enabled_only, disabled_only, json, filter_url, filter_type, filter_point } => {
+            handle_list_request(enabled_only, disabled_only, json, filter_url, filter_type, filter_point, config).await
         }
 
         Request::StopDaemon => {
@@ -248,18 +257,17 @@ async fn handle_request(
         Request::Doctor => {
             handle_doctor_request().await
         }
-
-        Request::Health { verbose, checks, json, watch } => {
-            handle_health_request(verbose, checks, json, watch, config, monitor).await
-        }
     }
 }
 
 /// Handle mount request
 async fn handle_mount_request(
     url: String,
+    mount_point: Option<String>,
+    options: Option<Vec<String>>,
     disable: bool,
     dry_run: bool,
+    progress: bool,
     config: Arc<RwLock<Config>>,
 ) -> Response {
     // Parse URL
@@ -289,10 +297,14 @@ async fn handle_mount_request(
         }
     }
 
-    // Generate mount point (preserving directory structure from URL)
-    let mount_point = match handler.generate_mount_point(&url) {
-        Ok(path) => path,
-        Err(e) => return Response::Error(e.to_string()),
+    // Use provided mount point or generate one
+    let mount_point = if let Some(mp) = mount_point {
+        std::path::PathBuf::from(mp)
+    } else {
+        match handler.generate_mount_point(&url) {
+            Ok(path) => path,
+            Err(e) => return Response::Error(e.to_string()),
+        }
     };
 
     // Create mount config
@@ -382,13 +394,48 @@ async fn handle_status_request(
     verbose: bool,
     _watch: bool,
     _json: bool,
+    filter_url: Option<String>,
+    filter_type: Option<String>,
+    filter_point: Option<String>,
     config: Arc<RwLock<Config>>,
     monitor: Arc<MountMonitor>,
+    start_time: Instant,
 ) -> Response {
     let cfg = config.read().await;
     let mut mounts = Vec::new();
 
     for mount in cfg.get_all_mounts() {
+        // Apply filters
+        if let Some(ref filter_url) = filter_url {
+            let regex = regex::Regex::new(filter_url).unwrap_or_else(|_| {
+                warn!("Invalid URL filter regex: {}", filter_url);
+                regex::Regex::new("^$").unwrap()
+            });
+            if !regex.is_match(&mount.url) {
+                continue;
+            }
+        }
+
+        if let Some(ref filter_type) = filter_type {
+            let mount_type_str = match &mount.mount_type {
+                crate::mount::MountType::NFS { .. } => "nfs",
+                crate::mount::MountType::SMB { .. } => "smb",
+            };
+            if !filter_type.eq_ignore_ascii_case(mount_type_str) {
+                continue;
+            }
+        }
+
+        if let Some(ref filter_point) = filter_point {
+            let mount_point_str = mount.mount_point.to_string_lossy();
+            let regex = regex::Regex::new(filter_point).unwrap_or_else(|_| {
+                warn!("Invalid mount point filter regex: {}", filter_point);
+                regex::Regex::new("^$").unwrap()
+            });
+            if !regex.is_match(&mount_point_str) {
+                continue;
+            }
+        }
         let health_score = if verbose {
             Some(monitor.get_health_score(&mount.id).await.unwrap_or(0))
         } else {
@@ -409,9 +456,30 @@ async fn handle_status_request(
         });
     }
 
+    // Create daemon health info
+    let uptime = start_time.elapsed();
+    let mut issues = Vec::new();
+
+    // Check if we have any failed mounts
+    let failed_count = mounts.iter()
+        .filter(|m| matches!(m.status, MountStatus::Failed))
+        .count();
+
+    if failed_count > 0 {
+        issues.push(format!("{} mounts are in failed state", failed_count));
+    }
+
+    let daemon_health = DaemonHealthInfo {
+        healthy: failed_count == 0,
+        uptime: Some(uptime),
+        last_check: Some(Utc::now()),
+        issues,
+    };
+
     Response::Status {
         mounts,
         daemon_running: true,
+        daemon_health: Some(daemon_health),
     }
 }
 
@@ -420,14 +488,55 @@ async fn handle_list_request(
     enabled_only: bool,
     disabled_only: bool,
     _json: bool,
+    filter_url: Option<String>,
+    filter_type: Option<String>,
+    filter_point: Option<String>,
     config: Arc<RwLock<Config>>,
 ) -> Response {
     let cfg = config.read().await;
     let mounts: Vec<MountConfig> = cfg.get_all_mounts()
         .filter(|m| {
+            // Apply enabled/disabled filter
             if enabled_only { m.enabled }
             else if disabled_only { !m.enabled }
             else { true }
+        })
+        .filter(|m| {
+            // Apply URL filter
+            if let Some(ref filter_url) = filter_url {
+                let regex = regex::Regex::new(filter_url).unwrap_or_else(|_| {
+                    warn!("Invalid URL filter regex: {}", filter_url);
+                    regex::Regex::new("^$").unwrap()
+                });
+                regex.is_match(&m.url)
+            } else {
+                true
+            }
+        })
+        .filter(|m| {
+            // Apply type filter
+            if let Some(ref filter_type) = filter_type {
+                let mount_type_str = match &m.mount_type {
+                    crate::mount::MountType::NFS { .. } => "nfs",
+                    crate::mount::MountType::SMB { .. } => "smb",
+                };
+                filter_type.eq_ignore_ascii_case(mount_type_str)
+            } else {
+                true
+            }
+        })
+        .filter(|m| {
+            // Apply mount point filter
+            if let Some(ref filter_point) = filter_point {
+                let mount_point_str = m.mount_point.to_string_lossy();
+                let regex = regex::Regex::new(filter_point).unwrap_or_else(|_| {
+                    warn!("Invalid mount point filter regex: {}", filter_point);
+                    regex::Regex::new("^$").unwrap()
+                });
+                regex.is_match(&mount_point_str)
+            } else {
+                true
+            }
         })
         .cloned()
         .collect();
@@ -573,53 +682,6 @@ async fn handle_doctor_request() -> Response {
     }
 }
 
-/// Handle health request
-async fn handle_health_request(
-    verbose: bool,
-    _checks: Option<Vec<String>>,
-    _json: bool,
-    _watch: bool,
-    config: Arc<RwLock<Config>>,
-    monitor: Arc<MountMonitor>,
-) -> Response {
-    use crate::socket::protocol::DaemonHealthInfo;
-    use crate::monitoring::HealthStatus;
-    use chrono::Utc;
-    use std::time::Duration;
-
-    // For now, use a placeholder uptime
-    let uptime = Duration::from_secs(0);
-
-    // Get mount health statuses
-    let mount_health = match get_all_health_statuses_from_monitor(&monitor).await {
-        Some(statuses) => statuses,
-        None => vec![],
-    };
-
-    // Check daemon health
-    let mut issues = Vec::new();
-
-    // Check if we have any failed mounts
-    let failed_count = mount_health.iter()
-        .filter(|h| matches!(h.status, crate::monitoring::HealthState::Failed))
-        .count();
-
-    if failed_count > 0 {
-        issues.push(format!("{} mounts are in failed state", failed_count));
-    }
-
-    let daemon_health = DaemonHealthInfo {
-        healthy: failed_count == 0,
-        uptime: Some(uptime),
-        last_check: Some(Utc::now()),
-        issues,
-    };
-
-    Response::HealthStatus {
-        daemon_health,
-        mount_health,
-    }
-}
 
 /// Convert monitor health states to HealthStatus structs
 async fn get_all_health_statuses_from_monitor(

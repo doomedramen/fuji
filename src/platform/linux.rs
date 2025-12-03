@@ -3,7 +3,6 @@
 use super::{Platform, MountInfo, Signal};
 use crate::mount::MountType;
 use anyhow::{anyhow, Result};
-use nix::unistd;
 use std::fs;
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
@@ -97,34 +96,13 @@ impl Platform for LinuxPlatform {
     }
 
     fn daemonize(&self) -> Result<()> {
-        use nix::unistd::{fork, setsid, ForkResult};
+        // Built-in daemonization is not supported
+        // On Linux, use systemd for proper daemonization
+        // For development/testing, use nohup:
+        //   nohup fuji daemon start --no-automount > /tmp/fuji.log 2>&1 &
+        info!("Built-in daemonization not supported. See documentation for proper daemon management.");
 
-        unsafe {
-            match fork() {
-                Ok(ForkResult::Parent { child: _ }) => {
-                    // Parent process exits
-                    std::process::exit(0);
-                }
-                Ok(ForkResult::Child) => {
-                    // Child process continues
-                    setsid()?;
-
-                    // Second fork to ensure we can't acquire a controlling terminal
-                    match fork() {
-                        Ok(ForkResult::Parent { child: _ }) => {
-                            std::process::exit(0);
-                        }
-                        Ok(ForkResult::Child) => {
-                            // We're now daemonized
-                            info!("Successfully daemonized");
-                            Ok(())
-                        }
-                        Err(e) => Err(anyhow!("Second fork failed: {}", e)),
-                    }
-                }
-                Err(e) => Err(anyhow!("First fork failed: {}", e)),
-            }
-        }
+        Err(anyhow!("Built-in daemonization is not supported. Use nohup, systemd, or other service manager instead."))
     }
 
     fn write_pid_file(&self, pid_file: &Path) -> Result<()> {
