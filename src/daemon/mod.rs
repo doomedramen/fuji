@@ -211,7 +211,10 @@ impl Daemon {
                 Ok(())
             }
             None => {
-                error!("Mount '{}' not found when updating status to {:?}", mount_id, status);
+                error!(
+                    "Mount '{}' not found when updating status to {:?}",
+                    mount_id, status
+                );
                 Err(DaemonError::mount_not_found(mount_id))
             }
         }
@@ -388,22 +391,18 @@ async fn handle_mount_request(
             .await
         {
             error!("Failed to mount {}: {}", mount_id, e);
-            if let Err(status_err) = Daemon::update_mount_status(
-                config.clone(),
-                &mount_id,
-                MountStatus::Failed,
-            ).await {
+            if let Err(status_err) =
+                Daemon::update_mount_status(config.clone(), &mount_id, MountStatus::Failed).await
+            {
                 error!("Failed to update mount status: {}", status_err);
             }
             return Response::Error(e.to_string());
         }
 
         // Update status
-        if let Err(status_err) = Daemon::update_mount_status(
-            config.clone(),
-            &mount_id,
-            MountStatus::Active,
-        ).await {
+        if let Err(status_err) =
+            Daemon::update_mount_status(config.clone(), &mount_id, MountStatus::Active).await
+        {
             error!("Failed to update mount status: {}", status_err);
         }
 
@@ -717,12 +716,13 @@ async fn handle_remount_request(mount_id: String, config: Arc<RwLock<Config>>) -
     }
 
     // Update status
-    if let Err(status_err) = Daemon::update_mount_status(
-        config,
-        &mount_id,
-        MountStatus::Active,
-    ).await {
-        error!("Failed to update mount status after remount: {}", status_err);
+    if let Err(status_err) =
+        Daemon::update_mount_status(config, &mount_id, MountStatus::Active).await
+    {
+        error!(
+            "Failed to update mount status after remount: {}",
+            status_err
+        );
     }
 
     info!("Successfully remounted {}", mount_id);
@@ -832,12 +832,14 @@ async fn auto_mount_enabled_shares(config: Arc<RwLock<Config>>) -> Result<()> {
         if let Ok(handler) = get_mount_handler(protocol) {
             match handler.mount(&mount, &mount.mount_point).await {
                 Ok(_) => {
-                    if let Err(status_err) = Daemon::update_mount_status(
-                        config.clone(),
-                        &mount.id,
-                        MountStatus::Active,
-                    ).await {
-                        error!("Failed to update mount status after auto-mount: {}", status_err);
+                    if let Err(status_err) =
+                        Daemon::update_mount_status(config.clone(), &mount.id, MountStatus::Active)
+                            .await
+                    {
+                        error!(
+                            "Failed to update mount status after auto-mount: {}",
+                            status_err
+                        );
                     }
                     info!("Successfully auto-mounted {}", mount.id);
 
@@ -846,12 +848,14 @@ async fn auto_mount_enabled_shares(config: Arc<RwLock<Config>>) -> Result<()> {
                 }
                 Err(e) => {
                     error!("Failed to auto-mount {}: {}", mount.id, e);
-                    if let Err(status_err) = Daemon::update_mount_status(
-                        config.clone(),
-                        &mount.id,
-                        MountStatus::Failed,
-                    ).await {
-                        error!("Failed to update mount status after failed auto-mount: {}", status_err);
+                    if let Err(status_err) =
+                        Daemon::update_mount_status(config.clone(), &mount.id, MountStatus::Failed)
+                            .await
+                    {
+                        error!(
+                            "Failed to update mount status after failed auto-mount: {}",
+                            status_err
+                        );
                     }
                 }
             }
@@ -879,29 +883,32 @@ async fn check_mount_health(config: Arc<RwLock<Config>>, monitor: Arc<MountMonit
 
                     if !accessible {
                         let error_msg = last_error.unwrap_or_else(|| "Unknown".to_string());
-                        warn!(
-                            "Mount {} appears unhealthy: {}",
-                            mount.id,
-                            error_msg
-                        );
+                        warn!("Mount {} appears unhealthy: {}", mount.id, error_msg);
 
                         if let Err(status_err) = Daemon::update_mount_status(
                             config.clone(),
                             &mount.id,
                             MountStatus::Failed,
-                        ).await {
-                            error!("Failed to update mount status after health check: {}", status_err);
+                        )
+                        .await
+                        {
+                            error!(
+                                "Failed to update mount status after health check: {}",
+                                status_err
+                            );
                         }
                     }
                 }
                 Err(e) => {
                     error!("Health check failed for {}: {}", mount.id, e);
-                    if let Err(status_err) = Daemon::update_mount_status(
-                        config.clone(),
-                        &mount.id,
-                        MountStatus::Failed,
-                    ).await {
-                        error!("Failed to update mount status after failed health check: {}", status_err);
+                    if let Err(status_err) =
+                        Daemon::update_mount_status(config.clone(), &mount.id, MountStatus::Failed)
+                            .await
+                    {
+                        error!(
+                            "Failed to update mount status after failed health check: {}",
+                            status_err
+                        );
                     }
                 }
             }
@@ -958,23 +965,27 @@ async fn attempt_reconnections(config: Arc<RwLock<Config>>) -> Result<()> {
             // Attempt to mount
             match handler.mount(&mount, &mount.mount_point).await {
                 Ok(_) => {
-                    if let Err(status_err) = Daemon::update_mount_status(
-                        config.clone(),
-                        &mount.id,
-                        MountStatus::Active,
-                    ).await {
-                        error!("Failed to update mount status after reconnection: {}", status_err);
+                    if let Err(status_err) =
+                        Daemon::update_mount_status(config.clone(), &mount.id, MountStatus::Active)
+                            .await
+                    {
+                        error!(
+                            "Failed to update mount status after reconnection: {}",
+                            status_err
+                        );
                     }
                     info!("Successfully reconnected {}", mount.id);
                 }
                 Err(e) => {
                     warn!("Failed to reconnect {}: {}", mount.id, e);
-                    if let Err(status_err) = Daemon::update_mount_status(
-                        config.clone(),
-                        &mount.id,
-                        MountStatus::Failed,
-                    ).await {
-                        error!("Failed to update mount status after failed reconnection: {}", status_err);
+                    if let Err(status_err) =
+                        Daemon::update_mount_status(config.clone(), &mount.id, MountStatus::Failed)
+                            .await
+                    {
+                        error!(
+                            "Failed to update mount status after failed reconnection: {}",
+                            status_err
+                        );
                     }
                 }
             }

@@ -306,7 +306,7 @@ impl DaemonError {
 
 /// Note: From<std::io::Error> is automatically derived by thiserror
 /// and will use the Io variant
-
+///
 /// Conversion from regex::Error to DaemonError
 impl From<regex::Error> for DaemonError {
     fn from(err: regex::Error) -> Self {
@@ -347,22 +347,19 @@ mod tests {
         assert!(DaemonError::health_check_error("test", "test").is_recoverable());
 
         assert!(!DaemonError::permission_denied("test").is_recoverable());
-        assert!(!DaemonError::InvalidProtocol { url: "test://".to_string() }.is_recoverable());
+        assert!(!DaemonError::InvalidProtocol {
+            url: "test://".to_string()
+        }
+        .is_recoverable());
     }
 
     #[test]
     fn test_error_display() {
         let err = DaemonError::mount_not_found("test_mount");
-        assert_eq!(
-            err.to_string(),
-            "Mount 'test_mount' not found"
-        );
+        assert_eq!(err.to_string(), "Mount 'test_mount' not found");
 
         let err = DaemonError::permission_denied("mount operation");
-        assert_eq!(
-            err.to_string(),
-            "Permission denied: mount operation"
-        );
+        assert_eq!(err.to_string(), "Permission denied: mount operation");
     }
 
     #[test]

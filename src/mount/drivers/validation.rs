@@ -134,34 +134,36 @@ impl MountUrlValidator {
             return Err(anyhow::anyhow!("URL must have a path"));
         }
 
-        // Normalize path (remove leading/trailing slashes)
-        let normalized_path = path.trim_matches('/');
-        if !normalized_path.is_empty() {
-            // Check for blocked paths first
-            for blocked in &self.config.blocked_paths {
-                let blocked_trimmed = blocked.trim_matches('/');
-                if normalized_path == blocked_trimmed
-                    || normalized_path.starts_with(blocked_trimmed)
-                {
+        // Use the enhanced path sanitization to check for traversal and dangerous components
+        if !path.is_empty() && path != "/" {
+            // This will detect path traversal attempts and dangerous components
+            if let Err(e) = self.sanitize_path_component(path) {
+                return Err(anyhow::anyhow!("Path validation failed: {}", e));
+            }
+
+            // Also check against blocked paths list for additional safety
+            let normalized_path = path.trim_matches('/');
+            if !normalized_path.is_empty() {
+                for blocked in &self.config.blocked_paths {
+                    let blocked_trimmed = blocked.trim_matches('/');
+                    if normalized_path == blocked_trimmed
+                        || normalized_path.starts_with(blocked_trimmed)
+                    {
+                        return Err(anyhow::anyhow!(
+                            "Path contains blocked component: {}",
+                            blocked
+                        ));
+                    }
+                }
+
+                // Check path length
+                if normalized_path.len() > self.config.max_path_length {
                     return Err(anyhow::anyhow!(
-                        "Path contains blocked component: {}",
-                        blocked
+                        "Path too long ({} > {})",
+                        normalized_path.len(),
+                        self.config.max_path_length
                     ));
                 }
-            }
-
-            // Check path format
-            if !self.is_valid_path(normalized_path) {
-                return Err(anyhow::anyhow!("Invalid path format: {}", normalized_path));
-            }
-
-            // Check path length
-            if normalized_path.len() > self.config.max_path_length {
-                return Err(anyhow::anyhow!(
-                    "Path too long ({} > {})",
-                    normalized_path.len(),
-                    self.config.max_path_length
-                ));
             }
         }
 
@@ -309,6 +311,146 @@ impl MountUrlValidator {
         }
 
         false
+    }
+
+    /// Sanitize and validate a path component from a URL for mount point generation
+    pub fn sanitize_path_component(&self, path: &str) -> Result<String> {
+        if path.is_empty() || path == "/" {
+            return Ok(String::new());
+        }
+
+        // Remove leading slashes for processing
+        let trimmed = path.trim_start_matches('/');
+
+        // Check for path traversal attempts
+        if trimmed.contains("..") {
+            return Err(anyhow::anyhow!(
+                "Path traversal detected in path component: {}",
+                path
+            ));
+        }
+
+        // Check for empty segments (multiple slashes)
+        if trimmed.contains("//") {
+            return Err(anyhow::anyhow!("Path contains empty segments: {}", path));
+        }
+
+        // Split path into components and validate each
+        let components: Vec<&str> = trimmed.split('/').collect();
+        let mut sanitized_components = Vec::new();
+
+        for component in components {
+            if component.is_empty() {
+                continue; // Skip empty components
+            }
+
+            // Validate each component
+            if !self.is_valid_path(component) {
+                return Err(anyhow::anyhow!("Invalid path component: {}", component));
+            }
+
+            // Additional validation for dangerous names
+            if self.is_dangerous_component(component) {
+                return Err(anyhow::anyhow!("Dangerous path component: {}", component));
+            }
+
+            sanitized_components.push(component);
+        }
+
+        // Reconstruct the sanitized path
+        Ok(sanitized_components.join("/"))
+    }
+
+    /// Check if a path component is dangerous (system files, sensitive directories, etc.)
+    fn is_dangerous_component(&self, component: &str) -> bool {
+        let dangerous_names = [
+            // System files and directories
+            "etc",
+            "bin",
+            "sbin",
+            "usr",
+            "var",
+            "sys",
+            "proc",
+            "dev",
+            "boot",
+            "lib",
+            "lib64",
+            "root",
+            "home",
+            "tmp",
+            "run",
+            "opt",
+            "srv",
+            "mnt",
+            "media",
+            // Sensitive files
+            "passwd",
+            "shadow",
+            "group",
+            "hosts",
+            "sudoers",
+            "crontab",
+            "ssh",
+            ".ssh",
+            "gnupg",
+            ".gnupg",
+            "aws",
+            ".aws",
+            // Configuration files
+            "config",
+            "conf",
+            ".config",
+            ".conf",
+            // Executable patterns
+            "sh",
+            "bash",
+            "zsh",
+            "fish",
+            "cmd",
+            "powershell",
+            "ps1",
+            // Dangerous extensions
+            "exe",
+            "bat",
+            "cmd",
+            "com",
+            "pif",
+            "scr",
+            "vbs",
+            "js",
+            "jar",
+            // Hidden files that might contain sensitive data
+            ".env",
+            ".secret",
+            ".key",
+            ".pem",
+            ".crt",
+            ".p12",
+            ".pfx",
+            // System shortcuts
+            "desktop",
+            "documents",
+            "downloads",
+            "pictures",
+            "music",
+            "videos",
+            // Development-related
+            ".git",
+            ".svn",
+            ".hg",
+            "node_modules",
+            ".npm",
+            ".cache",
+        ];
+
+        // Case-insensitive check
+        let component_lower = component.to_lowercase();
+        dangerous_names.iter().any(|dangerous| {
+            component_lower == *dangerous
+                || component_lower.starts_with(&format!("{}.", dangerous))
+                || component_lower.contains(dangerous)
+        })
     }
 
     /// Sanitize a mount URL (remove dangerous components)
@@ -487,6 +629,58 @@ mod tests {
             .is_err());
         assert!(validator
             .validate_mount_path(Path::new("/etc/passwd"))
+            .is_err());
+    }
+
+    #[test]
+    fn test_sanitize_path_component() {
+        let validator = create_test_validator();
+
+        // Valid paths should pass
+        assert!(validator.sanitize_path_component("/export/data").is_ok());
+        assert!(validator
+            .sanitize_path_component("/share/documents")
+            .is_ok());
+        assert!(validator.sanitize_path_component("/").is_ok());
+        assert!(validator.sanitize_path_component("").is_ok());
+
+        // Path traversal should be blocked
+        assert!(validator.sanitize_path_component("../../../etc").is_err());
+        assert!(validator
+            .sanitize_path_component("data/../../root")
+            .is_err());
+        assert!(validator.sanitize_path_component("path/../etc").is_err());
+
+        // Dangerous components should be blocked
+        assert!(validator.sanitize_path_component("/etc/passwd").is_err());
+        assert!(validator.sanitize_path_component("/root/.ssh").is_err());
+        assert!(validator.sanitize_path_component("/home/.env").is_err());
+        assert!(validator.sanitize_path_component("/bin/sh").is_err());
+
+        // Multiple slashes should be handled
+        assert!(validator
+            .sanitize_path_component("//export//data//")
+            .is_ok());
+
+        // Case variations of dangerous components should be blocked
+        assert!(validator.sanitize_path_component("/ETC/passwd").is_err());
+        assert!(validator.sanitize_path_component("/Root/.SSH").is_err());
+        assert!(validator
+            .sanitize_path_component("/home/.SSH/id_rsa")
+            .is_err());
+
+        // Dangerous files with extensions should be blocked
+        assert!(validator
+            .sanitize_path_component("/share/malware.exe")
+            .is_err());
+        assert!(validator
+            .sanitize_path_component("/docs/script.js")
+            .is_err());
+
+        // Development directories should be blocked
+        assert!(validator.sanitize_path_component("/project/.git").is_err());
+        assert!(validator
+            .sanitize_path_component("/app/node_modules")
             .is_err());
     }
 }

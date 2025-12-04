@@ -186,7 +186,10 @@ impl FileCredentialProvider {
 
         // Verify version
         if store.version != 1 {
-            return Err(anyhow!("Unsupported credential store version: {}", store.version));
+            return Err(anyhow!(
+                "Unsupported credential store version: {}",
+                store.version
+            ));
         }
 
         // Verify PBKDF2 iterations (ensure it's not too low)
@@ -281,8 +284,7 @@ impl FileCredentialProvider {
                 meta.insert("algorithm".to_string(), "AES-256-GCM".to_string());
                 meta.insert("kdf".to_string(), "PBKDF2-HMAC-SHA256".to_string());
                 meta.insert("prf".to_string(), "HKDF-SHA256".to_string());
-                meta.insert("created_at".to_string(),
-                    chrono::Utc::now().to_rfc3339());
+                meta.insert("created_at".to_string(), chrono::Utc::now().to_rfc3339());
                 meta
             },
         };
@@ -379,8 +381,8 @@ impl Default for FileCredentialProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::time::{Duration, Instant};
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_file_provider_encryption() {
@@ -453,7 +455,10 @@ mod tests {
         // Verify decryption still works
         let retrieved = provider.get_credential("sensitive-mount").await.unwrap();
         assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().password, "SuperSecretPassword123!@#$%^&*()");
+        assert_eq!(
+            retrieved.unwrap().password,
+            "SuperSecretPassword123!@#$%^&*()"
+        );
     }
 
     #[tokio::test]
@@ -509,17 +514,26 @@ mod tests {
         let start = Instant::now();
 
         for i in 0..10 {
-            let _ = provider.get_credential(&format!("mount{}", i)).await.unwrap();
+            let _ = provider
+                .get_credential(&format!("mount{}", i))
+                .await
+                .unwrap();
         }
 
         let decryption_time = start.elapsed();
 
         // Performance should be reasonable for 120,000 PBKDF2 iterations
         // Note: With strong encryption, this will take longer than weak encryption
-        assert!(encryption_time < Duration::from_secs(30),
-               "Encryption too slow: {:?}", encryption_time);
-        assert!(decryption_time < Duration::from_secs(10),
-               "Decryption too slow: {:?}", decryption_time);
+        assert!(
+            encryption_time < Duration::from_secs(30),
+            "Encryption too slow: {:?}",
+            encryption_time
+        );
+        assert!(
+            decryption_time < Duration::from_secs(10),
+            "Decryption too slow: {:?}",
+            decryption_time
+        );
 
         println!("Encryption time for 10 operations: {:?}", encryption_time);
         println!("Decryption time for 10 operations: {:?}", decryption_time);

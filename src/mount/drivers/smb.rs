@@ -164,7 +164,12 @@ impl MountHandler for SmbHandler {
                 let remote_path = format!("//{}/{}", host, share);
 
                 // Create secure mount command
-                let cmd = create_secure_mount_command("smb", &remote_path, mount_point.to_str().unwrap(), &mount_options)?;
+                let cmd = create_secure_mount_command(
+                    "smb",
+                    &remote_path,
+                    mount_point.to_str().unwrap(),
+                    &mount_options,
+                )?;
 
                 // Ensure mount point exists
                 fs::create_dir_all(mount_point).await?;
@@ -306,10 +311,14 @@ impl MountHandler for SmbHandler {
         // Base: /mnt/fuji/{host}_smb
         let mut mount_point = self.get_mount_base_dir().join(format!("{}_smb", host));
 
-        // Append the path from the URL, preserving directory structure
+        // Sanitize and validate the path from the URL to prevent path traversal
         let path = parsed.path();
         if !path.is_empty() && path != "/" {
-            mount_point = mount_point.join(path.trim_start_matches('/'));
+            let validator = MountUrlValidator::new()?;
+            let sanitized_path = validator.sanitize_path_component(path)?;
+            if !sanitized_path.is_empty() {
+                mount_point = mount_point.join(sanitized_path);
+            }
         }
 
         Ok(mount_point)
