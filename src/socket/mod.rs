@@ -11,7 +11,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{Mutex, Semaphore};
-use tokio::time::{timeout, Duration, interval};
+use tokio::time::{interval, timeout, Duration};
 use tracing::{debug, error, info, warn};
 
 /// Socket communication protocol
@@ -73,7 +73,8 @@ impl ConnectionInfo {
     /// Clean up old timestamps outside the rate limit window
     fn cleanup_old_timestamps(&mut self, window_duration: Duration) {
         let now = Instant::now();
-        self.connection_timestamps.retain(|&ts| now.duration_since(ts) <= window_duration);
+        self.connection_timestamps
+            .retain(|&ts| now.duration_since(ts) <= window_duration);
     }
 
     /// Check if a new connection is allowed based on rate limits
@@ -154,7 +155,11 @@ impl ConnectionLimiter {
     /// Attempt to acquire a connection permit
     pub async fn acquire_connection(&self, client_id: &str) -> Result<ConnectionPermit> {
         // Check global limit
-        let global_permit = self.global_semaphore.clone().acquire_owned().await
+        let global_permit = self
+            .global_semaphore
+            .clone()
+            .acquire_owned()
+            .await
             .map_err(|_| anyhow!("Failed to acquire connection permit"))?;
 
         // Check client-specific limits
@@ -162,7 +167,9 @@ impl ConnectionLimiter {
             let mut clients = self.client_connections.lock().await;
             let window_duration = Duration::from_secs(self.limits.rate_limit_window);
 
-            let client_info = clients.entry(client_id.to_string()).or_insert_with(ConnectionInfo::new);
+            let client_info = clients
+                .entry(client_id.to_string())
+                .or_insert_with(ConnectionInfo::new);
 
             // Clean up old timestamps
             client_info.cleanup_old_timestamps(window_duration);
@@ -171,14 +178,20 @@ impl ConnectionLimiter {
             if client_info.is_rate_limited(self.limits.rate_limit_max, window_duration) {
                 drop(global_permit);
                 self.increment_rejected("rate_limited").await;
-                return Err(anyhow!("Connection rate limit exceeded for client: {}", client_id));
+                return Err(anyhow!(
+                    "Connection rate limit exceeded for client: {}",
+                    client_id
+                ));
             }
 
             // Check per-client connection limit
             if client_info.active_connections >= self.limits.max_connections_per_client {
                 drop(global_permit);
                 self.increment_rejected("per_client_limit").await;
-                return Err(anyhow!("Per-client connection limit exceeded: {}", client_id));
+                return Err(anyhow!(
+                    "Per-client connection limit exceeded: {}",
+                    client_id
+                ));
             }
 
             // Record the connection
@@ -218,15 +231,16 @@ impl ConnectionLimiter {
                 // Clean up idle clients
                 {
                     let mut clients = client_connections.lock().await;
-                    clients.retain(|_, info| {
-                        now.duration_since(info.last_activity) <= idle_duration
-                    });
+                    clients
+                        .retain(|_, info| now.duration_since(info.last_activity) <= idle_duration);
                 }
 
                 // Update metrics
                 {
                     let mut m = metrics.lock().await;
-                    let active_count = client_connections.lock().await
+                    let active_count = client_connections
+                        .lock()
+                        .await
                         .values()
                         .map(|info| info.active_connections as u64)
                         .sum();
@@ -320,7 +334,10 @@ impl SocketServer {
     }
 
     /// Create a new socket server with custom connection limits
-    pub async fn new_with_limits<P: AsRef<Path>>(socket_path: P, limits: ConnectionLimits) -> Result<Self> {
+    pub async fn new_with_limits<P: AsRef<Path>>(
+        socket_path: P,
+        limits: ConnectionLimits,
+    ) -> Result<Self> {
         // Remove existing socket file if it exists
         if socket_path.as_ref().exists() {
             warn!("Removing existing socket file: {:?}", socket_path.as_ref());
@@ -331,13 +348,20 @@ impl SocketServer {
             .map_err(|e| anyhow!("Failed to bind to socket {:?}: {}", socket_path.as_ref(), e))?;
 
         info!("Socket server listening on: {:?}", socket_path.as_ref());
-        info!("Connection limits - Max: {}, Per client: {}, Rate window: {}s, Rate max: {}",
-              limits.max_connections, limits.max_connections_per_client,
-              limits.rate_limit_window, limits.rate_limit_max);
+        info!(
+            "Connection limits - Max: {}, Per client: {}, Rate window: {}s, Rate max: {}",
+            limits.max_connections,
+            limits.max_connections_per_client,
+            limits.rate_limit_window,
+            limits.rate_limit_max
+        );
 
         let connection_limiter = ConnectionLimiter::new(limits);
 
-        Ok(Self { listener, connection_limiter })
+        Ok(Self {
+            listener,
+            connection_limiter,
+        })
     }
 
     /// Accept connections and handle requests
@@ -355,30 +379,43 @@ impl SocketServer {
                     debug!("New connection from: {:?}", addr);
 
                     // Extract client ID from the connection
-                    let client_id = self.extract_client_id(&stream).await
-                        .unwrap_or_else(|_| format!("unknown-{}",
-                            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()));
+                    let client_id = self.extract_client_id(&stream).await.unwrap_or_else(|_| {
+                        format!(
+                            "unknown-{}",
+                            SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_secs()
+                        )
+                    });
 
                     // Try to acquire connection permit
                     match self.connection_limiter.acquire_connection(&client_id).await {
                         Ok(permit) => {
                             let handler = handler.clone();
                             let timeout_duration = Duration::from_secs(
-                                self.connection_limiter.limits.connection_timeout
+                                self.connection_limiter.limits.connection_timeout,
                             );
 
                             tokio::spawn(async move {
                                 let result = timeout(
                                     timeout_duration,
-                                    handle_connection_with_permit(stream, handler, permit)
-                                ).await;
+                                    handle_connection_with_permit(stream, handler, permit),
+                                )
+                                .await;
 
                                 match result {
                                     Ok(Ok(())) => {
-                                        debug!("Connection handled successfully for client: {}", client_id);
+                                        debug!(
+                                            "Connection handled successfully for client: {}",
+                                            client_id
+                                        );
                                     }
                                     Ok(Err(e)) => {
-                                        error!("Error handling connection for {}: {}", client_id, e);
+                                        error!(
+                                            "Error handling connection for {}: {}",
+                                            client_id, e
+                                        );
                                     }
                                     Err(_) => {
                                         warn!("Connection timeout for client: {}", client_id);

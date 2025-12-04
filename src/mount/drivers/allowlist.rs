@@ -66,7 +66,7 @@ impl Default for AllowlistConfig {
             strict_mode: true,
             custom_commands: vec![],
             blocked_patterns: vec![
-                "rm -rf".to_string(),  // More specific dangerous command
+                "rm -rf".to_string(), // More specific dangerous command
                 "dd if=".to_string(),
                 "mkfs.".to_string(),
                 "format ".to_string(),
@@ -128,11 +128,11 @@ impl MountCommandsAllowlist {
             path: Some("/bin/mount".to_string()),
             description: "Mount filesystems".to_string(),
             allowed_args: vec![
-                "-t".to_string(),    // Filesystem type
-                "-o".to_string(),    // Options
-                "-r".to_string(),    // Read-only
-                "-w".to_string(),    // Read-write
-                "-v".to_string(),    // Verbose
+                "-t".to_string(), // Filesystem type
+                "-o".to_string(), // Options
+                "-r".to_string(), // Read-only
+                "-w".to_string(), // Read-write
+                "-v".to_string(), // Verbose
                 "--no-mtab".to_string(),
                 "--fake".to_string(),
                 "--fstab".to_string(),
@@ -156,11 +156,11 @@ impl MountCommandsAllowlist {
             path: Some("/bin/umount".to_string()),
             description: "Unmount filesystems".to_string(),
             allowed_args: vec![
-                "-r".to_string(),    // Read-only
-                "-l".to_string(),    // Lazy unmount
-                "-f".to_string(),    // Force unmount
-                "-v".to_string(),    // Verbose
-                "-n".to_string(),    // Don't write to /etc/mtab
+                "-r".to_string(), // Read-only
+                "-l".to_string(), // Lazy unmount
+                "-f".to_string(), // Force unmount
+                "-v".to_string(), // Verbose
+                "-n".to_string(), // Don't write to /etc/mtab
                 "--no-mtab".to_string(),
                 "--lazy".to_string(),
                 "--force".to_string(),
@@ -202,11 +202,11 @@ impl MountCommandsAllowlist {
             path: Some("/usr/sbin/showmount".to_string()),
             description: "Show mount information for NFS server".to_string(),
             allowed_args: vec![
-                "-a".to_string(),    // Show all mounts
-                "-d".to_string(),    // Show only directories
-                "-e".to_string(),    // Show exports
-                "-h".to_string(),    // Show help
-                "-v".to_string(),    // Show version
+                "-a".to_string(), // Show all mounts
+                "-d".to_string(), // Show only directories
+                "-e".to_string(), // Show exports
+                "-h".to_string(), // Show help
+                "-v".to_string(), // Show version
                 "--no-headers".to_string(),
                 "--all".to_string(),
                 "--exports".to_string(),
@@ -245,11 +245,11 @@ impl MountCommandsAllowlist {
             path: Some("/usr/bin/smbclient".to_string()),
             description: "SMB client for browsing shares".to_string(),
             allowed_args: vec![
-                "-L".to_string(),    // List shares
-                "-N".to_string(),    // No password
-                "-U".to_string(),    // Username
-                "-W".to_string(),    // Workgroup
-                "-g".to_string(),    // grepable output
+                "-L".to_string(), // List shares
+                "-N".to_string(), // No password
+                "-U".to_string(), // Username
+                "-W".to_string(), // Workgroup
+                "-g".to_string(), // grepable output
                 "--list".to_string(),
                 "--no-pass".to_string(),
                 "--user".to_string(),
@@ -273,13 +273,13 @@ impl MountCommandsAllowlist {
             path: Some("/usr/bin/sshfs".to_string()),
             description: "Mount SSH filesystems".to_string(),
             allowed_args: vec![
-                "-o".to_string(),        // Options
-                "-p".to_string(),        // Port
-                "-d".to_string(),        // Debug
-                "-f".to_string(),        // Foreground
-                "-s".to_string(),        // Disable multithreading
-                "-h".to_string(),        // Help
-                "-V".to_string(),        // Version
+                "-o".to_string(), // Options
+                "-p".to_string(), // Port
+                "-d".to_string(), // Debug
+                "-f".to_string(), // Foreground
+                "-s".to_string(), // Disable multithreading
+                "-h".to_string(), // Help
+                "-V".to_string(), // Version
                 "--debug".to_string(),
                 "--foreground".to_string(),
                 "--help".to_string(),
@@ -303,11 +303,11 @@ impl MountCommandsAllowlist {
             path: Some("/bin/fusermount".to_string()),
             description: "FUSE filesystem mount/umount utility".to_string(),
             allowed_args: vec![
-                "-u".to_string(),    // Unmount
-                "-q".to_string(),    // Quiet
-                "-z".to_string(),    // Lazy unmount
-                "-v".to_string(),    // Verbose
-                "-h".to_string(),    // Help
+                "-u".to_string(), // Unmount
+                "-q".to_string(), // Quiet
+                "-z".to_string(), // Lazy unmount
+                "-v".to_string(), // Verbose
+                "-h".to_string(), // Help
                 "--unmount".to_string(),
                 "--quiet".to_string(),
                 "--lazy".to_string(),
@@ -326,7 +326,7 @@ impl MountCommandsAllowlist {
             path: Some("/usr/bin/which".to_string()),
             description: "Locate a command in the PATH".to_string(),
             allowed_args: vec![
-                "-a".to_string(),    // Show all matches
+                "-a".to_string(), // Show all matches
                 "--all".to_string(),
                 "--read-alias".to_string(),
                 "--skip-alias".to_string(),
@@ -350,9 +350,9 @@ impl MountCommandsAllowlist {
             path: Some("/bin/mkdir".to_string()),
             description: "Create directories".to_string(),
             allowed_args: vec![
-                "-p".to_string(),    // Create parent directories
-                "-m".to_string(),    // Set permissions
-                "-v".to_string(),    // Verbose
+                "-p".to_string(), // Create parent directories
+                "-m".to_string(), // Set permissions
+                "-v".to_string(), // Verbose
                 "--parents".to_string(),
                 "--mode".to_string(),
                 "--verbose".to_string(),
@@ -374,8 +374,8 @@ impl MountCommandsAllowlist {
             path: Some("/bin/rmdir".to_string()),
             description: "Remove empty directories".to_string(),
             allowed_args: vec![
-                "-p".to_string(),    // Remove parent directories
-                "-v".to_string(),    // Verbose
+                "-p".to_string(), // Remove parent directories
+                "-v".to_string(), // Verbose
                 "--ignore-fail-on-non-empty".to_string(),
                 "--parents".to_string(),
                 "--verbose".to_string(),
@@ -396,7 +396,10 @@ impl MountCommandsAllowlist {
         let command_name = command.name.clone();
 
         if self.commands.contains_key(&command_name) {
-            return Err(anyhow!("Command '{}' already exists in allowlist", command_name));
+            return Err(anyhow!(
+                "Command '{}' already exists in allowlist",
+                command_name
+            ));
         }
 
         // Validate the command definition
@@ -428,9 +431,10 @@ impl MountCommandsAllowlist {
         }
 
         // Check if command is in allowlist
-        let allowed_cmd = self.commands.get(command).ok_or_else(|| {
-            anyhow::anyhow!("Command '{}' is not in the allowlist", command)
-        })?;
+        let allowed_cmd = self
+            .commands
+            .get(command)
+            .ok_or_else(|| anyhow::anyhow!("Command '{}' is not in the allowlist", command))?;
 
         // Validate argument count
         if args.len() > allowed_cmd.max_args {
@@ -474,7 +478,12 @@ impl MountCommandsAllowlist {
     }
 
     /// Validate an option value against the command's allowed options
-    fn validate_option_value(&self, command: &AllowedCommand, option_name: &str, value: &str) -> Result<()> {
+    fn validate_option_value(
+        &self,
+        command: &AllowedCommand,
+        option_name: &str,
+        value: &str,
+    ) -> Result<()> {
         if let Some(pattern) = command.allowed_options.get(option_name) {
             if let Some(regex_str) = pattern {
                 let regex = regex::Regex::new(regex_str)
@@ -504,7 +513,9 @@ impl MountCommandsAllowlist {
         }
 
         // Validate that the name doesn't contain dangerous characters
-        let dangerous_chars = [';', '&', '|', '`', '$', '(', ')', '{', '}', '[', ']', '"', '\'', '<', '>', '*'];
+        let dangerous_chars = [
+            ';', '&', '|', '`', '$', '(', ')', '{', '}', '[', ']', '"', '\'', '<', '>', '*',
+        ];
         for c in command.name.chars() {
             if dangerous_chars.contains(&c) {
                 return Err(anyhow!("Command name contains dangerous character: {}", c));
@@ -542,7 +553,11 @@ impl MountCommandsAllowlist {
             // Check if the argument is in the allowed list
             if !command.allowed_args.contains(&arg_key.to_string()) {
                 // Allow --help and --version flags even if not explicitly listed
-                if arg_key == "--help" || arg_key == "--version" || arg_key == "-h" || arg_key == "-V" {
+                if arg_key == "--help"
+                    || arg_key == "--version"
+                    || arg_key == "-h"
+                    || arg_key == "-V"
+                {
                     return Ok(());
                 }
 
@@ -553,7 +568,10 @@ impl MountCommandsAllowlist {
                         command.name
                     ));
                 } else {
-                    warn!("Allowing potentially unsafe argument '{}' for command '{}'", arg_key, command.name);
+                    warn!(
+                        "Allowing potentially unsafe argument '{}' for command '{}'",
+                        arg_key, command.name
+                    );
                     return Ok(());
                 }
             }
@@ -563,7 +581,10 @@ impl MountCommandsAllowlist {
                 let arg_name = &arg[..eq_pos];
                 let arg_value = &arg[eq_pos + 1..];
 
-                if let Some(pattern) = command.allowed_options.get(arg_name.trim_start_matches('-')) {
+                if let Some(pattern) = command
+                    .allowed_options
+                    .get(arg_name.trim_start_matches('-'))
+                {
                     if let Some(regex_str) = pattern {
                         let regex = regex::Regex::new(regex_str)
                             .with_context(|| format!("Invalid regex pattern: {}", regex_str))?;
@@ -587,7 +608,9 @@ impl MountCommandsAllowlist {
     /// Validate a path argument for dangerous characters
     fn validate_path_argument(&self, path: &str) -> Result<()> {
         // Check for dangerous shell characters in paths
-        let dangerous_chars = [';', '&', '|', '`', '$', '(', ')', '{', '}', '[', ']', '"', '\'', '<', '>', '*'];
+        let dangerous_chars = [
+            ';', '&', '|', '`', '$', '(', ')', '{', '}', '[', ']', '"', '\'', '<', '>', '*',
+        ];
         for c in path.chars() {
             if dangerous_chars.contains(&c) {
                 return Err(anyhow!("Path contains dangerous character: {}", c));
@@ -609,7 +632,10 @@ impl MountCommandsAllowlist {
 
         for pattern in &self.config.blocked_patterns {
             if full_command.contains(pattern) {
-                warn!("Blocked pattern '{}' detected in command: {}", pattern, full_command);
+                warn!(
+                    "Blocked pattern '{}' detected in command: {}",
+                    pattern, full_command
+                );
                 return Ok(true);
             }
         }
@@ -647,8 +673,8 @@ impl MountCommandsAllowlist {
 
     /// Import allowlist from external source (with validation)
     pub fn import_allowlist(&mut self, data: &str) -> Result<()> {
-        let imported_commands: HashMap<String, AllowedCommand> = serde_json::from_str(data)
-            .with_context(|| "Failed to parse allowlist data")?;
+        let imported_commands: HashMap<String, AllowedCommand> =
+            serde_json::from_str(data).with_context(|| "Failed to parse allowlist data")?;
 
         for (name, command) in imported_commands {
             self.validate_command_definition(&command)?;
@@ -673,12 +699,17 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Valid mount command
-        assert!(allowlist.validate_command("mount", &[
-            "-t".to_string(),
-            "nfs".to_string(),
-            "server:/export".to_string(),
-            "/mnt/nfs".to_string()
-        ]).is_ok());
+        assert!(allowlist
+            .validate_command(
+                "mount",
+                &[
+                    "-t".to_string(),
+                    "nfs".to_string(),
+                    "server:/export".to_string(),
+                    "/mnt/nfs".to_string()
+                ]
+            )
+            .is_ok());
     }
 
     #[test]
@@ -686,20 +717,30 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Valid sshfs command - typical format
-        assert!(allowlist.validate_command("sshfs", &[
-            "user@server:/path".to_string(),
-            "/mnt/sshfs".to_string(),
-            "-o".to_string(),
-            "allow_other".to_string()
-        ]).is_ok());
+        assert!(allowlist
+            .validate_command(
+                "sshfs",
+                &[
+                    "user@server:/path".to_string(),
+                    "/mnt/sshfs".to_string(),
+                    "-o".to_string(),
+                    "allow_other".to_string()
+                ]
+            )
+            .is_ok());
 
         // Also test compound option format
-        assert!(allowlist.validate_command("sshfs", &[
-            "user@server:/path".to_string(),
-            "/mnt/sshfs".to_string(),
-            "-o".to_string(),
-            "allow_other,reconnect".to_string()
-        ]).is_ok());
+        assert!(allowlist
+            .validate_command(
+                "sshfs",
+                &[
+                    "user@server:/path".to_string(),
+                    "/mnt/sshfs".to_string(),
+                    "-o".to_string(),
+                    "allow_other,reconnect".to_string()
+                ]
+            )
+            .is_ok());
     }
 
     #[test]
@@ -707,10 +748,9 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Blocked command
-        assert!(allowlist.validate_command("rm", &[
-            "-rf".to_string(),
-            "/".to_string()
-        ]).is_err());
+        assert!(allowlist
+            .validate_command("rm", &["-rf".to_string(), "/".to_string()])
+            .is_err());
     }
 
     #[test]
@@ -718,12 +758,17 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Command injection attempt
-        assert!(allowlist.validate_command("mount", &[
-            "-t".to_string(),
-            "nfs".to_string(),
-            "server:/export; rm -rf /".to_string(),
-            "/mnt/nfs".to_string()
-        ]).is_err());
+        assert!(allowlist
+            .validate_command(
+                "mount",
+                &[
+                    "-t".to_string(),
+                    "nfs".to_string(),
+                    "server:/export; rm -rf /".to_string(),
+                    "/mnt/nfs".to_string()
+                ]
+            )
+            .is_err());
     }
 
     #[test]
@@ -740,11 +785,16 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Invalid option
-        assert!(allowlist.validate_command("mount", &[
-            "--invalid-option".to_string(),
-            "server:/export".to_string(),
-            "/mnt/nfs".to_string()
-        ]).is_err());
+        assert!(allowlist
+            .validate_command(
+                "mount",
+                &[
+                    "--invalid-option".to_string(),
+                    "server:/export".to_string(),
+                    "/mnt/nfs".to_string()
+                ]
+            )
+            .is_err());
     }
 
     #[test]
@@ -763,10 +813,9 @@ mod tests {
         };
 
         assert!(allowlist.add_command(custom_cmd).is_ok());
-        assert!(allowlist.validate_command("test-mount", &[
-            "-o".to_string(),
-            "test".to_string()
-        ]).is_ok());
+        assert!(allowlist
+            .validate_command("test-mount", &["-o".to_string(), "test".to_string()])
+            .is_ok());
     }
 
     #[test]
@@ -804,20 +853,30 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Invalid port number for sshfs
-        assert!(allowlist.validate_command("sshfs", &[
-            "user@server:/path".to_string(),
-            "/mnt/sshfs".to_string(),
-            "-p".to_string(),
-            "invalid_port".to_string()
-        ]).is_err());
+        assert!(allowlist
+            .validate_command(
+                "sshfs",
+                &[
+                    "user@server:/path".to_string(),
+                    "/mnt/sshfs".to_string(),
+                    "-p".to_string(),
+                    "invalid_port".to_string()
+                ]
+            )
+            .is_err());
 
         // Valid port number
-        assert!(allowlist.validate_command("sshfs", &[
-            "user@server:/path".to_string(),
-            "/mnt/sshfs".to_string(),
-            "-p".to_string(),
-            "22".to_string()
-        ]).is_ok());
+        assert!(allowlist
+            .validate_command(
+                "sshfs",
+                &[
+                    "user@server:/path".to_string(),
+                    "/mnt/sshfs".to_string(),
+                    "-p".to_string(),
+                    "22".to_string()
+                ]
+            )
+            .is_ok());
     }
 
     #[test]
@@ -825,27 +884,42 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Valid paths
-        assert!(allowlist.validate_command("mount", &[
-            "-t".to_string(),
-            "nfs".to_string(),
-            "server:/export/path".to_string(),
-            "/mnt/nfs".to_string()
-        ]).is_ok());
+        assert!(allowlist
+            .validate_command(
+                "mount",
+                &[
+                    "-t".to_string(),
+                    "nfs".to_string(),
+                    "server:/export/path".to_string(),
+                    "/mnt/nfs".to_string()
+                ]
+            )
+            .is_ok());
 
         // Path with dangerous characters
-        assert!(allowlist.validate_command("mount", &[
-            "-t".to_string(),
-            "nfs".to_string(),
-            "server:/export;rm -rf /".to_string(),
-            "/mnt/nfs".to_string()
-        ]).is_err());
+        assert!(allowlist
+            .validate_command(
+                "mount",
+                &[
+                    "-t".to_string(),
+                    "nfs".to_string(),
+                    "server:/export;rm -rf /".to_string(),
+                    "/mnt/nfs".to_string()
+                ]
+            )
+            .is_err());
 
         // Path traversal
-        assert!(allowlist.validate_command("mount", &[
-            "-t".to_string(),
-            "nfs".to_string(),
-            "server:/export".to_string(),
-            "/mnt/../etc".to_string()
-        ]).is_err());
+        assert!(allowlist
+            .validate_command(
+                "mount",
+                &[
+                    "-t".to_string(),
+                    "nfs".to_string(),
+                    "server:/export".to_string(),
+                    "/mnt/../etc".to_string()
+                ]
+            )
+            .is_err());
     }
 }

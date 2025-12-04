@@ -53,8 +53,8 @@ impl HealthCheckScheduler {
             health_checks: Arc::new(RwLock::new(HashMap::new())),
             last_statuses: Arc::new(RwLock::new(HashMap::new())),
             default_interval: "*/30 * * * * *".to_string(), // Every 30 seconds
-            cleanup_interval: 300, // 5 minutes
-            max_status_age: 3600, // 1 hour
+            cleanup_interval: 300,                          // 5 minutes
+            max_status_age: 3600,                           // 1 hour
         })
     }
 
@@ -111,7 +111,8 @@ impl HealthCheckScheduler {
         let max_status_age = self.max_status_age;
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(cleanup_interval));
+            let mut interval =
+                tokio::time::interval(tokio::time::Duration::from_secs(cleanup_interval));
 
             loop {
                 interval.tick().await;
@@ -256,16 +257,14 @@ impl HealthCheckScheduler {
 
             Box::pin(async move {
                 // Try to upgrade weak references
-                let (health_checks, last_statuses) = match (
-                    health_checks_weak.upgrade(),
-                    last_statuses_weak.upgrade(),
-                ) {
-                    (Some(hc), Some(ls)) => (hc, ls),
-                    _ => {
-                        // Scheduler has been dropped, exit
-                        return;
-                    }
-                };
+                let (health_checks, last_statuses) =
+                    match (health_checks_weak.upgrade(), last_statuses_weak.upgrade()) {
+                        (Some(hc), Some(ls)) => (hc, ls),
+                        _ => {
+                            // Scheduler has been dropped, exit
+                            return;
+                        }
+                    };
 
                 // Get check types
                 let check_types = {

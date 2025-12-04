@@ -11,7 +11,7 @@ pub mod sshfs;
 pub mod validation;
 
 // Re-export driver types
-pub use allowlist::{MountCommandsAllowlist, AllowlistConfig, AllowedCommand, SecurityContext};
+pub use allowlist::{AllowedCommand, AllowlistConfig, MountCommandsAllowlist, SecurityContext};
 pub use nfs::NfsHandler;
 pub use options::{MountOptionsValidator, OptionsValidationConfig};
 pub use secure_command::{create_secure_mount_command, SecureCommand};

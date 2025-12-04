@@ -51,7 +51,7 @@ async fn test_connection_limiter_rate_limiting() {
         connection_timeout: 30,
         idle_timeout: 300,
         rate_limit_window: 1, // 1 second window
-        rate_limit_max: 3,     // Max 3 connections per second
+        rate_limit_max: 3,    // Max 3 connections per second
     };
 
     let limiter = ConnectionLimiter::new(limits);
@@ -97,7 +97,10 @@ async fn test_connection_limiter_global_limit() {
     // Third connection should fail due to global limit
     let permit3 = limiter.acquire_connection("client3").await;
     assert!(permit3.is_err());
-    assert!(permit3.unwrap_err().to_string().contains("Failed to acquire connection permit"));
+    assert!(permit3
+        .unwrap_err()
+        .to_string()
+        .contains("Failed to acquire connection permit"));
 
     // Drop a permit and try again
     drop(permit1);

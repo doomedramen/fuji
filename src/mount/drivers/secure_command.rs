@@ -4,8 +4,8 @@
 //! preventing command injection vulnerabilities through proper argument
 //! escaping and validation, with seccomp filtering for system call security.
 
-use crate::security::seccomp::{SeccompProfile, SecureExecutor};
 use crate::mount::drivers::MountCommandsAllowlist;
+use crate::security::seccomp::{SeccompProfile, SecureExecutor};
 use anyhow::{Context, Result};
 use lazy_static::lazy_static;
 use regex;
@@ -244,10 +244,10 @@ pub fn validate_safe_string(input: &str) -> Result<()> {
 
 /// Validate that a command is in the allowlist
 pub fn validate_command_allowlist(command: &str, args: &[String]) -> Result<()> {
-    let allowlist = get_command_allowlist()
-        .with_context(|| "Failed to get command allowlist")?;
+    let allowlist = get_command_allowlist().with_context(|| "Failed to get command allowlist")?;
 
-    allowlist.validate_command(command, args)
+    allowlist
+        .validate_command(command, args)
         .with_context(|| format!("Command validation failed for: {}", command))
 }
 
@@ -364,7 +364,16 @@ mod tests {
         assert!(validate_command_allowlist("sshfs", &[]).is_ok());
         assert!(validate_command_allowlist("mkdir", &[]).is_ok());
 
-        assert!(validate_command_allowlist("mount", &["-t".to_string(), "nfs".to_string(), "server:/export".to_string(), "/mnt/nfs".to_string()]).is_ok());
+        assert!(validate_command_allowlist(
+            "mount",
+            &[
+                "-t".to_string(),
+                "nfs".to_string(),
+                "server:/export".to_string(),
+                "/mnt/nfs".to_string()
+            ]
+        )
+        .is_ok());
 
         assert!(validate_command_allowlist("rm", &["-rf".to_string()]).is_err());
         assert!(validate_command_allowlist("sh", &[]).is_err());
