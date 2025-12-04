@@ -4,12 +4,12 @@
 //! and managing permissions.
 
 use anyhow::{anyhow, Context, Result};
-use nix::unistd::{getuid, getgid};
+use nix::unistd::{getgid, getuid};
 use std::path::Path;
 use tracing::{debug, info, warn};
 
 use crate::platform::Platform;
-use crate::security::permissions::{PermissionManager, PermissionConfig};
+use crate::security::permissions::{PermissionConfig, PermissionManager};
 
 /// Mount point validator and manager
 pub struct MountPointValidator {
@@ -42,7 +42,10 @@ impl MountPointValidator {
         // Check path length limits
         self.check_path_length(mount_point)?;
 
-        debug!("Mount point path validation passed: {}", mount_point.display());
+        debug!(
+            "Mount point path validation passed: {}",
+            mount_point.display()
+        );
         Ok(())
     }
 
@@ -91,10 +94,7 @@ impl MountPointValidator {
         for component in mount_point.components() {
             if let Some(name) = component.as_os_str().to_str() {
                 if name.len() > 255 {
-                    return Err(anyhow!(
-                        "Path component too long: {} (max 255 bytes)",
-                        name
-                    ));
+                    return Err(anyhow!("Path component too long: {} (max 255 bytes)", name));
                 }
             }
         }
@@ -121,15 +121,16 @@ impl MountPointValidator {
         match self.platform.is_mounted(mount_point) {
             Ok(is_mounted) => {
                 if is_mounted {
-                    warn!(
-                        "Mount point already mounted: {}",
-                        mount_point.display()
-                    );
+                    warn!("Mount point already mounted: {}", mount_point.display());
                 }
                 Ok(is_mounted)
             }
             Err(e) => {
-                warn!("Failed to check if {} is mounted: {}", mount_point.display(), e);
+                warn!(
+                    "Failed to check if {} is mounted: {}",
+                    mount_point.display(),
+                    e
+                );
                 // Assume it's not mounted if we can't check
                 Ok(false)
             }
@@ -141,8 +142,7 @@ impl MountPointValidator {
         let mut conflicts = Vec::new();
 
         // Get all system mounts
-        let system_mounts = self.platform.list_system_mounts()
-            .unwrap_or_default();
+        let system_mounts = self.platform.list_system_mounts().unwrap_or_default();
 
         // Check if our mount point is already used
         for (mount_path, mount_info) in system_mounts {
@@ -176,18 +176,16 @@ impl MountPointValidator {
     ) -> Result<()> {
         // Create parent directories if needed
         if let Some(parent) = mount_point.parent() {
-            self.platform.ensure_dir_exists(parent)
-                .with_context(|| {
-                    format!("Failed to create parent directory: {}", parent.display())
-                })?;
+            self.platform.ensure_dir_exists(parent).with_context(|| {
+                format!("Failed to create parent directory: {}", parent.display())
+            })?;
         }
 
         // Create the mount point directory
         if !self.platform.path_exists(mount_point) {
-            self.platform.create_dir(mount_point)
-                .with_context(|| {
-                    format!("Failed to create mount point: {}", mount_point.display())
-                })?;
+            self.platform.create_dir(mount_point).with_context(|| {
+                format!("Failed to create mount point: {}", mount_point.display())
+            })?;
             info!("Created mount point: {}", mount_point.display());
         }
 
@@ -206,11 +204,12 @@ impl MountPointValidator {
 
         self.permission_manager
             .set_permissions(mount_point, owner, Some(&config))
-            .with_context(|| {
-                format!("Failed to set permissions for: {}", mount_point.display())
-            })?;
+            .with_context(|| format!("Failed to set permissions for: {}", mount_point.display()))?;
 
-        debug!("Mount point created and configured: {}", mount_point.display());
+        debug!(
+            "Mount point created and configured: {}",
+            mount_point.display()
+        );
         Ok(())
     }
 
@@ -275,7 +274,10 @@ impl MountPointValidator {
 
         // Check if it's still mounted
         if self.platform.is_mounted(mount_point)? {
-            warn!("Cannot clean up still-mounted mount point: {}", mount_point.display());
+            warn!(
+                "Cannot clean up still-mounted mount point: {}",
+                mount_point.display()
+            );
             return Ok(());
         }
 
@@ -285,7 +287,11 @@ impl MountPointValidator {
                 Ok(mut entries) => {
                     if entries.next().is_none() {
                         if let Err(e) = std::fs::remove_dir(mount_point) {
-                            warn!("Failed to remove empty mount point {}: {}", mount_point.display(), e);
+                            warn!(
+                                "Failed to remove empty mount point {}: {}",
+                                mount_point.display(),
+                                e
+                            );
                         } else {
                             info!("Removed empty mount point: {}", mount_point.display());
                         }
@@ -305,8 +311,8 @@ impl MountPointValidator {
     /// Get recommended permissions for mount point
     pub fn get_recommended_permissions(&self) -> u32 {
         // Use current user's umask but ensure at least owner rwx
-        let current_uid = getuid().as_raw();
-        let current_gid = getgid().as_raw();
+        let _current_uid = getuid().as_raw();
+        let _current_gid = getgid().as_raw();
 
         // Default to 755 (owner rwx, group rx, other rx)
         0o755
@@ -322,9 +328,11 @@ impl Default for MountPointValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
+    #[cfg(target_os = "linux")]
     use crate::platform::linux::LinuxPlatform;
+    use tempfile::TempDir;
 
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn test_validate_absolute_path() {
         let validator = MountPointValidator::new(Box::new(LinuxPlatform));
@@ -336,9 +344,12 @@ mod tests {
         assert!(validator.validate_path(Path::new("mnt/test")).is_err());
 
         // Valid absolute path with subdirectories
-        assert!(validator.validate_path(Path::new("/mnt/fuji/share")).is_ok());
+        assert!(validator
+            .validate_path(Path::new("/mnt/fuji/share"))
+            .is_ok());
     }
 
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn test_dangerous_paths() {
         let validator = MountPointValidator::new(Box::new(LinuxPlatform));
@@ -356,6 +367,7 @@ mod tests {
         assert!(validator.validate_path(Path::new("/mnt/test")).is_ok());
     }
 
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn test_create_mount_point() {
         let temp_dir = TempDir::new().unwrap();
@@ -376,6 +388,7 @@ mod tests {
         validator.validate_for_mount(&mount_point).await.unwrap();
     }
 
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn test_mount_conflicts() {
         let temp_dir = TempDir::new().unwrap();

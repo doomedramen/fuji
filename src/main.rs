@@ -2,20 +2,19 @@
 //!
 //! A daemon-based tool that manages network file system mounts automatically.
 
-
 mod cli;
 mod config;
 mod daemon;
-mod mount;
 mod monitoring;
+mod mount;
 mod platform;
 mod security;
 mod socket;
 
-use clap::Parser;
-use cli::{Cli, run};
-use platform::get_platform;
 use anyhow::Result;
+use clap::Parser;
+use cli::{run, Cli};
+use platform::get_platform;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -24,8 +23,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Initialize logging based on RUST_LOG or default to info
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     tracing_subscriber::fmt()
         .with_env_filter(env_filter)

@@ -3,17 +3,17 @@
 //! This module provides comprehensive health monitoring, automatic recovery,
 //! and persistence for mount points.
 
-pub mod scheduler;
-pub mod health_checks;
-pub mod retry;
-pub mod persistence;
 pub mod dependency;
+pub mod health_checks;
+pub mod persistence;
+pub mod retry;
+pub mod scheduler;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::mount::MountConfig;
 
@@ -49,6 +49,11 @@ impl MonitoringManager {
             mounts: Arc::new(RwLock::new(Vec::new())),
             running: Arc::new(RwLock::new(false)),
         })
+    }
+
+    /// Initialize the monitoring manager (async version)
+    pub async fn initialize(&self) -> Result<()> {
+        self.persistence.initialize().await
     }
 
     /// Start the monitoring system
@@ -235,11 +240,16 @@ mod tests {
     async fn test_monitoring_manager_creation() {
         let manager = MonitoringManager::new();
         assert!(manager.is_ok());
+
+        // Test initialization
+        let manager = manager.unwrap();
+        assert!(manager.initialize().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_monitoring_lifecycle() {
         let manager = MonitoringManager::new().unwrap();
+        manager.initialize().await.unwrap();
 
         // Should start successfully
         assert!(manager.start().await.is_ok());

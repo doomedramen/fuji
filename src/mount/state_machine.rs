@@ -103,8 +103,8 @@ impl MountStateMachine {
             (Mounting, Failed) => true,
             (Mounted, Unmounting) => true,
             (Mounted, Failed) => true,
-            (Failed, Mounting) => true,    // Retry
-            (Failed, Unmounted) => true,  // Reset
+            (Failed, Mounting) => true,  // Retry
+            (Failed, Unmounted) => true, // Reset
             (Unmounting, Unmounted) => true,
             (Unmounting, Failed) => true,
 
@@ -114,7 +114,12 @@ impl MountStateMachine {
     }
 
     /// Transition to a new state
-    pub async fn transition(&self, new_state: MountState, reason: Option<String>, error: Option<String>) -> Result<()> {
+    pub async fn transition(
+        &self,
+        new_state: MountState,
+        reason: Option<String>,
+        error: Option<String>,
+    ) -> Result<()> {
         let current_state = *self.state.read().await;
 
         // Check if transition is valid
@@ -125,7 +130,8 @@ impl MountStateMachine {
             );
             return Err(anyhow!(
                 "Invalid state transition: {} -> {}",
-                current_state, new_state
+                current_state,
+                new_state
             ));
         }
 
@@ -173,7 +179,8 @@ impl MountStateMachine {
 
     /// Transition with just a reason
     pub async fn transition_with_reason(&self, new_state: MountState, reason: &str) -> Result<()> {
-        self.transition(new_state, Some(reason.to_string()), None).await
+        self.transition(new_state, Some(reason.to_string()), None)
+            .await
     }
 
     /// Transition with an error
@@ -181,14 +188,18 @@ impl MountStateMachine {
         self.transition(
             new_state,
             Some(format!("Error: {}", error)),
-            Some(error.to_string())
-        ).await
+            Some(error.to_string()),
+        )
+        .await
     }
 
     /// Check if mount is in a terminal state
     pub async fn is_terminal(&self) -> bool {
         let state = *self.state.read().await;
-        matches!(state, MountState::Mounted | MountState::Failed | MountState::Unmounted)
+        matches!(
+            state,
+            MountState::Mounted | MountState::Failed | MountState::Unmounted
+        )
     }
 
     /// Check if mount is active (mounted or mounting)
@@ -226,10 +237,8 @@ impl MountStateMachine {
 
     /// Reset to unmounted state
     pub async fn reset(&self) -> Result<()> {
-        self.transition_with_reason(
-            MountState::Unmounted,
-            "Resetting mount state"
-        ).await
+        self.transition_with_reason(MountState::Unmounted, "Resetting mount state")
+            .await
     }
 }
 
@@ -246,19 +255,31 @@ mod tests {
         assert_eq!(machine.get_state().await, MountState::Unmounted);
 
         // Valid transition: Unmounted -> Mounting
-        machine.transition_with_reason(MountState::Mounting, "Starting mount").await.unwrap();
+        machine
+            .transition_with_reason(MountState::Mounting, "Starting mount")
+            .await
+            .unwrap();
         assert_eq!(machine.get_state().await, MountState::Mounting);
 
         // Valid transition: Mounting -> Mounted
-        machine.transition_with_reason(MountState::Mounted, "Mount successful").await.unwrap();
+        machine
+            .transition_with_reason(MountState::Mounted, "Mount successful")
+            .await
+            .unwrap();
         assert_eq!(machine.get_state().await, MountState::Mounted);
 
         // Valid transition: Mounted -> Unmounting
-        machine.transition_with_reason(MountState::Unmounting, "Starting unmount").await.unwrap();
+        machine
+            .transition_with_reason(MountState::Unmounting, "Starting unmount")
+            .await
+            .unwrap();
         assert_eq!(machine.get_state().await, MountState::Unmounting);
 
         // Valid transition: Unmounting -> Unmounted
-        machine.transition_with_reason(MountState::Unmounted, "Unmount complete").await.unwrap();
+        machine
+            .transition_with_reason(MountState::Unmounted, "Unmount complete")
+            .await
+            .unwrap();
         assert_eq!(machine.get_state().await, MountState::Unmounted);
     }
 
@@ -267,15 +288,25 @@ mod tests {
         let (machine, mut _receiver) = MountStateMachine::new("test-mount".to_string());
 
         // Invalid transition: Unmounted -> Mounted (should go through Mounting)
-        let result = machine.transition_with_reason(MountState::Mounted, "Direct mount").await;
+        let result = machine
+            .transition_with_reason(MountState::Mounted, "Direct mount")
+            .await;
         assert!(result.is_err());
         assert_eq!(machine.get_state().await, MountState::Unmounted);
 
         // Invalid transition: Mounted -> Mounting (should go through Unmounting first)
-        machine.transition_with_reason(MountState::Mounting, "Initial mount").await.unwrap();
-        machine.transition_with_reason(MountState::Mounted, "Mount complete").await.unwrap();
+        machine
+            .transition_with_reason(MountState::Mounting, "Initial mount")
+            .await
+            .unwrap();
+        machine
+            .transition_with_reason(MountState::Mounted, "Mount complete")
+            .await
+            .unwrap();
 
-        let result = machine.transition_with_reason(MountState::Mounting, "Remounting").await;
+        let result = machine
+            .transition_with_reason(MountState::Mounting, "Remounting")
+            .await;
         assert!(result.is_err());
         assert_eq!(machine.get_state().await, MountState::Mounted);
     }
@@ -285,7 +316,10 @@ mod tests {
         let (machine, mut receiver) = MountStateMachine::new("test-mount".to_string());
 
         // Make a transition
-        machine.transition_with_reason(MountState::Mounting, "Test notification").await.unwrap();
+        machine
+            .transition_with_reason(MountState::Mounting, "Test notification")
+            .await
+            .unwrap();
 
         // Should receive notification
         let transition = receiver.recv().await.unwrap();
@@ -300,13 +334,22 @@ mod tests {
         let (machine, _receiver) = MountStateMachine::new("test-mount".to_string());
 
         // Make several transitions
-        machine.transition_with_reason(MountState::Mounting, "1").await.unwrap();
+        machine
+            .transition_with_reason(MountState::Mounting, "1")
+            .await
+            .unwrap();
         sleep(Duration::from_millis(10)).await;
 
-        machine.transition_with_reason(MountState::Mounted, "2").await.unwrap();
+        machine
+            .transition_with_reason(MountState::Mounted, "2")
+            .await
+            .unwrap();
         sleep(Duration::from_millis(10)).await;
 
-        machine.transition_with_reason(MountState::Unmounting, "3").await.unwrap();
+        machine
+            .transition_with_reason(MountState::Unmounting, "3")
+            .await
+            .unwrap();
 
         // Check history
         let history = machine.get_history().await;
@@ -326,7 +369,10 @@ mod tests {
         // Initial time should be zero (no history)
         assert_eq!(machine.time_in_state().await.num_milliseconds(), 0);
 
-        machine.transition_with_reason(MountState::Mounting, "Start").await.unwrap();
+        machine
+            .transition_with_reason(MountState::Mounting, "Start")
+            .await
+            .unwrap();
 
         // Wait a bit
         sleep(Duration::from_millis(50)).await;

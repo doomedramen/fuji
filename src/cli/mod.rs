@@ -1,7 +1,7 @@
 //! CLI implementation for Fuji
 
 use crate::platform::Platform;
-use crate::socket::{SocketClient, Request, Response};
+use crate::socket::{Request, Response, SocketClient};
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
@@ -160,7 +160,6 @@ pub enum Commands {
     /// Check system for issues
     Doctor,
 
-  
     /// Execute batch operations from a file
     Batch {
         /// Path to batch configuration file (JSON or YAML)
@@ -243,45 +242,79 @@ pub enum ConfigCommand {
 /// Run the CLI command
 pub async fn run(cli: Cli, platform: Box<dyn Platform>) -> Result<()> {
     match cli.command {
-        Commands::Mount { url, mount_point, options, disable, dry_run, progress } => {
-            handle_mount(url, mount_point, options, disable, dry_run, progress, platform).await
+        Commands::Mount {
+            url,
+            mount_point,
+            options,
+            disable,
+            dry_run,
+            progress,
+        } => {
+            handle_mount(
+                url,
+                mount_point,
+                options,
+                disable,
+                dry_run,
+                progress,
+                platform,
+            )
+            .await
         }
-        Commands::Unmount { mount_id, force } => {
-            handle_unmount(mount_id, force, platform).await
+        Commands::Unmount { mount_id, force } => handle_unmount(mount_id, force, platform).await,
+        Commands::Status {
+            verbose,
+            watch,
+            filter_point,
+            filter_url,
+            filter_type,
+            filter_status,
+            json,
+        } => {
+            handle_status(
+                verbose,
+                watch,
+                filter_point,
+                filter_url,
+                filter_type,
+                filter_status,
+                json,
+                platform,
+            )
+            .await
         }
-        Commands::Status { verbose, watch, filter_point, filter_url, filter_type, filter_status, json } => {
-            handle_status(verbose, watch, filter_point, filter_url, filter_type, filter_status, json, platform).await
+        Commands::List {
+            enabled,
+            disabled,
+            filter_point,
+            filter_url,
+            filter_type,
+            json,
+        } => {
+            handle_list(
+                enabled,
+                disabled,
+                filter_point,
+                filter_url,
+                filter_type,
+                json,
+                platform,
+            )
+            .await
         }
-        Commands::List { enabled, disabled, filter_point, filter_url, filter_type, json } => {
-            handle_list(enabled, disabled, filter_point, filter_url, filter_type, json, platform).await
-        }
-        Commands::Daemon { command } => {
-            handle_daemon(command, platform).await
-        }
-        Commands::Discover { url } => {
-            handle_discover(url, platform).await
-        }
-        Commands::Enable { mount_id } => {
-            handle_enable(mount_id, platform).await
-        }
-        Commands::Disable { mount_id } => {
-            handle_disable(mount_id, platform).await
-        }
-        Commands::Remove { mount_id } => {
-            handle_remove(mount_id, platform).await
-        }
-        Commands::Remount { mount_id } => {
-            handle_remount(mount_id, platform).await
-        }
-        Commands::Config { command } => {
-            handle_config(command, platform).await
-        }
-        Commands::Doctor => {
-            handle_doctor(platform).await
-        }
-          Commands::Batch { file, continue_on_error, dry_run } => {
-            handle_batch(file, continue_on_error, dry_run, platform).await
-        }
+        Commands::Daemon { command } => handle_daemon(command, platform).await,
+        Commands::Discover { url } => handle_discover(url, platform).await,
+        Commands::Enable { mount_id } => handle_enable(mount_id, platform).await,
+        Commands::Disable { mount_id } => handle_disable(mount_id, platform).await,
+        Commands::Remove { mount_id } => handle_remove(mount_id, platform).await,
+        Commands::Remount { mount_id } => handle_remount(mount_id, platform).await,
+        Commands::Config { command } => handle_config(command, platform).await,
+        Commands::Doctor => handle_doctor(platform).await,
+        Commands::Batch {
+            file,
+            continue_on_error,
+            dry_run,
+        } => handle_batch(file, continue_on_error, dry_run, platform).await,
     }
 }
 
@@ -308,7 +341,10 @@ async fn handle_mount(
     let response = client.send_request(request).await;
 
     match response {
-        Ok(Response::MountSuccess { mount_id, mount_point }) => {
+        Ok(Response::MountSuccess {
+            mount_id,
+            mount_point,
+        }) => {
             if dry_run {
                 println!("Would mount {} to:", url);
                 println!("  Mount ID: {}", mount_id);
@@ -333,11 +369,7 @@ async fn handle_mount(
 }
 
 /// Handle unmount command
-async fn handle_unmount(
-    mount_id: String,
-    force: bool,
-    platform: Box<dyn Platform>,
-) -> Result<()> {
+async fn handle_unmount(mount_id: String, force: bool, platform: Box<dyn Platform>) -> Result<()> {
     let mount_id_display = mount_id.clone();
     let request = Request::Unmount { mount_id, force };
 
@@ -365,7 +397,7 @@ async fn handle_status(
     filter_point: Option<String>,
     filter_url: Option<String>,
     filter_type: Option<String>,
-    filter_status: Option<String>,
+    _filter_status: Option<String>, // TODO: Implement status filtering
     json: bool,
     platform: Box<dyn Platform>,
 ) -> Result<()> {
@@ -377,31 +409,51 @@ async fn handle_status(
             // Clear screen and move cursor to top-left
             print!("\x1B[2J\x1B[1;1H");
             println!("Fuji Status - Watching (Press Ctrl+C to stop)");
-            println!("Last updated: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"));
+            println!(
+                "Last updated: {}",
+                chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+            );
             println!("{}", "=".repeat(60));
 
             // Get fresh status
             let client = create_socket_client(platform.as_ref()).await?;
-            let response = client.send_request(Request::Status {
-                verbose: true,
-                watch: false,
-                json: false,
-                filter_url: filter_url.clone(),
-                filter_type: filter_type.clone(),
-                filter_point: filter_point.clone()
-            }).await;
+            let response = client
+                .send_request(Request::Status {
+                    verbose: true,
+                    watch: false,
+                    json: false,
+                    filter_url: filter_url.clone(),
+                    filter_type: filter_type.clone(),
+                    filter_point: filter_point.clone(),
+                })
+                .await;
 
             match response {
-                Ok(Response::Status { mounts, daemon_running, daemon_health }) => {
+                Ok(Response::Status {
+                    mounts,
+                    daemon_running,
+                    daemon_health,
+                }) => {
                     if !daemon_running {
                         println!("❌ Daemon is not running");
                     } else {
                         // Display daemon health
                         if let Some(health) = daemon_health {
                             let status_icon = if health.healthy { "🟢" } else { "🔴" };
-                            let uptime = health.uptime.map(|d| format_duration(d)).unwrap_or_else(|| "Unknown".to_string());
-                            println!("{} Daemon Status: {} (Uptime: {})", status_icon,
-                                if health.healthy { "Healthy" } else { "Unhealthy" }, uptime);
+                            let uptime = health
+                                .uptime
+                                .map(|d| format_duration(d))
+                                .unwrap_or_else(|| "Unknown".to_string());
+                            println!(
+                                "{} Daemon Status: {} (Uptime: {})",
+                                status_icon,
+                                if health.healthy {
+                                    "Healthy"
+                                } else {
+                                    "Unhealthy"
+                                },
+                                uptime
+                            );
 
                             if !health.issues.is_empty() {
                                 println!("Issues:");
@@ -436,12 +488,23 @@ async fn handle_status(
         return Ok(());
     }
 
-    let request = Request::Status { verbose, watch, json, filter_url, filter_type, filter_point };
+    let request = Request::Status {
+        verbose,
+        watch,
+        json,
+        filter_url,
+        filter_type,
+        filter_point,
+    };
     let client = create_socket_client(platform.as_ref()).await?;
     let response = client.send_request(request).await;
 
     match response {
-        Ok(Response::Status { mounts, daemon_running, daemon_health }) => {
+        Ok(Response::Status {
+            mounts,
+            daemon_running,
+            daemon_health,
+        }) => {
             if !daemon_running {
                 println!("Daemon is not running");
                 return Ok(());
@@ -450,9 +513,20 @@ async fn handle_status(
             // Display daemon health
             if let Some(health) = daemon_health {
                 let status_icon = if health.healthy { "🟢" } else { "🔴" };
-                let uptime = health.uptime.map(|d| format_duration(d)).unwrap_or_else(|| "Unknown".to_string());
-                println!("{} Daemon Status: {} (Uptime: {})", status_icon,
-                    if health.healthy { "Healthy" } else { "Unhealthy" }, uptime);
+                let uptime = health
+                    .uptime
+                    .map(|d| format_duration(d))
+                    .unwrap_or_else(|| "Unknown".to_string());
+                println!(
+                    "{} Daemon Status: {} (Uptime: {})",
+                    status_icon,
+                    if health.healthy {
+                        "Healthy"
+                    } else {
+                        "Unhealthy"
+                    },
+                    uptime
+                );
 
                 if !health.issues.is_empty() {
                     println!("Issues:");
@@ -477,7 +551,10 @@ async fn handle_status(
 
                         if verbose {
                             if let Some(last_connected) = mount.last_connected {
-                                println!("  Last connected: {}", last_connected.format("%Y-%m-%d %H:%M:%S UTC"));
+                                println!(
+                                    "  Last connected: {}",
+                                    last_connected.format("%Y-%m-%d %H:%M:%S UTC")
+                                );
                             }
                             if mount.reconnect_attempts > 0 {
                                 println!("  Reconnect attempts: {}", mount.reconnect_attempts);
@@ -537,7 +614,10 @@ async fn handle_list(
                     let status = if mount.enabled { "enabled" } else { "disabled" };
                     println!("{} ({})", mount.id, status);
                     println!("  URL: {}", mount.url);
-                    println!("  Created: {}", mount.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
+                    println!(
+                        "  Created: {}",
+                        mount.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+                    );
                     println!();
                 }
             }
@@ -553,10 +633,7 @@ async fn handle_list(
 }
 
 /// Handle daemon command
-async fn handle_daemon(
-    command: DaemonCommand,
-    platform: Box<dyn Platform>,
-) -> Result<()> {
+async fn handle_daemon(command: DaemonCommand, platform: Box<dyn Platform>) -> Result<()> {
     match command {
         DaemonCommand::Start { no_automount } => {
             // Start the daemon directly (not through socket)
@@ -871,17 +948,18 @@ fn get_nested_value(value: &toml::Value, key: &str) -> Option<Value> {
     match current {
         toml::Value::String(s) => Some(Value::String(s.clone())),
         toml::Value::Integer(i) => Some(Value::Number((*i).into())),
-        toml::Value::Float(f) => Some(Value::Number(serde_json::Number::from_f64(*f).unwrap_or(0.into()))),
+        toml::Value::Float(f) => Some(Value::Number(
+            serde_json::Number::from_f64(*f).unwrap_or(0.into()),
+        )),
         toml::Value::Boolean(b) => Some(Value::Bool(*b)),
         toml::Value::Datetime(dt) => Some(Value::String(dt.to_string())),
         toml::Value::Array(arr) => {
-            let json_arr: Result<Vec<Value>, _> = arr.iter()
-                .map(|v| toml_to_json(v))
-                .collect();
+            let json_arr: Result<Vec<Value>, _> = arr.iter().map(|v| toml_to_json(v)).collect();
             json_arr.ok().map(Value::Array)
         }
         toml::Value::Table(table) => {
-            let json_obj: Result<serde_json::Map<String, Value>, _> = table.iter()
+            let json_obj: Result<serde_json::Map<String, Value>, _> = table
+                .iter()
                 .map(|(k, v)| toml_to_json(v).map(|jv| (k.clone(), jv)))
                 .collect();
             json_obj.ok().map(Value::Object)
@@ -929,7 +1007,10 @@ async fn handle_doctor(platform: Box<dyn Platform>) -> Result<()> {
     let response = client.send_request(Request::Doctor).await;
 
     match response {
-        Ok(Response::DoctorReport { issues, suggestions }) => {
+        Ok(Response::DoctorReport {
+            issues,
+            suggestions,
+        }) => {
             println!("System Diagnosis:\n");
 
             if issues.is_empty() {
@@ -962,7 +1043,6 @@ async fn handle_doctor(platform: Box<dyn Platform>) -> Result<()> {
         Err(e) => Err(e.into()),
     }
 }
-
 
 /// Create a socket client with the platform's socket path
 async fn create_socket_client(platform: &dyn Platform) -> Result<SocketClient> {
@@ -1032,13 +1112,9 @@ pub enum BatchOperation {
         mount_id: String,
     },
     /// Wait for specified seconds
-    Wait {
-        seconds: u64,
-    },
+    Wait { seconds: u64 },
     /// Print a message
-    Echo {
-        message: String,
-    },
+    Echo { message: String },
 }
 
 /// Handle batch command
@@ -1055,8 +1131,10 @@ async fn handle_batch(
         .map_err(|e| anyhow!("Failed to read batch file '{}': {}", file, e))?;
 
     // Parse based on file extension
-    let batch_config: BatchConfig = if Path::new(&file).extension().and_then(|s| s.to_str()) == Some("yaml") ||
-        Path::new(&file).extension().and_then(|s| s.to_str()) == Some("yml") {
+    let batch_config: BatchConfig = if Path::new(&file).extension().and_then(|s| s.to_str())
+        == Some("yaml")
+        || Path::new(&file).extension().and_then(|s| s.to_str()) == Some("yml")
+    {
         serde_yaml::from_str(&content)
             .map_err(|e| anyhow!("Failed to parse YAML batch file: {}", e))?
     } else {
@@ -1064,7 +1142,10 @@ async fn handle_batch(
             .map_err(|e| anyhow!("Failed to parse JSON batch file: {}", e))?
     };
 
-    println!("Executing {} batch operations...", batch_config.operations.len());
+    println!(
+        "Executing {} batch operations...",
+        batch_config.operations.len()
+    );
 
     if dry_run {
         println!("DRY RUN MODE - No actual operations will be performed");
@@ -1076,7 +1157,12 @@ async fn handle_batch(
     // Process each operation
     for (index, operation) in batch_config.operations.iter().enumerate() {
         let op_str = format!("{:?}", operation);
-        println!("\n[{}/{}] {:?}", index + 1, batch_config.operations.len(), operation);
+        println!(
+            "\n[{}/{}] {:?}",
+            index + 1,
+            batch_config.operations.len(),
+            operation
+        );
 
         if dry_run {
             println!("  Would execute: {}", op_str);
@@ -1086,7 +1172,14 @@ async fn handle_batch(
 
         // Execute the operation
         let result = match operation {
-            BatchOperation::Mount { url, mount_point, options, disable, dry_run, progress } => {
+            BatchOperation::Mount {
+                url,
+                mount_point,
+                options,
+                disable,
+                dry_run,
+                progress,
+            } => {
                 handle_mount(
                     url.clone(),
                     mount_point.clone(),
@@ -1094,20 +1187,21 @@ async fn handle_batch(
                     *disable,
                     *dry_run,
                     *progress,
-                    crate::platform::get_platform(),
-                ).await
+                    platform.as_ref(),
+                )
+                .await
             }
             BatchOperation::Unmount { mount_id, force } => {
-                handle_unmount(mount_id.clone(), *force, crate::platform::get_platform()).await
+                handle_unmount(mount_id.clone(), *force, platform.as_ref()).await
             }
             BatchOperation::Enable { mount_id } => {
-                handle_enable(mount_id.clone(), crate::platform::get_platform()).await
+                handle_enable(mount_id.clone(), platform.as_ref()).await
             }
             BatchOperation::Disable { mount_id } => {
-                handle_disable(mount_id.clone(), crate::platform::get_platform()).await
+                handle_disable(mount_id.clone(), platform.as_ref()).await
             }
             BatchOperation::Remove { mount_id } => {
-                handle_remove(mount_id.clone(), crate::platform::get_platform()).await
+                handle_remove(mount_id.clone(), platform.as_ref()).await
             }
             BatchOperation::Wait { seconds } => {
                 println!("  Waiting {} seconds...", seconds);
@@ -1143,7 +1237,10 @@ async fn handle_batch(
     println!("  Failed operations: {}", error_count);
 
     if error_count > 0 {
-        return Err(anyhow!("Batch operation completed with {} errors", error_count));
+        return Err(anyhow!(
+            "Batch operation completed with {} errors",
+            error_count
+        ));
     }
 
     Ok(())
@@ -1151,7 +1248,7 @@ async fn handle_batch(
 
 /// Display status in a formatted table
 fn display_status_table(mounts: &[crate::socket::protocol::MountStatusInfo], verbose: bool) {
-    use comfy_table::{Table, Row, Cell};
+    use comfy_table::{Cell, Row, Table};
 
     let mut table = Table::new();
     table.load_preset("││──├─┤┬┴┼│└┴┘");
@@ -1225,7 +1322,6 @@ fn format_time(time: Option<chrono::DateTime<chrono::Utc>>) -> String {
 }
 
 /// Display health status in a formatted way
-
 /// Format duration for display
 fn format_duration(duration: std::time::Duration) -> String {
     let total_seconds = duration.as_secs();
@@ -1237,7 +1333,11 @@ fn format_duration(duration: std::time::Duration) -> String {
     } else if total_seconds < 86400 {
         format!("{}h {}m", total_seconds / 3600, (total_seconds % 3600) / 60)
     } else {
-        format!("{}d {}h", total_seconds / 86400, (total_seconds % 86400) / 3600)
+        format!(
+            "{}d {}h",
+            total_seconds / 86400,
+            (total_seconds % 86400) / 3600
+        )
     }
 }
 

@@ -1,7 +1,7 @@
 //! SSHFS mount handler implementation
 
-use crate::mount::{MountHandler, MountConfig, MountState, MountType};
 use crate::mount::options::MountOptionParser;
+use crate::mount::{MountConfig, MountHandler, MountState, MountType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::path::PathBuf;
@@ -18,9 +18,8 @@ impl SshfsHandler {
 
     /// Check if sshfs is available
     async fn check_sshfs(&self) -> bool {
-        let output = tokio::task::spawn_blocking(|| {
-            Command::new("which").arg("sshfs").output()
-        }).await;
+        let output =
+            tokio::task::spawn_blocking(|| Command::new("which").arg("sshfs").output()).await;
 
         match output {
             Ok(Ok(output)) => output.status.success(),
@@ -42,7 +41,8 @@ impl MountHandler for SshfsHandler {
             return Err(anyhow!("Invalid scheme for SSHFS: {}", parsed.scheme()));
         }
 
-        let host = parsed.host_str()
+        let host = parsed
+            .host_str()
             .ok_or_else(|| anyhow!("No host specified in URL"))?
             .to_string();
 
@@ -52,10 +52,10 @@ impl MountHandler for SshfsHandler {
             Some(parsed.username().to_string())
         };
 
-        let port = parsed.port().map(|p| p.to_string());
+        let _port = parsed.port().map(|p| p.to_string());
 
         // Path on the remote server
-        let remote_path = if parsed.path().is_empty() || parsed.path() == "/" {
+        let _remote_path = if parsed.path().is_empty() || parsed.path() == "/" {
             "".to_string()
         } else {
             parsed.path().to_string()
@@ -100,7 +100,13 @@ impl MountHandler for SshfsHandler {
         self.validate_config(config)?;
 
         match &config.mount_type {
-            MountType::SMB { share, username, options, .. } => {
+            MountType::SMB {
+                share,
+                username,
+                password,
+                domain,
+                options,
+            } => {
                 if !self.check_sshfs().await {
                     return Err(anyhow!("sshfs is not installed"));
                 }
@@ -146,7 +152,11 @@ impl MountHandler for SshfsHandler {
                     return Err(anyhow!("Failed to mount SSHFS: {}", stderr));
                 }
 
-                info!("Successfully mounted SSHFS {} to {}", share, mount_point.display());
+                info!(
+                    "Successfully mounted SSHFS {} to {}",
+                    share,
+                    mount_point.display()
+                );
                 Ok(())
             }
             _ => Err(anyhow!("Invalid mount type for SSHFS handler")),
@@ -163,17 +173,17 @@ impl MountHandler for SshfsHandler {
                 .arg("-u")
                 .arg(&mount_point_clone)
                 .output()
-        }).await??;
+        })
+        .await??;
 
         if !output.status.success() {
             // Fallback to umount
             warn!("fusermount failed, trying umount");
             let mount_point_clone = mount_point.clone();
             let output = tokio::task::spawn_blocking(move || {
-                Command::new("umount")
-                    .arg(&mount_point_clone)
-                    .output()
-            }).await??;
+                Command::new("umount").arg(&mount_point_clone).output()
+            })
+            .await??;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
@@ -210,7 +220,8 @@ impl MountHandler for SshfsHandler {
             std::fs::read(&test_path)?;
             let _ = std::fs::remove_file(&test_path);
             Ok::<(), std::io::Error>(())
-        }).await;
+        })
+        .await;
 
         match health_result {
             Ok(Ok(())) => {
@@ -223,7 +234,11 @@ impl MountHandler for SshfsHandler {
                 })
             }
             Ok(Err(e)) => {
-                warn!("SSHFS mount at {} has health issues: {}", mount_point.display(), e);
+                warn!(
+                    "SSHFS mount at {} has health issues: {}",
+                    mount_point.display(),
+                    e
+                );
                 Ok(MountState {
                     accessible: false,
                     last_error: Some(e.to_string()),
@@ -232,7 +247,11 @@ impl MountHandler for SshfsHandler {
                 })
             }
             Err(e) => {
-                error!("Health check failed for SSHFS mount at {}: {}", mount_point.display(), e);
+                error!(
+                    "Health check failed for SSHFS mount at {}: {}",
+                    mount_point.display(),
+                    e
+                );
                 Ok(MountState {
                     accessible: false,
                     last_error: Some(e.to_string()),

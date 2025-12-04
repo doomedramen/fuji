@@ -1,0 +1,52 @@
+# Lefthook configuration for Fuji
+# https://github.com/evilmartians/lefthook
+
+pre-commit:
+  commands:
+    # Check code formatting
+    format:
+      run: cargo fmt -- --check
+      glob: "*.rs"
+
+    # Run clippy lints
+    clippy:
+      run: cargo clippy --all-targets --all-features -- -D warnings
+      glob: "*.rs"
+
+    # Run tests with coverage
+    test-coverage:
+      run: ./scripts/generate-coverage.sh
+      glob: "*.rs"
+
+pre-push:
+  commands:
+    # Run full test suite
+    test:
+      run: cargo test --all-features
+      glob: "*.rs"
+
+    # Check for compilation errors
+    check:
+      run: cargo check --all-features
+      glob: "*.rs"
+
+    # Generate documentation
+    docs:
+      run: cargo doc --no-deps --all-features
+      glob: "*.rs"
+
+# CI-specific configuration
+ci:
+  pre-commit:
+    commands:
+      # Full linting in CI
+      clippy:
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      # Run all tests
+      test:
+        run: cargo test --all-features
+
+      # Generate coverage report
+      coverage:
+        run: cargo tarpaulin --out Xml --output-dir target/coverage

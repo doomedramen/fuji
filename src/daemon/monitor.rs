@@ -46,7 +46,8 @@ impl MountMonitor {
     /// Check if a mount is healthy
     pub async fn is_healthy(&self, mount_id: &str) -> bool {
         let states = self.health_states.read().await;
-        states.get(mount_id)
+        states
+            .get(mount_id)
             .map(|s| s.accessible && s.health_score > 50)
             .unwrap_or(false)
     }
@@ -54,7 +55,8 @@ impl MountMonitor {
     /// Get mounts that need attention
     pub async fn get_unhealthy_mounts(&self) -> Vec<String> {
         let states = self.health_states.read().await;
-        states.iter()
+        states
+            .iter()
             .filter(|(_, s)| !s.accessible || s.health_score < 50)
             .map(|(id, _)| id.clone())
             .collect()

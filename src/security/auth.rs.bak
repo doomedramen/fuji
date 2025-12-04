@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
-use tracing::info;
+use tracing::{debug, error, info, warn};
 
 /// JWT claims for Fuji authentication
 #[derive(Debug, Serialize, Deserialize)]

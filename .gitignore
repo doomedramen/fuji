@@ -32,4 +32,17 @@ CLAUDE.md
 
 # Task files
 # tasks.json
-# tasks/ 
+# tasks/
+
+# Test coverage reports
+target/coverage/
+target/tarpaulin-report.*
+*.profraw
+
+# Test output files
+*.out
+test-results/
+
+# Temporary test files
+test-temp/
+tmp/ 

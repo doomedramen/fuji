@@ -55,7 +55,9 @@ impl EnvironmentCredentialProvider {
         // Simple format: username:password[:domain]
         let parts: Vec<&str> = value.split(':').collect();
         if parts.len() < 2 {
-            return Err(anyhow!("Invalid credential format: expected username:password"));
+            return Err(anyhow!(
+                "Invalid credential format: expected username:password"
+            ));
         }
 
         let username = parts[0].to_string();
@@ -80,22 +82,20 @@ impl EnvironmentCredentialProvider {
         let var_name = format!("{}{}", self.prefix, sanitized);
 
         match env::var(&var_name) {
-            Ok(value) => {
-                match self.parse_credential(&value) {
-                    Ok(credential) => {
-                        debug!("Loaded credential for {} from environment variable {}",
-                               mount_id, var_name);
-                        Some(credential)
-                    }
-                    Err(e) => {
-                        warn!("Failed to parse credential from {}: {}", var_name, e);
-                        None
-                    }
+            Ok(value) => match self.parse_credential(&value) {
+                Ok(credential) => {
+                    debug!(
+                        "Loaded credential for {} from environment variable {}",
+                        mount_id, var_name
+                    );
+                    Some(credential)
                 }
-            }
-            Err(env::VarError::NotPresent) => {
-                None
-            }
+                Err(e) => {
+                    warn!("Failed to parse credential from {}: {}", var_name, e);
+                    None
+                }
+            },
+            Err(env::VarError::NotPresent) => None,
             Err(e) => {
                 warn!("Error reading environment variable {}: {}", var_name, e);
                 None
@@ -105,8 +105,7 @@ impl EnvironmentCredentialProvider {
 
     /// Check if any FUJI_MOUNT_ environment variables are set
     pub fn has_credentials(&self) -> bool {
-        env::vars()
-            .any(|(key, _)| key.starts_with(&self.prefix))
+        env::vars().any(|(key, _)| key.starts_with(&self.prefix))
     }
 
     /// List all available credential mount IDs from environment

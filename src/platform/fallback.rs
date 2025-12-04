@@ -1,6 +1,6 @@
 //! Fallback platform implementation for other Unix-like systems
 
-use super::{Platform, MountInfo, Signal};
+use super::{MountInfo, Platform, Signal};
 use crate::mount::MountType;
 use anyhow::{anyhow, Result};
 use std::fs;
@@ -70,7 +70,9 @@ impl Platform for FallbackPlatform {
         // Use your platform's service manager (systemd, launchd, etc.)
         // For development/testing, use nohup:
         //   nohup fuji daemon start --no-automount > /tmp/fuji.log 2>&1 &
-        warn!("Built-in daemonization not supported. See documentation for proper daemon management.");
+        warn!(
+            "Built-in daemonization not supported. See documentation for proper daemon management."
+        );
 
         Err(anyhow!("Built-in daemonization is not supported. Use nohup or your platform's service manager instead."))
     }
@@ -99,7 +101,9 @@ impl Platform for FallbackPlatform {
         }
 
         let pid_str = fs::read_to_string(pid_file)?;
-        let pid: u32 = pid_str.trim().parse()
+        let pid: u32 = pid_str
+            .trim()
+            .parse()
             .map_err(|_| anyhow!("Invalid PID in file"))?;
 
         // Use kill -0 to check if process exists
@@ -131,12 +135,12 @@ impl Platform for FallbackPlatform {
 
     fn get_mount_command(&self, mount_type: &MountType) -> Result<Vec<String>> {
         match mount_type {
-            MountType::NFS { host, share, options } => {
-                let mut cmd = vec![
-                    "mount".to_string(),
-                    "-t".to_string(),
-                    "nfs".to_string(),
-                ];
+            MountType::NFS {
+                host,
+                share,
+                options,
+            } => {
+                let mut cmd = vec!["mount".to_string(), "-t".to_string(), "nfs".to_string()];
 
                 if !options.is_empty() {
                     cmd.push("-o".to_string());
@@ -146,9 +150,7 @@ impl Platform for FallbackPlatform {
                 cmd.push(format!("{}:{}", host, share));
                 Ok(cmd)
             }
-            MountType::SMB { .. } => {
-                Err(anyhow!("SMB/CIFS not yet implemented"))
-            }
+            MountType::SMB { .. } => Err(anyhow!("SMB/CIFS not yet implemented")),
         }
     }
 
@@ -166,7 +168,11 @@ impl Platform for FallbackPlatform {
         }
 
         // Fallback: check if the directory exists and is not empty
-        Ok(path.exists() && path.read_dir().map(|mut i| i.next().is_some()).unwrap_or(false))
+        Ok(path.exists()
+            && path
+                .read_dir()
+                .map(|mut i| i.next().is_some())
+                .unwrap_or(false))
     }
 
     fn get_mount_info(&self, path: &Path) -> Result<Option<MountInfo>> {
@@ -258,4 +264,3 @@ impl Platform for FallbackPlatform {
 pub fn get_platform() -> Box<dyn Platform> {
     Box::new(FallbackPlatform)
 }
-

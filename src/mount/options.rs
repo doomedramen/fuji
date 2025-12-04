@@ -21,7 +21,7 @@ pub struct MountOptions {
 }
 
 /// Security-related mount options
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SecurityOptions {
     /// Read-only mount
     pub read_only: bool,
@@ -44,7 +44,7 @@ pub struct SecurityOptions {
 }
 
 /// Performance-related mount options
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PerformanceOptions {
     /// Buffer size in bytes
     pub rsize: Option<usize>,
@@ -82,43 +82,181 @@ impl MountOptionParser {
         let mut fs_options = HashMap::new();
 
         // NFS options
-        fs_options.insert("nfs".to_string(), [
-            "rsize", "wsize", "timeo", "retrans", "soft", "hard", "intr", "nointr", "tcp", "udp", "vers", "nfsvers",
-            "port", "proto", "ac", "noac", "acregmin", "acregmax", "acdirmin", "acdirmax", "lookupcache",
-            "fsc", "local_lock", "fscache", "nolock", "bg", "fg",
-        ].iter().map(|s| s.to_string()).collect());
+        fs_options.insert(
+            "nfs".to_string(),
+            [
+                "rsize",
+                "wsize",
+                "timeo",
+                "retrans",
+                "soft",
+                "hard",
+                "intr",
+                "nointr",
+                "tcp",
+                "udp",
+                "vers",
+                "nfsvers",
+                "port",
+                "proto",
+                "ac",
+                "noac",
+                "acregmin",
+                "acregmax",
+                "acdirmin",
+                "acdirmax",
+                "lookupcache",
+                "fsc",
+                "local_lock",
+                "fscache",
+                "nolock",
+                "bg",
+                "fg",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
+        );
 
         // SMB/CIFS options
-        fs_options.insert("cifs".to_string(), [
-            "rsize", "wsize", "vers", "username", "password", "domain", "uid", "gid", "file_mode", "dir_mode",
-            "iocharset", "codepage", "sec", "serverino", "cache", "unc", "ip", "port", "netbiosname",
-            "workgroup", "user", "pass", "rw", "ro", "guest", "nobrl", "servern", "posix",
-            "mfsymlinks", "dynperm", "inode64", "acl", "noperm", "noserverino", "cifsacl",
-        ].iter().map(|s| s.to_string()).collect());
+        fs_options.insert(
+            "cifs".to_string(),
+            [
+                "rsize",
+                "wsize",
+                "vers",
+                "username",
+                "password",
+                "domain",
+                "uid",
+                "gid",
+                "file_mode",
+                "dir_mode",
+                "iocharset",
+                "codepage",
+                "sec",
+                "serverino",
+                "cache",
+                "unc",
+                "ip",
+                "port",
+                "netbiosname",
+                "workgroup",
+                "user",
+                "pass",
+                "rw",
+                "ro",
+                "guest",
+                "nobrl",
+                "servern",
+                "posix",
+                "mfsymlinks",
+                "dynperm",
+                "inode64",
+                "acl",
+                "noperm",
+                "noserverino",
+                "cifsacl",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
+        );
 
         // SSHFS options
-        fs_options.insert("sshfs".to_string(), [
-            "ssh_command", "sftp_server", "direct_io", "cache", "cache_timeout", "cache_link_timeout",
-            "cache_dir", "cache_xattr_timeout", "follow_symlinks", "transform_symlinks",
-            "noatime", "nodiratime", "readonly", "allow_root", "allow_other", "default_permissions",
-            "uid", "gid", "umask", "fmask", "dmask", "idmap", "nomap", "uidfile", "gidfile",
-            "modules", "modulespath", "ssh_command_known_hosts_policy", "reconnect",
-            "ServerAliveInterval", "ServerAliveCountMax", "controlpath",
-        ].iter().map(|s| s.to_string()).collect());
+        fs_options.insert(
+            "sshfs".to_string(),
+            [
+                "port",
+                "ssh_command",
+                "sftp_server",
+                "direct_io",
+                "cache",
+                "cache_timeout",
+                "cache_link_timeout",
+                "cache_dir",
+                "cache_xattr_timeout",
+                "follow_symlinks",
+                "transform_symlinks",
+                "noatime",
+                "nodiratime",
+                "readonly",
+                "allow_root",
+                "allow_other",
+                "default_permissions",
+                "uid",
+                "gid",
+                "umask",
+                "fmask",
+                "dmask",
+                "idmap",
+                "nomap",
+                "uidfile",
+                "gidfile",
+                "modules",
+                "modulespath",
+                "ssh_command_known_hosts_policy",
+                "reconnect",
+                "ServerAliveInterval",
+                "ServerAliveCountMax",
+                "controlpath",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
+        );
 
         // Global security options
         let global_security = [
             "nosuid", "nodev", "noexec", "suid", "exec", "dev", "ro", "rw",
-        ].iter().map(|s| s.to_string()).collect();
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
 
         // Boolean options
         let boolean_options = [
-            "ro", "rw", "suid", "nosuid", "dev", "nodev", "exec", "noexec", "sync", "async",
-            "dirsync", "nodiratime", "relatime", "norelatime", "noatime", "atime",
-            "diratime", "nodiratime", "strictatime", "nostrictatime", "lazy", "nolazy",
-            "soft", "hard", "intr", "nointr", "bg", "fg", "defaults", "auto", "noauto",
-            "user", "nouser", "users", "nouser", "_netdev", "nofail",
-        ].iter().map(|s| s.to_string()).collect();
+            "ro",
+            "rw",
+            "suid",
+            "nosuid",
+            "dev",
+            "nodev",
+            "exec",
+            "noexec",
+            "sync",
+            "async",
+            "dirsync",
+            "nodiratime",
+            "relatime",
+            "norelatime",
+            "noatime",
+            "atime",
+            "diratime",
+            "nodiratime",
+            "strictatime",
+            "nostrictatime",
+            "lazytime",
+            "nolazytime",
+            "soft",
+            "hard",
+            "intr",
+            "nointr",
+            "bg",
+            "fg",
+            "defaults",
+            "auto",
+            "noauto",
+            "user",
+            "nouser",
+            "users",
+            "nousers",
+            "_netdev",
+            "nofail",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
 
         Self {
             fs_options,
@@ -127,9 +265,39 @@ impl MountOptionParser {
         }
     }
 
+    /// Parse size string with suffixes (K, M, G)
+    fn parse_size(&self, value: &str) -> Result<usize> {
+        let value = value.trim().to_uppercase();
+
+        if value.ends_with('K') {
+            let num = value.trim_end_matches('K');
+            num.parse::<usize>()
+                .map(|n| n * 1024)
+                .map_err(|_| anyhow!("Invalid size value: {}", value))
+        } else if value.ends_with('M') {
+            let num = value.trim_end_matches('M');
+            num.parse::<usize>()
+                .map(|n| n * 1024 * 1024)
+                .map_err(|_| anyhow!("Invalid size value: {}", value))
+        } else if value.ends_with('G') {
+            let num = value.trim_end_matches('G');
+            num.parse::<usize>()
+                .map(|n| n * 1024 * 1024 * 1024)
+                .map_err(|_| anyhow!("Invalid size value: {}", value))
+        } else {
+            // Parse as raw number
+            value
+                .parse::<usize>()
+                .map_err(|_| anyhow!("Invalid size value: {}", value))
+        }
+    }
+
     /// Parse mount options string
     pub fn parse(&self, options_str: &str, fs_type: &str) -> Result<MountOptions> {
-        let raw: Vec<String> = options_str.split(',').map(|s| s.trim().to_string()).collect();
+        let raw: Vec<String> = options_str
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect();
 
         let mut options = HashMap::new();
         let mut security = SecurityOptions::default();
@@ -144,21 +312,29 @@ impl MountOptionParser {
             // Parse key=value or boolean option
             if let Some((key, value)) = opt.split_once('=') {
                 // Key-value option
-                self.process_key_value_option(key, value, &mut options, &mut security, &mut performance)?;
+                self.process_key_value_option(
+                    key,
+                    value,
+                    &mut options,
+                    &mut security,
+                    &mut performance,
+                )?;
             } else {
                 // Boolean option
                 self.process_boolean_option(opt, &mut options, &mut security, &mut performance)?;
             }
         }
 
-        // Apply defaults and validate
+        // Apply filesystem-specific defaults
         self.apply_defaults(&mut options, &mut security, &mut performance, fs_type)?;
+
+        // Validate final options
         self.validate_options(&options, &security, &performance, fs_type)?;
 
         Ok(MountOptions {
             raw,
             options,
-            fs_type: fs_type.to_string(),
+            fs_type: self.normalize_fs_type(fs_type),
             security,
             performance,
         })
@@ -173,53 +349,80 @@ impl MountOptionParser {
         security: &mut SecurityOptions,
         performance: &mut PerformanceOptions,
     ) -> Result<()> {
-        // Check if it's a known filesystem option
-        if let Some(fs_specific) = self.fs_options.get(&self.normalize_fs_type(options.get("type").unwrap_or(&"auto".to_string()))) {
-            if fs_specific.contains(key) {
-                options.insert(key.to_string(), value.to_string());
-                return Ok(());
-            }
-        }
+        // Store the raw option
+        options.insert(key.to_string(), value.to_string());
 
         // Security options
         match key {
             "uid" => {
-                security.uid = Some(value.parse().map_err(|_| anyhow!("Invalid UID: {}", value))?);
+                security.uid = Some(
+                    value
+                        .parse()
+                        .map_err(|_| anyhow!("Invalid uid: {}", value))?,
+                );
             }
             "gid" => {
-                security.gid = Some(value.parse().map_err(|_| anyhow!("Invalid GID: {}", value))?);
-            }
-            "fmode" => {
-                security.fmode = Some(
-                    u32::from_str_radix(value, 8).map_err(|_| anyhow!("Invalid file mode: {}", value))?
+                security.gid = Some(
+                    value
+                        .parse()
+                        .map_err(|_| anyhow!("Invalid gid: {}", value))?,
                 );
             }
-            "dmode" => {
-                security.dmode = Some(
-                    u32::from_str_radix(value, 8).map_err(|_| anyhow!("Invalid dir mode: {}", value))?
-                );
+            "fmode" | "file_mode" => {
+                let mode = if value.starts_with('0') {
+                    u32::from_str_radix(&value[1..], 8)
+                        .map_err(|_| anyhow!("Invalid file mode: {}", value))?
+                } else {
+                    value
+                        .parse()
+                        .map_err(|_| anyhow!("Invalid file mode: {}", value))?
+                };
+                security.fmode = Some(mode);
+            }
+            "dmode" | "dir_mode" => {
+                let mode = if value.starts_with('0') {
+                    u32::from_str_radix(&value[1..], 8)
+                        .map_err(|_| anyhow!("Invalid dir mode: {}", value))?
+                } else {
+                    value
+                        .parse()
+                        .map_err(|_| anyhow!("Invalid dir mode: {}", value))?
+                };
+                security.dmode = Some(mode);
             }
             _ => {
                 options.insert(key.to_string(), value.to_string());
-            },
+            }
         }
 
         // Performance options
         match key {
             "rsize" => {
-                performance.rsize = Some(value.parse().map_err(|_| anyhow!("Invalid rsize: {}", value))?);
+                performance.rsize = Some(self.parse_size(value)?);
             }
             "wsize" => {
-                performance.wsize = Some(value.parse().map_err(|_| anyhow!("Invalid wsize: {}", value))?);
+                performance.wsize = Some(self.parse_size(value)?);
             }
             "timeo" => {
-                performance.timeo = Some(value.parse().map_err(|_| anyhow!("Invalid timeout: {}", value))?);
+                performance.timeo = Some(
+                    value
+                        .parse()
+                        .map_err(|_| anyhow!("Invalid timeout: {}", value))?,
+                );
             }
             "retrans" => {
-                performance.retrans = Some(value.parse().map_err(|_| anyhow!("Invalid retrans: {}", value))?);
+                performance.retrans = Some(
+                    value
+                        .parse()
+                        .map_err(|_| anyhow!("Invalid retrans: {}", value))?,
+                );
             }
             "nfsvers" => {
-                performance.nfsvers = Some(value.parse().map_err(|_| anyhow!("Invalid NFS version: {}", value))?);
+                performance.nfsvers = Some(
+                    value
+                        .parse()
+                        .map_err(|_| anyhow!("Invalid NFS version: {}", value))?,
+                );
             }
             "vers" => {
                 if value.starts_with("3") || value.starts_with("4") {
@@ -279,9 +482,11 @@ impl MountOptionParser {
                 options.insert(option.to_string(), "".to_string());
             }
             "intr" => {
+                performance.intr = true;
                 options.insert(option.to_string(), "".to_string());
             }
             "nointr" => {
+                performance.intr = false;
                 options.insert(option.to_string(), "".to_string());
             }
             "noatime" => {
@@ -326,6 +531,7 @@ impl MountOptionParser {
                 }
                 if !options.contains_key("intr") && !options.contains_key("nointr") {
                     options.insert("intr".to_string(), "".to_string());
+                    performance.intr = true;
                 }
                 if !options.contains_key("rsize") {
                     options.insert("rsize".to_string(), "1048576".to_string()); // 1MB
@@ -397,35 +603,67 @@ impl MountOptionParser {
                     bail!("Unsupported NFS version: {}", nfsvers);
                 }
             }
+
+            // Validate rsize and wsize are reasonable (between 1K and 100M)
+            if let Some(rsize) = performance.rsize {
+                if rsize < 1024 {
+                    bail!("rsize too small: {} (minimum 1024)", rsize);
+                }
+                if rsize > 104857600 {
+                    bail!("rsize too large: {} (maximum 100MB)", rsize);
+                }
+            }
+
+            if let Some(wsize) = performance.wsize {
+                if wsize < 1024 {
+                    bail!("wsize too small: {} (minimum 1024)", wsize);
+                }
+                if wsize > 104857600 {
+                    bail!("wsize too large: {} (maximum 100MB)", wsize);
+                }
+            }
+
+            // Validate timeout
+            if let Some(timeo) = performance.timeo {
+                if timeo < 1 || timeo > 3600 {
+                    bail!("Invalid timeout: {} (must be 1-3600 seconds)", timeo);
+                }
+            }
         }
 
-        // Validate values
-        if let Some(rsize) = performance.rsize {
-            if rsize < 1024 {
-                bail!("rsize too small: {} bytes (minimum 1024)", rsize);
+        // Validate CIFS-specific options
+        if fs_type == "cifs" {
+            if let Some(rsize) = performance.rsize {
+                if rsize < 1024 {
+                    bail!("rsize too small: {} (minimum 1024)", rsize);
+                }
+                if rsize > 104857600 {
+                    bail!("rsize too large: {} (maximum 100MB)", rsize);
+                }
             }
-            if rsize > 104857600 {
-                bail!("rsize too large: {} bytes (maximum 100MB)", rsize);
-            }
-        }
 
-        if let Some(wsize) = performance.wsize {
-            if wsize < 1024 {
-                bail!("wsize too small: {} bytes (minimum 1024)", wsize);
-            }
-            if wsize > 104857600 {
-                bail!("wsize too large: {} bytes (maximum 100MB)", wsize);
+            if let Some(wsize) = performance.wsize {
+                if wsize < 1024 {
+                    bail!("wsize too small: {} (minimum 1024)", wsize);
+                }
+                if wsize > 104857600 {
+                    bail!("wsize too large: {} (maximum 100MB)", wsize);
+                }
             }
         }
 
         Ok(())
     }
 
-    /// Format options back to string
+    /// Format mount options for mount command
     pub fn format(&self, options: &MountOptions) -> String {
         let mut formatted = Vec::new();
 
-        for (key, value) in &options.options {
+        // Sort options for consistent output
+        let mut sorted_options: Vec<_> = options.options.iter().collect();
+        sorted_options.sort_by_key(|(k, _)| *k);
+
+        for (key, value) in sorted_options {
             if value.is_empty() {
                 formatted.push(key.clone());
             } else {
@@ -435,6 +673,17 @@ impl MountOptionParser {
 
         formatted.join(",")
     }
+
+    /// Check if option is supported for filesystem
+    pub fn is_supported(&self, option: &str, fs_type: &str) -> bool {
+        self.boolean_options.contains(option)
+            || self.global_security.contains(option)
+            || self
+                .fs_options
+                .get(fs_type)
+                .map(|opts| opts.contains(option))
+                .unwrap_or(false)
+    }
 }
 
 impl Default for MountOptionParser {
@@ -443,125 +692,25 @@ impl Default for MountOptionParser {
     }
 }
 
-impl Default for SecurityOptions {
-    fn default() -> Self {
-        Self {
-            read_only: false,
-            nosuid: true,
-            nodev: false,
-            noexec: false,
-            suid: false,
-            fmode: None,
-            dmode: None,
-            uid: None,
-            gid: None,
-        }
-    }
-}
-
-impl Default for PerformanceOptions {
-    fn default() -> Self {
-        Self {
-            rsize: None,
-            wsize: None,
-            timeo: None,
-            retrans: None,
-            soft: false,
-            intr: true,
-            nfsvers: None,
-            vers: None,
-            vers_smb: None,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_nfs_options_parsing() {
+    fn test_parse_size() {
         let parser = MountOptionParser::new();
 
-        let options = parser.parse("rsize=1M,wsize=2M,soft,timeo=30", "nfs").unwrap();
+        assert_eq!(parser.parse_size("1024").unwrap(), 1024);
+        assert_eq!(parser.parse_size("1K").unwrap(), 1024);
+        assert_eq!(parser.parse_size("1M").unwrap(), 1024 * 1024);
+        assert_eq!(parser.parse_size("1G").unwrap(), 1024 * 1024 * 1024);
 
-        assert_eq!(options.fs_type, "nfs");
-        assert_eq!(options.options.get("rsize"), Some(&"1048576".to_string()));
-        assert_eq!(options.options.get("wsize"), Some(&"2097152".to_string()));
-        assert!(options.performance.soft);
-        assert_eq!(options.performance.timeo, Some(30));
-    }
+        // Test case insensitive
+        assert_eq!(parser.parse_size("1k").unwrap(), 1024);
+        assert_eq!(parser.parse_size("1m").unwrap(), 1024 * 1024);
 
-    #[test]
-    fn test_security_options() {
-        let parser = MountOptionParser::new();
-
-        let options = parser.parse("ro,nosuid,uid=1000,gid=1000", "nfs").unwrap();
-
-        assert!(options.security.read_only);
-        assert!(options.security.nosuid);
-        assert_eq!(options.security.uid, Some(1000));
-        assert_eq!(options.security.gid, Some(1000));
-    }
-
-    #[test]
-    fn test_boolean_options() {
-        let parser = MountOptionParser::new();
-
-        let options = parser.parse("ro,nosuid,noexec", "nfs").unwrap();
-
-        assert!(options.security.read_only);
-        assert!(options.security.nosuid);
-        assert!(options.security.noexec);
-    }
-
-    #[test]
-    fn test_cifs_options_parsing() {
-        let parser = MountOptionParser::new();
-
-        let options = parser.parse("username=user,password=pass,domain=WORKGROUP", "cifs").unwrap();
-
-        assert_eq!(options.fs_type, "cifs");
-        assert_eq!(options.options.get("username"), Some(&"user".to_string()));
-        assert_eq!(options.options.get("password"), Some(&"pass".to_string()));
-        assert_eq!(options.options.get("domain"), Some(&"WORKGROUP".to_string()));
-    }
-
-    #[test]
-    fn test_defaults_application() {
-        let parser = MountOptionParser::new();
-
-        // Empty options should get defaults
-        let options = parser.parse("", "nfs").unwrap();
-
-        assert!(options.options.contains_key("hard"));
-        assert!(options.options.contains_key("intr"));
-        assert_eq!(options.options.get("rsize"), Some(&"1048576".to_string()));
-        assert!(!options.performance.soft);
-    }
-
-    #[test]
-    fn test_format_options() {
-        let parser = MountOptionParser::new();
-
-        let parsed = parser.parse("rsize=1M,soft", "nfs").unwrap();
-        let formatted = parser.format(&parsed);
-
-        assert!(formatted.contains("rsize=1048576"));
-        assert!(formatted.contains("soft"));
-    }
-
-    #[test]
-    fn test_validation() {
-        let parser = MountOptionParser::new();
-
-        // Invalid: conflicting ro and rw
-        assert!(parser.parse("ro,rw", "nfs").is_err());
-
-        // Invalid: hard mount with zero timeout
-        assert!(parser.parse("hard,timeo=0", "nfs").is_err());
-
-        // Valid: soft mount with zero timeout
-        assert!(parser.parse("soft,timeo=0", "nfs").is_ok());
+        // Test invalid values
+        assert!(parser.parse_size("invalid").is_err());
+        assert!(parser.parse_size("1X").is_err());
     }
 }

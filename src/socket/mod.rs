@@ -13,7 +13,7 @@ use tracing::{debug, error, info, warn};
 pub mod protocol;
 
 // Re-export protocol types
-pub use protocol::{Request, Response, MountStatusInfo};
+pub use protocol::{MountStatusInfo, Request, Response};
 
 /// Socket server for the daemon
 pub struct SocketServer {
@@ -64,10 +64,7 @@ impl SocketServer {
 }
 
 /// Handle a single client connection
-async fn handle_connection<F, Fut>(
-    mut stream: UnixStream,
-    handler: F,
-) -> Result<()>
+async fn handle_connection<F, Fut>(mut stream: UnixStream, handler: F) -> Result<()>
 where
     F: Fn(Request) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Response> + Send,
@@ -84,8 +81,8 @@ where
     }
 
     // Parse request
-    let request: Request = serde_json::from_slice(&buf[..n])
-        .map_err(|e| anyhow!("Failed to parse request: {}", e))?;
+    let request: Request =
+        serde_json::from_slice(&buf[..n]).map_err(|e| anyhow!("Failed to parse request: {}", e))?;
 
     debug!("Received request: {:?}", request);
 
@@ -119,7 +116,7 @@ impl SocketClient {
         // Connect to socket with timeout
         let stream = timeout(
             Duration::from_secs(5),
-            UnixStream::connect(&self.socket_path)
+            UnixStream::connect(&self.socket_path),
         )
         .await
         .map_err(|_| anyhow!("Connection timeout to daemon"))?
@@ -178,14 +175,17 @@ mod tests {
         // Start server
         let server = SocketServer::new(&socket_path).await.unwrap();
         let server_handle = tokio::spawn({
-            let socket_path = socket_path.clone();
+            let _socket_path = socket_path.clone();
             async move {
-                server.run(|req| async move {
-                    match req {
-                        Request::Ping => Response::Pong,
-                        _ => Response::Error("Unknown request".to_string()),
-                    }
-                }).await.unwrap()
+                server
+                    .run(|req| async move {
+                        match req {
+                            Request::Ping => Response::Pong,
+                            _ => Response::Error("Unknown request".to_string()),
+                        }
+                    })
+                    .await
+                    .unwrap()
             }
         });
 

@@ -1,7 +1,7 @@
 //! SMB/CIFS mount handler implementation
 
-use crate::mount::{MountHandler, MountConfig, MountState, MountType};
 use crate::mount::options::MountOptionParser;
+use crate::mount::{MountConfig, MountHandler, MountState, MountType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::path::PathBuf;
@@ -31,7 +31,8 @@ impl MountHandler for SmbHandler {
             return Err(anyhow!("Invalid scheme for SMB/CIFS: {}", parsed.scheme()));
         }
 
-        let host = parsed.host_str()
+        let host = parsed
+            .host_str()
             .ok_or_else(|| anyhow!("No host specified in URL"))?
             .to_string();
 
@@ -84,7 +85,8 @@ impl MountHandler for SmbHandler {
                 .arg(&host_owned)
                 .arg("-N")
                 .output()
-        }).await??;
+        })
+        .await??;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -96,9 +98,10 @@ impl MountHandler for SmbHandler {
         let mut shares = Vec::new();
 
         // Parse smbclient output
-        let in_shares = stdout.lines()
+        let in_shares = stdout
+            .lines()
             .skip_while(|l| !l.contains("Sharename"))
-            .skip(2)  // Skip header lines
+            .skip(2) // Skip header lines
             .take_while(|l| !l.is_empty());
 
         for line in in_shares {
@@ -117,8 +120,20 @@ impl MountHandler for SmbHandler {
         self.validate_config(config)?;
 
         match &config.mount_type {
-            MountType::SMB { host, share, username, password, domain, options } => {
-                info!("Mounting SMB share //{}/{}/ to {}", host, share, mount_point.display());
+            MountType::SMB {
+                host,
+                share,
+                username,
+                password,
+                domain,
+                options,
+            } => {
+                info!(
+                    "Mounting SMB share //{}/{}/ to {}",
+                    host,
+                    share,
+                    mount_point.display()
+                );
 
                 // Parse and validate options using MountOptionParser
                 let parser = MountOptionParser::new();
@@ -172,7 +187,12 @@ impl MountHandler for SmbHandler {
                     return Err(anyhow!("Failed to mount SMB share: {}", stderr));
                 }
 
-                info!("Successfully mounted SMB share //{}/{}/ to {}", host, share, mount_point.display());
+                info!(
+                    "Successfully mounted SMB share //{}/{}/ to {}",
+                    host,
+                    share,
+                    mount_point.display()
+                );
                 Ok(())
             }
             _ => Err(anyhow!("Invalid mount type for SMB handler")),
@@ -184,10 +204,9 @@ impl MountHandler for SmbHandler {
 
         let mount_point_clone = mount_point.clone();
         let output = tokio::task::spawn_blocking(move || {
-            Command::new("umount")
-                .arg(&mount_point_clone)
-                .output()
-        }).await??;
+            Command::new("umount").arg(&mount_point_clone).output()
+        })
+        .await??;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -200,7 +219,10 @@ impl MountHandler for SmbHandler {
             warn!("Could not remove mount point directory: {}", e);
         }
 
-        info!("Successfully unmounted SMB share at {}", mount_point.display());
+        info!(
+            "Successfully unmounted SMB share at {}",
+            mount_point.display()
+        );
         Ok(())
     }
 
@@ -223,7 +245,8 @@ impl MountHandler for SmbHandler {
             std::fs::read(&test_path)?;
             let _ = std::fs::remove_file(&test_path);
             Ok::<(), std::io::Error>(())
-        }).await;
+        })
+        .await;
 
         match health_result {
             Ok(Ok(())) => {
@@ -236,7 +259,11 @@ impl MountHandler for SmbHandler {
                 })
             }
             Ok(Err(e)) => {
-                warn!("SMB mount at {} has health issues: {}", mount_point.display(), e);
+                warn!(
+                    "SMB mount at {} has health issues: {}",
+                    mount_point.display(),
+                    e
+                );
                 Ok(MountState {
                     accessible: false,
                     last_error: Some(e.to_string()),
@@ -245,7 +272,11 @@ impl MountHandler for SmbHandler {
                 })
             }
             Err(e) => {
-                error!("Health check failed for SMB mount at {}: {}", mount_point.display(), e);
+                error!(
+                    "Health check failed for SMB mount at {}: {}",
+                    mount_point.display(),
+                    e
+                );
                 Ok(MountState {
                     accessible: false,
                     last_error: Some(e.to_string()),

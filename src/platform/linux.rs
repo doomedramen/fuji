@@ -1,6 +1,6 @@
 //! Linux-specific platform implementation
 
-use super::{Platform, MountInfo, Signal};
+use super::{MountInfo, Platform, Signal};
 use crate::mount::MountType;
 use anyhow::{anyhow, Result};
 use std::fs;
@@ -39,11 +39,11 @@ impl Platform for LinuxPlatform {
                     let gid = unistd::getgid().as_raw() == metadata.st_gid();
 
                     let writable = if uid {
-                        mode & 0o200 != 0  // Owner write
+                        mode & 0o200 != 0 // Owner write
                     } else if gid {
-                        mode & 0o020 != 0  // Group write
+                        mode & 0o020 != 0 // Group write
                     } else {
-                        mode & 0o002 != 0  // Other write
+                        mode & 0o002 != 0 // Other write
                     };
 
                     Ok(writable)
@@ -100,7 +100,9 @@ impl Platform for LinuxPlatform {
         // On Linux, use systemd for proper daemonization
         // For development/testing, use nohup:
         //   nohup fuji daemon start --no-automount > /tmp/fuji.log 2>&1 &
-        info!("Built-in daemonization not supported. See documentation for proper daemon management.");
+        info!(
+            "Built-in daemonization not supported. See documentation for proper daemon management."
+        );
 
         Err(anyhow!("Built-in daemonization is not supported. Use nohup, systemd, or other service manager instead."))
     }
@@ -129,7 +131,9 @@ impl Platform for LinuxPlatform {
         }
 
         let pid_str = fs::read_to_string(pid_file)?;
-        let pid: u32 = pid_str.trim().parse()
+        let pid: u32 = pid_str
+            .trim()
+            .parse()
             .map_err(|_| anyhow!("Invalid PID in file"))?;
 
         // Check if process is still running
@@ -161,12 +165,12 @@ impl Platform for LinuxPlatform {
 
     fn get_mount_command(&self, mount_type: &MountType) -> Result<Vec<String>> {
         match mount_type {
-            MountType::NFS { host, share, options } => {
-                let mut cmd = vec![
-                    "mount".to_string(),
-                    "-t".to_string(),
-                    "nfs".to_string(),
-                ];
+            MountType::NFS {
+                host,
+                share,
+                options,
+            } => {
+                let mut cmd = vec!["mount".to_string(), "-t".to_string(), "nfs".to_string()];
 
                 if !options.is_empty() {
                     cmd.push("-o".to_string());
@@ -176,9 +180,7 @@ impl Platform for LinuxPlatform {
                 cmd.push(format!("{}:{}", host, share));
                 Ok(cmd)
             }
-            MountType::SMB { .. } => {
-                Err(anyhow!("SMB/CIFS not yet implemented"))
-            }
+            MountType::SMB { .. } => Err(anyhow!("SMB/CIFS not yet implemented")),
         }
     }
 
@@ -240,11 +242,16 @@ impl Platform for LinuxPlatform {
             // Ensure directory exists with proper permissions
             let run_dir = PathBuf::from("/run/fuji");
             if let Err(e) = self.ensure_dir_exists(&run_dir) {
-                debug!("Failed to create /run/fuji: {}, falling back to /tmp/fuji", e);
+                debug!(
+                    "Failed to create /run/fuji: {}, falling back to /tmp/fuji",
+                    e
+                );
                 PathBuf::from("/tmp/fuji/fuji.sock")
             } else {
                 // Set proper permissions (root only)
-                if let Err(e) = std::fs::set_permissions(&run_dir, std::fs::Permissions::from_mode(0o755)) {
+                if let Err(e) =
+                    std::fs::set_permissions(&run_dir, std::fs::Permissions::from_mode(0o755))
+                {
                     debug!("Failed to set permissions on /run/fuji: {}", e);
                 }
                 run_dir.join("fuji.sock")
@@ -270,7 +277,11 @@ impl Platform for LinuxPlatform {
             .unwrap_or_else(|| PathBuf::from("~/.config"))
             .join("fuji");
 
-        if user_config.exists() || self.can_access_path(&user_config.parent().unwrap()).unwrap_or(false) {
+        if user_config.exists()
+            || self
+                .can_access_path(&user_config.parent().unwrap())
+                .unwrap_or(false)
+        {
             return user_config;
         }
 
@@ -341,4 +352,3 @@ impl Platform for LinuxPlatform {
 pub fn get_platform() -> Box<dyn Platform> {
     Box::new(LinuxPlatform)
 }
-

@@ -12,12 +12,12 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-pub mod keyring_provider;
-pub mod file_provider;
-pub mod env_provider;
-pub mod socket;
 pub mod auth;
+pub mod env_provider;
+pub mod file_provider;
+pub mod keyring_provider;
 pub mod permissions;
+pub mod socket;
 
 /// Credential information for network mounts
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,18 +85,28 @@ impl CredentialManager {
     pub async fn store_credential(&self, mount_id: &str, credential: &Credential) -> Result<()> {
         for provider in &self.providers {
             if let Ok(()) = provider.store_credential(mount_id, credential).await {
-                tracing::info!("Stored credential for {} using {}", mount_id, provider.provider_name());
+                tracing::info!(
+                    "Stored credential for {} using {}",
+                    mount_id,
+                    provider.provider_name()
+                );
                 return Ok(());
             }
         }
-        Err(anyhow::anyhow!("No credential provider available for storage"))
+        Err(anyhow::anyhow!(
+            "No credential provider available for storage"
+        ))
     }
 
     /// Retrieve credentials, checking all providers in order
     pub async fn get_credential(&self, mount_id: &str) -> Result<Option<Credential>> {
         for provider in &self.providers {
             if let Ok(Some(credential)) = provider.get_credential(mount_id).await {
-                tracing::info!("Retrieved credential for {} from {}", mount_id, provider.provider_name());
+                tracing::info!(
+                    "Retrieved credential for {} from {}",
+                    mount_id,
+                    provider.provider_name()
+                );
                 return Ok(Some(credential));
             }
         }
@@ -109,13 +119,19 @@ impl CredentialManager {
         for provider in &self.providers {
             if provider.delete_credential(mount_id).await.is_ok() {
                 any_success = true;
-                tracing::info!("Deleted credential for {} from {}", mount_id, provider.provider_name());
+                tracing::info!(
+                    "Deleted credential for {} from {}",
+                    mount_id,
+                    provider.provider_name()
+                );
             }
         }
         if any_success {
             Ok(())
         } else {
-            Err(anyhow::anyhow!("Failed to delete credential from any provider"))
+            Err(anyhow::anyhow!(
+                "Failed to delete credential from any provider"
+            ))
         }
     }
 

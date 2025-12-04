@@ -4,16 +4,16 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use chrono::{DateTime, Utc};
 use url::Url;
 
 pub mod drivers;
-pub mod state_machine;
-pub mod point;
 pub mod options;
+pub mod point;
+pub mod state_machine;
 
 /// Mount types supported by Fuji
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,8 +172,13 @@ impl MountConfig {
             id
         } else {
             // Fallback for invalid URLs
-            url.replace("://", "_")
-                .replace(['/', ':', '?', '#', '[', ']', '@', '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '='], "_")
+            url.replace("://", "_").replace(
+                [
+                    '/', ':', '?', '#', '[', ']', '@', '!', '$', '&', '\'', '(', ')', '*', '+',
+                    ',', ';', '=',
+                ],
+                "_",
+            )
         }
     }
 

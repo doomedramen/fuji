@@ -3,9 +3,9 @@
 //! This module provides a platform-independent interface for OS-specific operations.
 //! It supports Linux/BSD and macOS, with the ability to add more platforms later.
 
+use crate::mount::MountType;
 use anyhow::Result;
 use std::path::{Path, PathBuf};
-use crate::mount::MountType;
 
 #[cfg(target_os = "linux")]
 mod linux;

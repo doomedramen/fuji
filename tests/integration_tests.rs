@@ -25,8 +25,11 @@ async fn test_nfs_mount_unmount() -> Result<()> {
         .args(&["mount", "nfs://nfs-server/data"])
         .output()?;
 
-    assert!(output.status.success(), "Failed to mount NFS share: {}",
-             String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to mount NFS share: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     // Check status
     let output = Command::new("./target/release/fuji")
@@ -45,8 +48,11 @@ async fn test_nfs_mount_unmount() -> Result<()> {
         .args(&["unmount", "nfs-server_nfs"])
         .output()?;
 
-    assert!(output.status.success(), "Failed to unmount: {}",
-             String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "Failed to unmount: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     // Stop daemon
     let status = Command::new("./target/release/fuji")
@@ -102,8 +108,10 @@ async fn test_config_persistence() -> Result<()> {
 
     assert!(output.status.success());
     let status_str = String::from_utf8_lossy(&output.stdout);
-    assert!(status_str.contains("nfs-server_nfs/media"),
-           "Share was not auto-mounted after restart");
+    assert!(
+        status_str.contains("nfs-server_nfs/media"),
+        "Share was not auto-mounted after restart"
+    );
 
     // Cleanup
     Command::new("./target/release/fuji")
@@ -123,8 +131,9 @@ async fn test_error_handling() -> Result<()> {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Could not connect to Fuji daemon") ||
-            stderr.contains("Invalid scheme"));
+    assert!(
+        stderr.contains("Could not connect to Fuji daemon") || stderr.contains("Invalid scheme")
+    );
 
     Ok(())
 }

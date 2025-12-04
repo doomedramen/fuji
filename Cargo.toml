@@ -7,13 +7,30 @@ description = "A network file system mount manager with daemon-based architectur
 license = "ISC"
 repository = "https://github.com/DoomedRamen/fuji"
 
+[lib]
+name = "fuji"
+path = "src/lib.rs"
+
 [[bin]]
 name = "fuji"
 path = "src/main.rs"
 
-[[bin]]
-name = "cleanup-warnings"
-path = "scripts/cleanup-warnings.rs"
+
+[[test]]
+name = "integration_tests"
+path = "tests/integration_tests.rs"
+
+[[test]]
+name = "mount_options_test"
+path = "tests/unit/mount_options_test.rs"
+
+[[test]]
+name = "config_test"
+path = "tests/unit/config_test.rs"
+
+[[test]]
+name = "monitoring_test"
+path = "tests/unit/monitoring_test.rs"
 
 [dependencies]
 # Core dependencies
@@ -67,6 +84,10 @@ petgraph = "0.6"
 [dev-dependencies]
 tempfile = "3.8"
 pretty_assertions = "1.4"
+cargo-tarpaulin = "0.27"
+mockall = "0.12"
+criterion = "0.5"
+proptest = "1.4"
 
 [profile.release]
 lto = true

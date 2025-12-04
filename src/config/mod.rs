@@ -6,12 +6,12 @@
 use crate::mount::{MountConfig, MountStatus};
 use crate::platform::Platform;
 use anyhow::{anyhow, Result};
+use chrono::Duration;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::fs;
 use tracing::{debug, info, warn};
-use chrono::Duration;
 use validator::Validate;
 
 /// Global configuration structure
@@ -172,7 +172,8 @@ impl Config {
         let content = toml::to_string_pretty(self)
             .map_err(|e| anyhow!("Failed to serialize configuration: {}", e))?;
 
-        fs::write(&config_path, content).await
+        fs::write(&config_path, content)
+            .await
             .map_err(|e| anyhow!("Failed to write configuration to {:?}: {}", config_path, e))?;
 
         info!("Saved configuration to {:?}", config_path);
@@ -182,9 +183,7 @@ impl Config {
     /// Get all possible configuration paths in order of preference
     fn get_config_paths(platform: &dyn Platform) -> Vec<PathBuf> {
         let config_dir = platform.get_config_dir();
-        vec![
-            config_dir.join("mounts.toml"),
-        ]
+        vec![config_dir.join("mounts.toml")]
     }
 
     /// Get the preferred configuration path
@@ -205,7 +204,9 @@ impl Config {
 
     /// Add or update a mount configuration
     pub fn add_mount(&mut self, mount: MountConfig) {
-        let wrapper = MountConfigWrapper { mount: mount.clone() };
+        let wrapper = MountConfigWrapper {
+            mount: mount.clone(),
+        };
         self.mounts.insert(mount.id.clone(), wrapper);
     }
 
@@ -231,38 +232,35 @@ impl Config {
 
     /// Get all enabled mount configurations
     pub fn get_enabled_mounts(&self) -> impl Iterator<Item = &MountConfig> {
-        self.mounts.values()
-            .filter_map(|w| {
-                if w.mount.enabled {
-                    Some(&w.mount)
-                } else {
-                    None
-                }
-            })
+        self.mounts.values().filter_map(|w| {
+            if w.mount.enabled {
+                Some(&w.mount)
+            } else {
+                None
+            }
+        })
     }
 
     /// Get all active mount configurations
     pub fn get_active_mounts(&self) -> impl Iterator<Item = &MountConfig> {
-        self.mounts.values()
-            .filter_map(|w| {
-                if w.mount.status == MountStatus::Active {
-                    Some(&w.mount)
-                } else {
-                    None
-                }
-            })
+        self.mounts.values().filter_map(|w| {
+            if w.mount.status == MountStatus::Active {
+                Some(&w.mount)
+            } else {
+                None
+            }
+        })
     }
 
     /// Get mounts that need to be attempted for reconnection
     pub fn get_failed_mounts(&self) -> impl Iterator<Item = &MountConfig> {
-        self.mounts.values()
-            .filter_map(|w| {
-                if w.mount.status == MountStatus::Failed && w.mount.enabled {
-                    Some(&w.mount)
-                } else {
-                    None
-                }
-            })
+        self.mounts.values().filter_map(|w| {
+            if w.mount.status == MountStatus::Failed && w.mount.enabled {
+                Some(&w.mount)
+            } else {
+                None
+            }
+        })
     }
 
     /// Calculate next reconnection delay based on attempts
@@ -289,7 +287,8 @@ impl Config {
 
     /// Get mount directory based on configuration and platform defaults
     pub fn get_mount_dir(&self, platform: &dyn Platform) -> PathBuf {
-        self.platform.mount_dir
+        self.platform
+            .mount_dir
             .clone()
             .unwrap_or_else(|| platform.get_mount_dir())
     }
@@ -312,11 +311,13 @@ impl Config {
         let content = toml::to_string_pretty(self)
             .map_err(|e| anyhow!("Failed to serialize configuration: {}", e))?;
 
-        fs::write(&temp_path, content).await
+        fs::write(&temp_path, content)
+            .await
             .map_err(|e| anyhow!("Failed to write temporary configuration: {}", e))?;
 
         // Atomic rename
-        fs::rename(&temp_path, &config_path).await
+        fs::rename(&temp_path, &config_path)
+            .await
             .map_err(|e| anyhow!("Failed to rename temporary configuration: {}", e))?;
 
         info!("Configuration saved atomically to {:?}", config_path);
@@ -336,7 +337,8 @@ impl Config {
         for mount_config in self.get_all_mounts() {
             if platform.path_exists(&mount_config.mount_point) {
                 // Check if there's already something mounted at this point
-                if let Ok(Some(existing_mount)) = platform.get_mount_info(&mount_config.mount_point) {
+                if let Ok(Some(existing_mount)) = platform.get_mount_info(&mount_config.mount_point)
+                {
                     conflicts.push(format!(
                         "Mount point {} already has {} mounted",
                         mount_config.mount_point.display(),
@@ -358,7 +360,8 @@ impl Config {
 
         // Update mount status based on system state
         for (_, wrapper) in self.mounts.iter_mut() {
-            let is_mounted = system_mounts.iter()
+            let is_mounted = system_mounts
+                .iter()
                 .any(|(point, _)| point == &wrapper.mount.mount_point);
 
             if is_mounted && wrapper.mount.enabled {
@@ -374,7 +377,9 @@ impl Config {
 }
 
 // Validation functions
-fn validate_mounts(mounts: &HashMap<String, MountConfigWrapper>) -> Result<(), validator::ValidationError> {
+fn validate_mounts(
+    mounts: &HashMap<String, MountConfigWrapper>,
+) -> Result<(), validator::ValidationError> {
     // Check for duplicate mount points
     let mut mount_points = std::collections::HashSet::new();
     for wrapper in mounts.values() {

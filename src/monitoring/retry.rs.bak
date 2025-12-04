@@ -3,7 +3,7 @@
 //! Provides configurable retry mechanisms with exponential backoff
 //! for failed operations and reconnection attempts.
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use backoff::{backoff::Backoff, ExponentialBackoff};
 use chrono;
 use std::collections::HashMap;

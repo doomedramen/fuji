@@ -3,7 +3,7 @@
 //! Manages Unix domain socket creation with proper permissions and ownership.
 
 use anyhow::{anyhow, Result};
-use libc::{chmod, chown, uid_t, gid_t};
+use libc::{chmod, chown, gid_t, uid_t};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -63,8 +63,10 @@ impl SocketManager {
         // Set permissions
         self.set_socket_permissions()?;
 
-        info!("Created socket at {:?} with permissions {:o}",
-              self.socket_path, self.permissions);
+        info!(
+            "Created socket at {:?} with permissions {:o}",
+            self.socket_path, self.permissions
+        );
 
         Ok(listener)
     }
@@ -111,8 +113,11 @@ impl SocketManager {
 
         // Check file permissions
         if (mode & 0o777) != self.permissions {
-            debug!("Socket permissions mismatch: expected {:o}, found {:o}",
-                   self.permissions, mode & 0o777);
+            debug!(
+                "Socket permissions mismatch: expected {:o}, found {:o}",
+                self.permissions,
+                mode & 0o777
+            );
             return Ok(false);
         }
 
@@ -123,8 +128,10 @@ impl SocketManager {
             let file_gid = metadata.gid();
 
             if file_uid != uid || file_gid != gid {
-                debug!("Socket ownership mismatch: expected uid:{} gid:{}, found uid:{} gid:{}",
-                       uid, gid, file_uid, file_gid);
+                debug!(
+                    "Socket ownership mismatch: expected uid:{} gid:{}, found uid:{} gid:{}",
+                    uid, gid, file_uid, file_gid
+                );
                 return Ok(false);
             }
         }
@@ -163,7 +170,7 @@ pub fn create_secure_socket(socket_path: PathBuf) -> Result<SocketManager> {
     // Try to get current user info for ownership
     #[cfg(unix)]
     {
-        use nix::unistd::{getuid, getgid};
+        use nix::unistd::{getgid, getuid};
         Ok(manager.with_owner(getuid().as_raw(), getgid().as_raw()))
     }
 
@@ -204,8 +211,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let socket_path = temp_dir.path().join("test.sock");
 
-        let manager = SocketManager::new(socket_path.clone())
-            .with_permissions(0o640); // Owner rw, group r
+        let manager = SocketManager::new(socket_path.clone()).with_permissions(0o640); // Owner rw, group r
 
         let listener = manager.create_socket().await.unwrap();
 
@@ -226,8 +232,7 @@ mod tests {
         // Create a regular file with wrong permissions
         fs::write(&socket_path, "test").unwrap();
 
-        let manager = SocketManager::new(socket_path.clone())
-            .with_permissions(0o600);
+        let manager = SocketManager::new(socket_path.clone()).with_permissions(0o600);
 
         // Should fail because permissions don't match
         assert!(!manager.verify_permissions().unwrap());

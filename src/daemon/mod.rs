@@ -3,17 +3,17 @@
 //! The daemon handles all mount operations, monitoring, and reconnection logic.
 
 use crate::config::Config;
-use crate::mount::{get_mount_handler, MountConfig, MountStatus, MountState};
+use crate::mount::{get_mount_handler, MountConfig, MountState, MountStatus};
 use crate::platform::Platform;
-use crate::socket::{SocketServer, Request, Response, MountStatusInfo};
 use crate::socket::protocol::DaemonHealthInfo;
+use crate::socket::{MountStatusInfo, Request, Response, SocketServer};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use regex;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::{RwLock, oneshot};
+use tokio::sync::{oneshot, RwLock};
 use tokio::time::{interval, Duration};
 use tracing::{error, info, warn};
 
@@ -99,32 +99,32 @@ impl Daemon {
         }
 
         // Create shutdown channel
-        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let (_shutdown_tx, shutdown_rx) = oneshot::channel();
         *self.shutdown_rx.write().await = Some(shutdown_rx);
 
         // Start socket server
         let server = SocketServer::new(&socket_path).await?;
         let config = Arc::clone(&self.config);
         let monitor = Arc::clone(&self.monitor);
-        let platform = self.platform.as_ref() as *const dyn Platform;
+        let _platform = self.platform.as_ref() as *const dyn Platform;
 
         let start_time = self.start_time;
         let server_handle = tokio::spawn(async move {
-            server.run(move |request| {
-                let config = Arc::clone(&config);
-                let monitor = Arc::clone(&monitor);
+            server
+                .run(move |request| {
+                    let config = Arc::clone(&config);
+                    let monitor = Arc::clone(&monitor);
 
-                async move {
-                    handle_request(request, config, monitor, start_time).await
-                }
-            }).await
+                    async move { handle_request(request, config, monitor, start_time).await }
+                })
+                .await
         });
 
         // Start monitoring task
         let monitor_handle = {
             let config = Arc::clone(&self.config);
             let monitor = Arc::clone(&self.monitor);
-            let platform = self.platform.as_ref() as *const dyn Platform;
+            let _platform = self.platform.as_ref() as *const dyn Platform;
 
             tokio::spawn(async move {
                 if let Err(e) = run_monitoring_loop(config, monitor, no_automount).await {
@@ -205,58 +205,92 @@ async fn handle_request(
     match request {
         Request::Ping => Response::Pong,
 
-        Request::Mount { url, mount_point, options, disable, dry_run, progress } => {
-            handle_mount_request(url, mount_point, options, disable, dry_run, progress, config).await
+        Request::Mount {
+            url,
+            mount_point,
+            options,
+            disable,
+            dry_run,
+            progress,
+        } => {
+            handle_mount_request(
+                url,
+                mount_point,
+                options,
+                disable,
+                dry_run,
+                progress,
+                config,
+            )
+            .await
         }
 
         Request::Unmount { mount_id, force } => {
             handle_unmount_request(mount_id, force, config).await
         }
 
-        Request::Status { verbose, watch, json, filter_url, filter_type, filter_point } => {
-            handle_status_request(verbose, watch, json, filter_url, filter_type, filter_point, config, monitor, start_time).await
+        Request::Status {
+            verbose,
+            watch,
+            json,
+            filter_url,
+            filter_type,
+            filter_point,
+        } => {
+            handle_status_request(
+                verbose,
+                watch,
+                json,
+                filter_url,
+                filter_type,
+                filter_point,
+                config,
+                monitor,
+                start_time,
+            )
+            .await
         }
 
-        Request::List { enabled_only, disabled_only, json, filter_url, filter_type, filter_point } => {
-            handle_list_request(enabled_only, disabled_only, json, filter_url, filter_type, filter_point, config).await
+        Request::List {
+            enabled_only,
+            disabled_only,
+            json,
+            filter_url,
+            filter_type,
+            filter_point,
+        } => {
+            handle_list_request(
+                enabled_only,
+                disabled_only,
+                json,
+                filter_url,
+                filter_type,
+                filter_point,
+                config,
+            )
+            .await
         }
 
-        Request::StopDaemon => {
-            Response::Success
-        }
+        Request::StopDaemon => Response::Success,
 
-        Request::GetLogs { lines } => {
+        Request::GetLogs { _lines } => {
             // TODO: Implement log retrieval
             Response::Logs { lines: vec![] }
         }
 
-        Request::Discover { url } => {
-            handle_discover_request(url).await
-        }
+        Request::Discover { url } => handle_discover_request(url).await,
 
-        Request::Enable { mount_id } => {
-            handle_enable_request(mount_id, config).await
-        }
+        Request::Enable { mount_id } => handle_enable_request(mount_id, config).await,
 
-        Request::Disable { mount_id } => {
-            handle_disable_request(mount_id, config).await
-        }
+        Request::Disable { mount_id } => handle_disable_request(mount_id, config).await,
 
-        Request::Remove { mount_id } => {
-            handle_remove_request(mount_id, config).await
-        }
+        Request::Remove { mount_id } => handle_remove_request(mount_id, config).await,
 
-        Request::Remount { mount_id } => {
-            handle_remount_request(mount_id, config).await
-        }
+        Request::Remount { mount_id } => handle_remount_request(mount_id, config).await,
 
-        Request::GetConfig => {
-            handle_get_config_request(config).await
-        }
+        Request::GetConfig => handle_get_config_request(config).await,
 
-        Request::Doctor => {
-            handle_doctor_request().await
-        }
+        Request::Doctor => handle_doctor_request().await,
     }
 }
 
@@ -264,10 +298,10 @@ async fn handle_request(
 async fn handle_mount_request(
     url: String,
     mount_point: Option<String>,
-    options: Option<Vec<String>>,
+    _options: Option<Vec<String>>, // TODO: Integrate options into MountType
     disable: bool,
     dry_run: bool,
-    progress: bool,
+    _progress: bool, // TODO: Implement progress reporting
     config: Arc<RwLock<Config>>,
 ) -> Response {
     // Parse URL
@@ -326,9 +360,14 @@ async fn handle_mount_request(
 
     // If enabled, attempt to mount
     if !disable {
-        if let Err(e) = handler.mount(&mount_config, &mount_config.mount_point).await {
+        if let Err(e) = handler
+            .mount(&mount_config, &mount_config.mount_point)
+            .await
+        {
             error!("Failed to mount {}: {}", mount_id, e);
-            config.write().await
+            config
+                .write()
+                .await
                 .get_mount_mut(&mount_id)
                 .unwrap()
                 .update_status(MountStatus::Failed);
@@ -336,12 +375,18 @@ async fn handle_mount_request(
         }
 
         // Update status
-        config.write().await
+        config
+            .write()
+            .await
             .get_mount_mut(&mount_id)
             .unwrap()
             .update_status(MountStatus::Active);
 
-        info!("Successfully mounted {} to {}", mount_id, mount_config.mount_point.display());
+        info!(
+            "Successfully mounted {} to {}",
+            mount_id,
+            mount_config.mount_point.display()
+        );
     }
 
     Response::MountSuccess {
@@ -461,7 +506,8 @@ async fn handle_status_request(
     let mut issues = Vec::new();
 
     // Check if we have any failed mounts
-    let failed_count = mounts.iter()
+    let failed_count = mounts
+        .iter()
         .filter(|m| matches!(m.status, MountStatus::Failed))
         .count();
 
@@ -494,12 +540,17 @@ async fn handle_list_request(
     config: Arc<RwLock<Config>>,
 ) -> Response {
     let cfg = config.read().await;
-    let mounts: Vec<MountConfig> = cfg.get_all_mounts()
+    let mounts: Vec<MountConfig> = cfg
+        .get_all_mounts()
         .filter(|m| {
             // Apply enabled/disabled filter
-            if enabled_only { m.enabled }
-            else if disabled_only { !m.enabled }
-            else { true }
+            if enabled_only {
+                m.enabled
+            } else if disabled_only {
+                !m.enabled
+            } else {
+                true
+            }
         })
         .filter(|m| {
             // Apply URL filter
@@ -569,10 +620,7 @@ async fn handle_discover_request(url: String) -> Response {
 }
 
 /// Handle enable request
-async fn handle_enable_request(
-    mount_id: String,
-    config: Arc<RwLock<Config>>,
-) -> Response {
+async fn handle_enable_request(mount_id: String, config: Arc<RwLock<Config>>) -> Response {
     let mut cfg = config.write().await;
     match cfg.get_mount_mut(&mount_id) {
         Some(mount) => {
@@ -584,10 +632,7 @@ async fn handle_enable_request(
 }
 
 /// Handle disable request
-async fn handle_disable_request(
-    mount_id: String,
-    config: Arc<RwLock<Config>>,
-) -> Response {
+async fn handle_disable_request(mount_id: String, config: Arc<RwLock<Config>>) -> Response {
     let mut cfg = config.write().await;
     match cfg.get_mount_mut(&mount_id) {
         Some(mount) => {
@@ -599,10 +644,7 @@ async fn handle_disable_request(
 }
 
 /// Handle remove request
-async fn handle_remove_request(
-    mount_id: String,
-    config: Arc<RwLock<Config>>,
-) -> Response {
+async fn handle_remove_request(mount_id: String, config: Arc<RwLock<Config>>) -> Response {
     // Unmount if active
     {
         let cfg = config.read().await;
@@ -622,10 +664,7 @@ async fn handle_remove_request(
 }
 
 /// Handle remount request
-async fn handle_remount_request(
-    mount_id: String,
-    config: Arc<RwLock<Config>>,
-) -> Response {
+async fn handle_remount_request(mount_id: String, config: Arc<RwLock<Config>>) -> Response {
     let mount = {
         let cfg = config.read().await;
         match cfg.get_mount(&mount_id) {
@@ -653,7 +692,9 @@ async fn handle_remount_request(
     }
 
     // Update status
-    config.write().await
+    config
+        .write()
+        .await
         .get_mount_mut(&mount_id)
         .unwrap()
         .update_status(MountStatus::Active);
@@ -663,9 +704,7 @@ async fn handle_remount_request(
 }
 
 /// Handle get config request
-async fn handle_get_config_request(
-    config: Arc<RwLock<Config>>,
-) -> Response {
+async fn handle_get_config_request(config: Arc<RwLock<Config>>) -> Response {
     let cfg = config.read().await;
     match toml::to_string_pretty(&*cfg) {
         Ok(s) => Response::Config { config: s },
@@ -681,7 +720,6 @@ async fn handle_doctor_request() -> Response {
         suggestions: vec![],
     }
 }
-
 
 /// Convert monitor health states to HealthStatus structs
 async fn get_all_health_statuses_from_monitor(
@@ -767,7 +805,9 @@ async fn auto_mount_enabled_shares(config: Arc<RwLock<Config>>) -> Result<()> {
         if let Ok(handler) = get_mount_handler(protocol) {
             match handler.mount(&mount, &mount.mount_point).await {
                 Ok(_) => {
-                    config.write().await
+                    config
+                        .write()
+                        .await
                         .get_mount_mut(&mount.id)
                         .unwrap()
                         .update_status(MountStatus::Active);
@@ -778,7 +818,9 @@ async fn auto_mount_enabled_shares(config: Arc<RwLock<Config>>) -> Result<()> {
                 }
                 Err(e) => {
                     error!("Failed to auto-mount {}: {}", mount.id, e);
-                    config.write().await
+                    config
+                        .write()
+                        .await
                         .get_mount_mut(&mount.id)
                         .unwrap()
                         .update_status(MountStatus::Failed);
@@ -791,10 +833,7 @@ async fn auto_mount_enabled_shares(config: Arc<RwLock<Config>>) -> Result<()> {
 }
 
 /// Check health of all active mounts
-async fn check_mount_health(
-    config: Arc<RwLock<Config>>,
-    monitor: Arc<MountMonitor>,
-) -> Result<()> {
+async fn check_mount_health(config: Arc<RwLock<Config>>, monitor: Arc<MountMonitor>) -> Result<()> {
     let active_mounts: Vec<MountConfig> = {
         let cfg = config.read().await;
         cfg.get_active_mounts().cloned().collect()
@@ -810,10 +849,15 @@ async fn check_mount_health(
                     monitor.update_health(&mount.id, state).await;
 
                     if !accessible {
-                        warn!("Mount {} appears unhealthy: {}", mount.id,
-                              last_error.unwrap_or_else(|| "Unknown".to_string()));
+                        warn!(
+                            "Mount {} appears unhealthy: {}",
+                            mount.id,
+                            last_error.unwrap_or_else(|| "Unknown".to_string())
+                        );
 
-                        config.write().await
+                        config
+                            .write()
+                            .await
                             .get_mount_mut(&mount.id)
                             .unwrap()
                             .update_status(MountStatus::Failed);
@@ -821,7 +865,9 @@ async fn check_mount_health(
                 }
                 Err(e) => {
                     error!("Health check failed for {}: {}", mount.id, e);
-                    config.write().await
+                    config
+                        .write()
+                        .await
                         .get_mount_mut(&mount.id)
                         .unwrap()
                         .update_status(MountStatus::Failed);
@@ -855,8 +901,11 @@ async fn attempt_reconnections(config: Arc<RwLock<Config>>) -> Result<()> {
     };
 
     for mount in mounts_to_reconnect.drain(..) {
-        info!("Attempting to reconnect {} (attempt {})",
-              mount.id, mount.reconnect_attempts + 1);
+        info!(
+            "Attempting to reconnect {} (attempt {})",
+            mount.id,
+            mount.reconnect_attempts + 1
+        );
 
         // Increment attempt counter
         {
@@ -877,7 +926,9 @@ async fn attempt_reconnections(config: Arc<RwLock<Config>>) -> Result<()> {
             // Attempt to mount
             match handler.mount(&mount, &mount.mount_point).await {
                 Ok(_) => {
-                    config.write().await
+                    config
+                        .write()
+                        .await
                         .get_mount_mut(&mount.id)
                         .unwrap()
                         .update_status(MountStatus::Active);
@@ -885,7 +936,9 @@ async fn attempt_reconnections(config: Arc<RwLock<Config>>) -> Result<()> {
                 }
                 Err(e) => {
                     warn!("Failed to reconnect {}: {}", mount.id, e);
-                    config.write().await
+                    config
+                        .write()
+                        .await
                         .get_mount_mut(&mount.id)
                         .unwrap()
                         .update_status(MountStatus::Failed);

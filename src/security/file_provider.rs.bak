@@ -16,7 +16,7 @@ use std::fs;
 use std::path::PathBuf;
 use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tracing::debug;
+use tracing::{debug, error, warn};
 
 use super::{Credential, CredentialProvider};
 use base64::{engine::general_purpose, Engine as _};

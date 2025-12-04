@@ -4,12 +4,12 @@
 
 use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, params, Row};
+use rusqlite::{params, Connection, Row};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use crate::mount::{MountConfig, MountStatus, MountType};
 
@@ -46,6 +46,8 @@ pub struct PersistedMountState {
     pub reconnect_attempts: u32,
     /// Additional metadata as JSON
     pub metadata: String,
+    /// Health check summary (optional)
+    pub health_check_summary: Option<String>,
 }
 
 impl PersistenceManager {
@@ -55,8 +57,7 @@ impl PersistenceManager {
         let db_path = Self::get_database_path()?;
 
         // Open/create database
-        let connection = Connection::open(&db_path)
-            .context("Failed to open database")?;
+        let connection = Connection::open(&db_path).context("Failed to open database")?;
 
         let db_path_clone = db_path.clone();
         let manager = Self {
@@ -64,11 +65,16 @@ impl PersistenceManager {
             db_path,
         };
 
-        // Initialize database schema
-        manager.initialize_schema()?;
-
-        info!("Persistence manager initialized with database at {:?}", db_path_clone);
+        info!(
+            "Persistence manager created with database at {:?}",
+            db_path_clone
+        );
         Ok(manager)
+    }
+
+    /// Initialize the persistence manager (async version)
+    pub async fn initialize(&self) -> Result<()> {
+        self.initialize_schema().await
     }
 
     /// Get the database file path
@@ -78,16 +84,15 @@ impl PersistenceManager {
             .join("fuji");
 
         // Create directory if it doesn't exist
-        std::fs::create_dir_all(&path)
-            .context("Failed to create runtime directory")?;
+        std::fs::create_dir_all(&path).context("Failed to create runtime directory")?;
 
         path.push("mounts.db");
         Ok(path)
     }
 
     /// Initialize database schema
-    fn initialize_schema(&self) -> Result<()> {
-        let conn = self.connection.blocking_write();
+    async fn initialize_schema(&self) -> Result<()> {
+        let conn = self.connection.write().await;
 
         // Create mounts table
         conn.execute(
@@ -147,7 +152,10 @@ impl PersistenceManager {
     /// Run database migrations
     fn run_migrations(&self, conn: &Connection) -> Result<()> {
         // Check if migrations table exists
-        let exists: bool = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'")
+        let exists: bool = conn
+            .prepare(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
+            )
             .map_err(|e| anyhow!("Failed to check migrations table: {}", e))?
             .exists([])
             .unwrap_or(false);
@@ -164,11 +172,13 @@ impl PersistenceManager {
         }
 
         // Get current migration version
-        let current_version: i32 = conn.query_row(
-            "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(0);
+        let current_version: i32 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
 
         // Apply migrations if needed
         if current_version < 1 {
@@ -202,8 +212,8 @@ impl PersistenceManager {
             r#"
             INSERT OR REPLACE INTO mounts (
                 id, url, mount_point, mount_type, status, enabled,
-                created_at, updated_at, last_connected, reconnect_attempts, metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, updated_at, last_connected, reconnect_attempts, metadata, health_check_summary
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             params![
                 mount_config.id,
@@ -216,7 +226,8 @@ impl PersistenceManager {
                 mount_config.updated_at.to_rfc3339(),
                 mount_config.last_connected.map(|dt| dt.to_rfc3339()),
                 mount_config.reconnect_attempts,
-                metadata_json
+                metadata_json,
+                "" // Default empty health_check_summary
             ],
         )?;
 
@@ -245,9 +256,7 @@ impl PersistenceManager {
     pub async fn load_all_mount_states(&self) -> Result<Vec<PersistedMountState>> {
         let conn = self.connection.read().await;
 
-        let mut stmt = conn.prepare(
-            "SELECT * FROM mounts ORDER BY created_at"
-        )?;
+        let mut stmt = conn.prepare("SELECT * FROM mounts ORDER BY created_at")?;
 
         let rows = stmt.query_map([], Self::row_to_persisted_state)?;
 
@@ -264,10 +273,7 @@ impl PersistenceManager {
     pub async fn delete_mount_state(&self, mount_id: &str) -> Result<()> {
         let conn = self.connection.read().await;
 
-        conn.execute(
-            "DELETE FROM mounts WHERE id = ?",
-            params![mount_id],
-        )?;
+        conn.execute("DELETE FROM mounts WHERE id = ?", params![mount_id])?;
 
         info!("Deleted mount state for {}", mount_id);
         Ok(())
@@ -304,7 +310,10 @@ impl PersistenceManager {
             ],
         )?;
 
-        debug!("Saved health check result for {} check_type={}", mount_id, check_type);
+        debug!(
+            "Saved health check result for {} check_type={}",
+            mount_id, check_type
+        );
         Ok(())
     }
 
@@ -353,13 +362,14 @@ impl PersistenceManager {
         };
 
         // Deserialize metadata
-        let metadata: std::collections::HashMap<String, String> = match serde_json::from_str(&state.metadata) {
-            Ok(m) => m,
-            Err(e) => {
-                error!("Failed to deserialize metadata for {}: {}", state.id, e);
-                std::collections::HashMap::new()
-            }
-        };
+        let metadata: std::collections::HashMap<String, String> =
+            match serde_json::from_str(&state.metadata) {
+                Ok(m) => m,
+                Err(e) => {
+                    error!("Failed to deserialize metadata for {}: {}", state.id, e);
+                    std::collections::HashMap::new()
+                }
+            };
 
         // Parse mount point
         let mount_point = PathBuf::from(&state.mount_point);
@@ -408,6 +418,7 @@ impl PersistenceManager {
             last_connected: row.get(8)?,
             reconnect_attempts: row.get(9)?,
             metadata: row.get(10)?,
+            health_check_summary: row.get(11)?,
         })
     }
 
@@ -480,11 +491,16 @@ mod tests {
     async fn test_persistence_creation() {
         let manager = PersistenceManager::new();
         assert!(manager.is_ok());
+
+        // Test initialization
+        let manager = manager.unwrap();
+        assert!(manager.initialize().await.is_ok());
     }
 
     #[tokio::test]
     async fn test_mount_state_persistence() {
         let manager = PersistenceManager::new().unwrap();
+        manager.initialize().await.unwrap();
 
         // Create test mount config
         let config = MountConfig::new(

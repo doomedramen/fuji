@@ -1,5 +1,5 @@
 # Fuji - Network File System Mount Manager
-
+/📁/🗻
 A daemon-based tool that manages network file system mounts automatically. The CLI communicates with a background daemon that handles all mounting operations, connection monitoring, and automatic reconnection.
 
 ## MVP Features

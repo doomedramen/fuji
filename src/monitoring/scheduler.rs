@@ -62,7 +62,8 @@ impl HealthCheckScheduler {
 
         info!("Starting health check scheduler");
 
-        let new_scheduler = JobScheduler::new().await
+        let new_scheduler = JobScheduler::new()
+            .await
             .map_err(|e| anyhow!("Failed to create scheduler: {}", e))?;
 
         *scheduler = Some(new_scheduler);
@@ -83,7 +84,8 @@ impl HealthCheckScheduler {
         info!("Stopping health check scheduler");
 
         if let Some(mut s) = scheduler.take() {
-            s.shutdown().await
+            s.shutdown()
+                .await
                 .map_err(|e| anyhow!("Failed to shutdown scheduler: {}", e))?;
         }
 
@@ -92,17 +94,17 @@ impl HealthCheckScheduler {
     }
 
     /// Register health checks for a mount
-    pub async fn register_health_checks(&self, mount_config: &crate::mount::MountConfig) -> Result<()> {
+    pub async fn register_health_checks(
+        &self,
+        mount_config: &crate::mount::MountConfig,
+    ) -> Result<()> {
         let mount_id = mount_config.id.clone();
 
         // Determine check interval based on mount type and options
         let interval = self.determine_check_interval(mount_config)?;
 
         // Default health check types
-        let check_types = vec![
-            "file_access".to_string(),
-            "ping".to_string(),
-        ];
+        let check_types = vec!["file_access".to_string(), "ping".to_string()];
 
         let job = HealthCheckJob {
             mount_id: mount_id.clone(),
@@ -133,7 +135,9 @@ impl HealthCheckScheduler {
             if let Some(job_id) = job.job_id {
                 if let Some(scheduler) = self.scheduler.read().await.as_ref() {
                     match scheduler.remove(&job_id).await {
-                        Ok(_) => debug!("Removed health check job {} for mount {}", job_id, mount_id),
+                        Ok(_) => {
+                            debug!("Removed health check job {} for mount {}", job_id, mount_id)
+                        }
                         Err(e) => warn!("Failed to remove health check job {}: {}", job_id, e),
                     }
                 }
@@ -151,7 +155,8 @@ impl HealthCheckScheduler {
     /// Trigger immediate health check for a mount
     pub async fn trigger_health_check(&self, mount_id: &str) -> Result<HealthStatus> {
         let health_checks = self.health_checks.read().await;
-        let job = health_checks.get(mount_id)
+        let job = health_checks
+            .get(mount_id)
             .ok_or_else(|| anyhow!("No health checks registered for mount {}", mount_id))?;
 
         // Run the health checks
@@ -162,7 +167,8 @@ impl HealthCheckScheduler {
     pub async fn get_health_status(&self, mount_id: &str) -> Result<HealthStatus> {
         let last_statuses = self.last_statuses.read().await;
 
-        last_statuses.get(mount_id)
+        last_statuses
+            .get(mount_id)
             .cloned()
             .ok_or_else(|| anyhow!("No health status available for mount {}", mount_id))
     }
@@ -176,11 +182,13 @@ impl HealthCheckScheduler {
     /// Schedule a health check job
     async fn schedule_health_check(&self, mount_id: &str) -> Result<()> {
         let mut health_checks = self.health_checks.write().await;
-        let job = health_checks.get_mut(mount_id)
+        let job = health_checks
+            .get_mut(mount_id)
             .ok_or_else(|| anyhow!("Health check not found for mount {}", mount_id))?;
 
         let scheduler = self.scheduler.read().await;
-        let scheduler = scheduler.as_ref()
+        let scheduler = scheduler
+            .as_ref()
             .ok_or_else(|| anyhow!("Scheduler is not running"))?;
 
         // Clone the data we need for the job
@@ -214,21 +222,30 @@ impl HealthCheckScheduler {
                     }
                 }
             })
-        }).map_err(|e| anyhow!("Failed to create cron job: {}", e))?;
+        })
+        .map_err(|e| anyhow!("Failed to create cron job: {}", e))?;
 
         // Add to scheduler
-        let job_id = scheduler.add(cron_job).await
+        let job_id = scheduler
+            .add(cron_job)
+            .await
             .map_err(|e| anyhow!("Failed to add job to scheduler: {}", e))?;
 
         job.job_id = Some(job_id);
-        info!("Scheduled health check job {} for mount {}", job_id, mount_id);
+        info!(
+            "Scheduled health check job {} for mount {}",
+            job_id, mount_id
+        );
 
         Ok(())
     }
 
-    
     /// Run health checks for a mount
-    async fn run_health_checks(&self, mount_id: &str, check_types: &[String]) -> Result<HealthStatus> {
+    async fn run_health_checks(
+        &self,
+        mount_id: &str,
+        check_types: &[String],
+    ) -> Result<HealthStatus> {
         // Update last run time
         {
             let mut health_checks = self.health_checks.write().await;
@@ -241,7 +258,10 @@ impl HealthCheckScheduler {
     }
 
     /// Static method to run health checks
-    async fn run_health_checks_static(mount_id: &str, check_types: &[String]) -> Result<HealthStatus> {
+    async fn run_health_checks_static(
+        mount_id: &str,
+        check_types: &[String],
+    ) -> Result<HealthStatus> {
         debug!("Running health checks for mount {}", mount_id);
 
         let mut healthy_count = 0;
@@ -259,7 +279,10 @@ impl HealthCheckScheduler {
                     }
                 }
                 Err(e) => {
-                    warn!("Health check {} failed for mount {}: {}", check_type, mount_id, e);
+                    warn!(
+                        "Health check {} failed for mount {}: {}",
+                        check_type, mount_id, e
+                    );
                     last_error = Some(e.to_string());
                     health_score = health_score.saturating_sub(30);
                 }
@@ -274,8 +297,10 @@ impl HealthCheckScheduler {
             HealthState::Failed
         };
 
-        debug!("Health check result for {}: {:?} (score: {})",
-               mount_id, status, health_score);
+        debug!(
+            "Health check result for {}: {:?} (score: {})",
+            mount_id, status, health_score
+        );
 
         let health_status = HealthStatus {
             mount_id: mount_id.to_string(),
@@ -297,11 +322,17 @@ impl HealthCheckScheduler {
         // Check for custom interval in mount metadata
         if let Some(check_interval) = mount_config.metadata.get("health_check_interval") {
             // Validate cron expression
-            if Job::new_async(check_interval.as_str(), |_uuid, _scheduler| Box::pin(async { })).is_ok() {
+            if Job::new_async(check_interval.as_str(), |_uuid, _scheduler| {
+                Box::pin(async {})
+            })
+            .is_ok()
+            {
                 interval = check_interval.clone();
             } else {
-                warn!("Invalid health_check_interval '{}' for mount {}, using default",
-                      check_interval, mount_config.id);
+                warn!(
+                    "Invalid health_check_interval '{}' for mount {}, using default",
+                    check_interval, mount_config.id
+                );
             }
         }
 
@@ -372,7 +403,10 @@ mod tests {
         assert_eq!(interval, "*/60 * * * * *"); // NFS default
 
         // Test custom interval
-        config.metadata.insert("health_check_interval".to_string(), "*/5 * * * * *".to_string());
+        config.metadata.insert(
+            "health_check_interval".to_string(),
+            "*/5 * * * * *".to_string(),
+        );
         let interval = scheduler.determine_check_interval(&config).unwrap();
         assert_eq!(interval, "*/5 * * * * *");
     }
