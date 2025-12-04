@@ -9,8 +9,10 @@ use chacha20poly1305::{
     ChaCha20Poly1305, Key, Nonce,
 };
 use chrono::{DateTime, TimeZone, Utc};
+use hex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, VecDeque};
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
@@ -20,10 +22,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{RwLock, Semaphore};
 use tracing::{error, info, warn};
 use uuid::Uuid;
-use sha2::{Sha256, Digest};
-use hex;
 
-use crate::security::encryption::{EncryptionAlgorithm, EncryptedData, create_encryptor};
+use crate::security::encryption::{create_encryptor, EncryptedData, EncryptionAlgorithm};
 
 /// Audit event types for security monitoring
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -125,9 +125,9 @@ impl AuditSeverity {
     /// Get color code for logging
     pub fn color_code(&self) -> &'static str {
         match self {
-            AuditSeverity::Low => "\x1b[32m",    // Green
-            AuditSeverity::Medium => "\x1b[33m", // Yellow
-            AuditSeverity::High => "\x1b[31m",   // Red
+            AuditSeverity::Low => "\x1b[32m",      // Green
+            AuditSeverity::Medium => "\x1b[33m",   // Yellow
+            AuditSeverity::High => "\x1b[31m",     // Red
             AuditSeverity::Critical => "\x1b[35m", // Magenta
         }
     }
@@ -269,7 +269,7 @@ impl Default for AuditConfig {
             enable_chaining: true,
             enable_encryption: true,
             retention_period: Duration::from_secs(365 * 24 * 60 * 60), // 1 year
-            max_file_size: 100 * 1024 * 1024, // 100 MB
+            max_file_size: 100 * 1024 * 1024,                          // 100 MB
             backup_count: 10,
             enable_real_time: true,
             min_severity: AuditSeverity::Low,
@@ -435,7 +435,10 @@ impl AuditLogger {
         details: HashMap<String, Value>,
     ) -> Result<()> {
         let mut event_details = details;
-        event_details.insert("violation_type".to_string(), Value::String(violation_type.to_string()));
+        event_details.insert(
+            "violation_type".to_string(),
+            Value::String(violation_type.to_string()),
+        );
 
         self.log(
             AuditEventType::SecurityViolation,
@@ -443,7 +446,8 @@ impl AuditLogger {
             AuditOutcome::Blocked,
             &format!("Security violation: {}", violation_type),
             event_details,
-        ).await
+        )
+        .await
     }
 
     /// Log authentication event
@@ -463,15 +467,20 @@ impl AuditLogger {
             AuditEventType::Authentication,
             source,
             outcome,
-            &format!("Authentication {}: {}", user_id, match outcome {
-                AuditOutcome::Success => "success",
-                AuditOutcome::Failure => "failure",
-                AuditOutcome::Error => "error",
-                AuditOutcome::Blocked => "blocked",
-                _ => "unknown",
-            }),
+            &format!(
+                "Authentication {}: {}",
+                user_id,
+                match outcome {
+                    AuditOutcome::Success => "success",
+                    AuditOutcome::Failure => "failure",
+                    AuditOutcome::Error => "error",
+                    AuditOutcome::Blocked => "blocked",
+                    _ => "unknown",
+                }
+            ),
             event_details,
-        ).await
+        )
+        .await
     }
 
     /// Log credential management event
@@ -484,25 +493,41 @@ impl AuditLogger {
         details: HashMap<String, Value>,
     ) -> Result<()> {
         let mut event_details = details;
-        event_details.insert("operation".to_string(), Value::String(operation.to_string()));
-        event_details.insert("credential_id".to_string(), Value::String(credential_id.to_string()));
+        event_details.insert(
+            "operation".to_string(),
+            Value::String(operation.to_string()),
+        );
+        event_details.insert(
+            "credential_id".to_string(),
+            Value::String(credential_id.to_string()),
+        );
 
         self.log(
             AuditEventType::CredentialManagement,
             source,
             outcome,
-            &format!("Credential {}: {} ({})", operation, credential_id, match outcome {
-                AuditOutcome::Success => "success",
-                AuditOutcome::Failure => "failure",
-                AuditOutcome::Error => "error",
-                _ => "unknown",
-            }),
+            &format!(
+                "Credential {}: {} ({})",
+                operation,
+                credential_id,
+                match outcome {
+                    AuditOutcome::Success => "success",
+                    AuditOutcome::Failure => "failure",
+                    AuditOutcome::Error => "error",
+                    _ => "unknown",
+                }
+            ),
             event_details,
-        ).await
+        )
+        .await
     }
 
     /// Get events from buffer
-    pub async fn get_events(&self, limit: Option<usize>, offset: Option<usize>) -> Result<Vec<AuditEvent>> {
+    pub async fn get_events(
+        &self,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<AuditEvent>> {
         let buffer = self.event_buffer.read().await;
         let events: Vec<AuditEvent> = buffer.iter().cloned().collect();
 
@@ -533,7 +558,8 @@ impl AuditLogger {
         let buffer = self.event_buffer.read().await;
         let mut results = Vec::new();
 
-        for event in buffer.iter().rev() { // Search from newest to oldest
+        for event in buffer.iter().rev() {
+            // Search from newest to oldest
             // Apply filters
             if let Some(et) = event_type {
                 if event.event_type != et {
@@ -625,18 +651,10 @@ impl AuditLogger {
         let events: Vec<AuditEvent> = buffer.iter().cloned().collect();
 
         match format {
-            ExportFormat::JSON => {
-                serde_json::to_vec_pretty(&events)?
-            }
-            ExportFormat::CSV => {
-                self.export_to_csv(&events)?
-            }
-            ExportFormat::Syslog => {
-                self.export_to_syslog(&events)?
-            }
-            ExportFormat::CEF => {
-                self.export_to_cef(&events)?
-            }
+            ExportFormat::JSON => serde_json::to_vec_pretty(&events)?,
+            ExportFormat::CSV => self.export_to_csv(&events)?,
+            ExportFormat::Syslog => self.export_to_syslog(&events)?,
+            ExportFormat::CEF => self.export_to_cef(&events)?,
         };
 
         Ok(vec![]) // Placeholder for actual export
@@ -724,8 +742,14 @@ impl AuditLogger {
 
         // Rotate files
         for i in (1..self.config.backup_count).rev() {
-            let old_path = self.config.log_file_path.with_extension(&format!("log.{}", i));
-            let new_path = self.config.log_file_path.with_extension(&format!("log.{}", i + 1));
+            let old_path = self
+                .config
+                .log_file_path
+                .with_extension(&format!("log.{}", i));
+            let new_path = self
+                .config
+                .log_file_path
+                .with_extension(&format!("log.{}", i + 1));
             if old_path.exists() {
                 std::fs::rename(&old_path, &new_path)?;
             }
@@ -737,7 +761,10 @@ impl AuditLogger {
 
         // Clean up old files beyond backup count
         for i in (self.config.backup_count + 1)..(self.config.backup_count + 10) {
-            let old_path = self.config.log_file_path.with_extension(&format!("log.{}", i));
+            let old_path = self
+                .config
+                .log_file_path
+                .with_extension(&format!("log.{}", i));
             if old_path.exists() {
                 let _ = std::fs::remove_file(&old_path);
             }
@@ -820,8 +847,8 @@ impl AuditLogger {
         // Check source filters
         if !filter.source_filters.is_empty() {
             let source_match = filter.source_filters.iter().any(|pattern| {
-                event.source.identifier.contains(pattern) ||
-                event.source.source_type.to_string().contains(pattern)
+                event.source.identifier.contains(pattern)
+                    || event.source.source_type.to_string().contains(pattern)
             });
             if !source_match {
                 return false;
@@ -889,13 +916,21 @@ impl AuditLogger {
     /// Check if field contains sensitive information
     fn is_sensitive_field(&self, field_name: &str) -> bool {
         let sensitive_patterns = [
-            "password", "secret", "key", "token", "credential",
-            "auth", "private", "confidential", "ssn", "credit_card"
+            "password",
+            "secret",
+            "key",
+            "token",
+            "credential",
+            "auth",
+            "private",
+            "confidential",
+            "ssn",
+            "credit_card",
         ];
 
-        sensitive_patterns.iter().any(|pattern|
-            field_name.to_lowercase().contains(pattern)
-        )
+        sensitive_patterns
+            .iter()
+            .any(|pattern| field_name.to_lowercase().contains(pattern))
     }
 
     /// Encrypt data with key
@@ -906,7 +941,8 @@ impl AuditLogger {
         rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
 
-        let encrypted = cipher.encrypt(nonce, data)
+        let encrypted = cipher
+            .encrypt(nonce, data)
             .map_err(|e| anyhow!("Encryption failed: {}", e))?;
 
         // Combine nonce and ciphertext
@@ -934,7 +970,15 @@ impl AuditLogger {
         let mut wtr = csv::Writer::from_writer(vec![]);
 
         // Write header
-        wtr.write_record(&["id", "timestamp", "event_type", "severity", "source", "outcome", "description"])?;
+        wtr.write_record(&[
+            "id",
+            "timestamp",
+            "event_type",
+            "severity",
+            "source",
+            "outcome",
+            "description",
+        ])?;
 
         // Write records
         for event in events {
@@ -949,7 +993,8 @@ impl AuditLogger {
             ])?;
         }
 
-        wtr.into_inner().map_err(|e| anyhow!("CSV export failed: {}", e))
+        wtr.into_inner()
+            .map_err(|e| anyhow!("CSV export failed: {}", e))
     }
 
     /// Export events to syslog format
@@ -958,9 +1003,9 @@ impl AuditLogger {
 
         for event in events {
             let priority = match event.severity {
-                AuditSeverity::Low => 6,    // Info
-                AuditSeverity::Medium => 4, // Warning
-                AuditSeverity::High => 3,   // Error
+                AuditSeverity::Low => 6,      // Info
+                AuditSeverity::Medium => 4,   // Warning
+                AuditSeverity::High => 3,     // Error
                 AuditSeverity::Critical => 2, // Critical
             };
 
@@ -1062,8 +1107,8 @@ impl AuditSourceType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use serde_json::json;
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_audit_event_creation() {
@@ -1082,13 +1127,16 @@ mod tests {
             ("result".to_string(), json!("success")),
         ]);
 
-        logger.log(
-            AuditEventType::Authentication,
-            source.clone(),
-            AuditOutcome::Success,
-            "User login successful",
-            details.clone(),
-        ).await.unwrap();
+        logger
+            .log(
+                AuditEventType::Authentication,
+                source.clone(),
+                AuditOutcome::Success,
+                "User login successful",
+                details.clone(),
+            )
+            .await
+            .unwrap();
 
         let events = logger.get_events(Some(1), None).await.unwrap();
         assert_eq!(events.len(), 1);
@@ -1113,31 +1161,40 @@ mod tests {
         };
 
         // Log different types of events
-        logger.log(
-            AuditEventType::SecurityViolation,
-            source.clone(),
-            AuditOutcome::Blocked,
-            "Invalid login attempt",
-            HashMap::new(),
-        ).await.unwrap();
+        logger
+            .log(
+                AuditEventType::SecurityViolation,
+                source.clone(),
+                AuditOutcome::Blocked,
+                "Invalid login attempt",
+                HashMap::new(),
+            )
+            .await
+            .unwrap();
 
-        logger.log(
-            AuditEventType::Authentication,
-            source.clone(),
-            AuditOutcome::Success,
-            "Valid login",
-            HashMap::new(),
-        ).await.unwrap();
+        logger
+            .log(
+                AuditEventType::Authentication,
+                source.clone(),
+                AuditOutcome::Success,
+                "Valid login",
+                HashMap::new(),
+            )
+            .await
+            .unwrap();
 
         // Search for security violations
-        let violations = logger.search_events(
-            Some(AuditEventType::SecurityViolation),
-            None,
-            None,
-            None,
-            None,
-            None,
-        ).await.unwrap();
+        let violations = logger
+            .search_events(
+                Some(AuditEventType::SecurityViolation),
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
 
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].event_type, AuditEventType::SecurityViolation);
@@ -1168,21 +1225,27 @@ mod tests {
         };
 
         // Log different types of events
-        logger.log(
-            AuditEventType::Authentication,
-            source.clone(),
-            AuditOutcome::Success,
-            "Login successful",
-            HashMap::new(),
-        ).await.unwrap();
+        logger
+            .log(
+                AuditEventType::Authentication,
+                source.clone(),
+                AuditOutcome::Success,
+                "Login successful",
+                HashMap::new(),
+            )
+            .await
+            .unwrap();
 
-        logger.log(
-            AuditEventType::SystemEvent,
-            source.clone(),
-            AuditOutcome::Success,
-            "System started",
-            HashMap::new(),
-        ).await.unwrap();
+        logger
+            .log(
+                AuditEventType::SystemEvent,
+                source.clone(),
+                AuditOutcome::Success,
+                "System started",
+                HashMap::new(),
+            )
+            .await
+            .unwrap();
 
         // Should only have authentication event
         let events = logger.get_events(None, None).await.unwrap();
@@ -1203,36 +1266,60 @@ mod tests {
         };
 
         // Log multiple events
-        logger.log(
-            AuditEventType::Authentication,
-            source.clone(),
-            AuditOutcome::Success,
-            "Login 1",
-            HashMap::new(),
-        ).await.unwrap();
+        logger
+            .log(
+                AuditEventType::Authentication,
+                source.clone(),
+                AuditOutcome::Success,
+                "Login 1",
+                HashMap::new(),
+            )
+            .await
+            .unwrap();
 
-        logger.log(
-            AuditEventType::Authentication,
-            source.clone(),
-            AuditOutcome::Failure,
-            "Login 2",
-            HashMap::new(),
-        ).await.unwrap();
+        logger
+            .log(
+                AuditEventType::Authentication,
+                source.clone(),
+                AuditOutcome::Failure,
+                "Login 2",
+                HashMap::new(),
+            )
+            .await
+            .unwrap();
 
-        logger.log(
-            AuditEventType::SecurityViolation,
-            source.clone(),
-            AuditOutcome::Blocked,
-            "Violation",
-            HashMap::new(),
-        ).await.unwrap();
+        logger
+            .log(
+                AuditEventType::SecurityViolation,
+                source.clone(),
+                AuditOutcome::Blocked,
+                "Violation",
+                HashMap::new(),
+            )
+            .await
+            .unwrap();
 
         let stats = logger.get_statistics().await.unwrap();
         assert_eq!(stats.total_events, 3);
-        assert_eq!(stats.events_by_type.get(&AuditEventType::Authentication), Some(&2));
-        assert_eq!(stats.events_by_type.get(&AuditEventType::SecurityViolation), Some(&1));
-        assert_eq!(stats.events_by_outcome.get(&AuditOutcome::Success), Some(&1));
-        assert_eq!(stats.events_by_outcome.get(&AuditOutcome::Failure), Some(&1));
-        assert_eq!(stats.events_by_outcome.get(&AuditOutcome::Blocked), Some(&1));
+        assert_eq!(
+            stats.events_by_type.get(&AuditEventType::Authentication),
+            Some(&2)
+        );
+        assert_eq!(
+            stats.events_by_type.get(&AuditEventType::SecurityViolation),
+            Some(&1)
+        );
+        assert_eq!(
+            stats.events_by_outcome.get(&AuditOutcome::Success),
+            Some(&1)
+        );
+        assert_eq!(
+            stats.events_by_outcome.get(&AuditOutcome::Failure),
+            Some(&1)
+        );
+        assert_eq!(
+            stats.events_by_outcome.get(&AuditOutcome::Blocked),
+            Some(&1)
+        );
     }
 }

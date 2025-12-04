@@ -17,7 +17,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
-use tracing::{debug, error, info, warn, instrument};
+use tracing::{info, instrument};
 
 use crate::security::audit_monitoring_simple::SimpleAuditMonitor;
 use crate::security::encryption::{self, EncryptionAlgorithm};

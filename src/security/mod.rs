@@ -33,6 +33,7 @@ pub mod resource_limits;
 pub mod seccomp;
 pub mod secure_socket;
 pub mod socket;
+pub mod secure_updates;
 
 /// Credential information for network mounts
 #[derive(Debug, Clone, Serialize, Deserialize)]

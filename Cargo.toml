@@ -85,6 +85,10 @@ name = "security_config_security_test"
 path = "tests/security_config_security_test.rs"
 
 [[test]]
+name = "security_secure_updates_test"
+path = "tests/security_secure_updates_test.rs"
+
+[[test]]
 name = "mount_drivers_test"
 path = "tests/unit/mount_drivers_test.rs"
 
@@ -120,6 +124,7 @@ rand = "0.8"
 jsonwebtoken = "9.0"
 ring = "0.17.8"
 hex = "0.4"
+filetime = "0.2"
 
 # Process isolation dependencies
 nix = "0.27"

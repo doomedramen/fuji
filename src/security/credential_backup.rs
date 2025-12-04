@@ -15,7 +15,7 @@ use tokio::fs;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
-use crate::security::encryption::{EncryptionAlgorithm, EncryptedData, create_encryptor};
+use crate::security::encryption::{create_encryptor, EncryptedData, EncryptionAlgorithm};
 use crate::security::hardware_credential_provider::{EnhancedCredential, SecurityMetadata};
 
 /// Backup strategy for credential storage
@@ -24,11 +24,21 @@ pub enum BackupStrategy {
     /// Local encrypted file backup
     LocalEncrypted { path: PathBuf },
     /// Remote backup service
-    RemoteService { endpoint: String, auth_token: String },
+    RemoteService {
+        endpoint: String,
+        auth_token: String,
+    },
     /// Cloud storage backup
-    CloudStorage { provider: String, bucket: String, credentials: String },
+    CloudStorage {
+        provider: String,
+        bucket: String,
+        credentials: String,
+    },
     /// Recovery key based backup
-    RecoveryKey { key_id: String, encrypted_shares: Vec<String> },
+    RecoveryKey {
+        key_id: String,
+        encrypted_shares: Vec<String>,
+    },
 }
 
 /// Backup metadata for tracking backup operations
@@ -142,16 +152,35 @@ impl CredentialBackupManager {
         // Store backup based on strategy
         let backup_size = match &backup_strategy {
             BackupStrategy::LocalEncrypted { path } => {
-                self.store_local_encrypted_backup(path, &backup_id, &encrypted_data).await?
+                self.store_local_encrypted_backup(path, &backup_id, &encrypted_data)
+                    .await?
             }
-            BackupStrategy::RemoteService { endpoint, auth_token } => {
-                self.store_remote_backup(endpoint, auth_token, &backup_id, &encrypted_data).await?
+            BackupStrategy::RemoteService {
+                endpoint,
+                auth_token,
+            } => {
+                self.store_remote_backup(endpoint, auth_token, &backup_id, &encrypted_data)
+                    .await?
             }
-            BackupStrategy::CloudStorage { provider, bucket, credentials } => {
-                self.store_cloud_backup(provider, bucket, credentials, &backup_id, &encrypted_data).await?
+            BackupStrategy::CloudStorage {
+                provider,
+                bucket,
+                credentials,
+            } => {
+                self.store_cloud_backup(provider, bucket, credentials, &backup_id, &encrypted_data)
+                    .await?
             }
-            BackupStrategy::RecoveryKey { key_id, encrypted_shares } => {
-                self.store_recovery_key_backup(key_id, encrypted_shares, &backup_id, &encrypted_data).await?
+            BackupStrategy::RecoveryKey {
+                key_id,
+                encrypted_shares,
+            } => {
+                self.store_recovery_key_backup(
+                    key_id,
+                    encrypted_shares,
+                    &backup_id,
+                    &encrypted_data,
+                )
+                .await?
             }
         };
 
@@ -186,16 +215,24 @@ impl CredentialBackupManager {
         // Clean up old backups
         self.cleanup_old_backups().await?;
 
-        info!("Created backup {} with {} credentials", backup_id, credentials.len());
+        info!(
+            "Created backup {} with {} credentials",
+            backup_id,
+            credentials.len()
+        );
         Ok(backup_id)
     }
 
     /// Restore credentials from backup
-    pub async fn restore_backup(&self, backup_id: &str) -> Result<HashMap<String, EnhancedCredential>> {
+    pub async fn restore_backup(
+        &self,
+        backup_id: &str,
+    ) -> Result<HashMap<String, EnhancedCredential>> {
         // Get backup metadata
         let metadata = {
             let metadata_store = self.backup_metadata.read().await;
-            metadata_store.get(backup_id)
+            metadata_store
+                .get(backup_id)
                 .ok_or_else(|| anyhow!("Backup metadata not found: {}", backup_id))?
                 .clone()
         };
@@ -203,16 +240,30 @@ impl CredentialBackupManager {
         // Retrieve encrypted backup data
         let encrypted_data = match &metadata.strategy {
             BackupStrategy::LocalEncrypted { path } => {
-                self.retrieve_local_encrypted_backup(path, backup_id).await?
+                self.retrieve_local_encrypted_backup(path, backup_id)
+                    .await?
             }
-            BackupStrategy::RemoteService { endpoint, auth_token } => {
-                self.retrieve_remote_backup(endpoint, auth_token, backup_id).await?
+            BackupStrategy::RemoteService {
+                endpoint,
+                auth_token,
+            } => {
+                self.retrieve_remote_backup(endpoint, auth_token, backup_id)
+                    .await?
             }
-            BackupStrategy::CloudStorage { provider, bucket, credentials } => {
-                self.retrieve_cloud_backup(provider, bucket, credentials, backup_id).await?
+            BackupStrategy::CloudStorage {
+                provider,
+                bucket,
+                credentials,
+            } => {
+                self.retrieve_cloud_backup(provider, bucket, credentials, backup_id)
+                    .await?
             }
-            BackupStrategy::RecoveryKey { key_id, encrypted_shares } => {
-                self.retrieve_recovery_key_backup(key_id, encrypted_shares, backup_id).await?
+            BackupStrategy::RecoveryKey {
+                key_id,
+                encrypted_shares,
+            } => {
+                self.retrieve_recovery_key_backup(key_id, encrypted_shares, backup_id)
+                    .await?
             }
         };
 
@@ -223,7 +274,9 @@ impl CredentialBackupManager {
         }
 
         // Decrypt data
-        let decrypted_data = self.decrypt_backup_data(&encrypted_data, &metadata.strategy).await?;
+        let decrypted_data = self
+            .decrypt_backup_data(&encrypted_data, &metadata.strategy)
+            .await?;
 
         // Decompress if needed
         let data = if metadata.compressed {
@@ -235,12 +288,20 @@ impl CredentialBackupManager {
         // Deserialize credentials
         let credentials: HashMap<String, EnhancedCredential> = serde_json::from_slice(&data)?;
 
-        info!("Restored {} credentials from backup {}", credentials.len(), backup_id);
+        info!(
+            "Restored {} credentials from backup {}",
+            credentials.len(),
+            backup_id
+        );
         Ok(credentials)
     }
 
     /// Generate recovery key for backup restoration
-    pub async fn generate_recovery_key(&self, threshold: u8, total_shares: u8) -> Result<RecoveryKey> {
+    pub async fn generate_recovery_key(
+        &self,
+        threshold: u8,
+        total_shares: u8,
+    ) -> Result<RecoveryKey> {
         if threshold > total_shares {
             return Err(anyhow!("Threshold cannot be greater than total shares"));
         }
@@ -277,7 +338,10 @@ impl CredentialBackupManager {
             recovery_key_store.insert(key_id, recovery_key.clone());
         }
 
-        info!("Generated recovery key {} with {} of {} shares", key_id, threshold, total_shares);
+        info!(
+            "Generated recovery key {} with {} of {} shares",
+            key_id, threshold, total_shares
+        );
         Ok(recovery_key)
     }
 
@@ -301,7 +365,10 @@ impl CredentialBackupManager {
 
         // Find and decrypt backup using master key
         // Implementation would locate the backup encrypted with this recovery key
-        info!("Successfully reconstructed master key from {} shares", shares.len());
+        info!(
+            "Successfully reconstructed master key from {} shares",
+            shares.len()
+        );
         Ok(master_key)
     }
 
@@ -327,14 +394,27 @@ impl CredentialBackupManager {
             BackupStrategy::LocalEncrypted { path } => {
                 self.delete_local_encrypted_backup(path, backup_id).await?;
             }
-            BackupStrategy::RemoteService { endpoint, auth_token } => {
-                self.delete_remote_backup(endpoint, auth_token, backup_id).await?;
+            BackupStrategy::RemoteService {
+                endpoint,
+                auth_token,
+            } => {
+                self.delete_remote_backup(endpoint, auth_token, backup_id)
+                    .await?;
             }
-            BackupStrategy::CloudStorage { provider, bucket, credentials } => {
-                self.delete_cloud_backup(provider, bucket, credentials, backup_id).await?;
+            BackupStrategy::CloudStorage {
+                provider,
+                bucket,
+                credentials,
+            } => {
+                self.delete_cloud_backup(provider, bucket, credentials, backup_id)
+                    .await?;
             }
-            BackupStrategy::RecoveryKey { key_id, encrypted_shares } => {
-                self.delete_recovery_key_backup(key_id, encrypted_shares, backup_id).await?;
+            BackupStrategy::RecoveryKey {
+                key_id,
+                encrypted_shares,
+            } => {
+                self.delete_recovery_key_backup(key_id, encrypted_shares, backup_id)
+                    .await?;
             }
         }
 
@@ -362,7 +442,8 @@ impl CredentialBackupManager {
         // Retrieve backup data
         let encrypted_data = match &metadata.strategy {
             BackupStrategy::LocalEncrypted { path } => {
-                self.retrieve_local_encrypted_backup(path, backup_id).await?
+                self.retrieve_local_encrypted_backup(path, backup_id)
+                    .await?
             }
             _ => {
                 warn!("Backup validation only supported for local encrypted backups");
@@ -431,7 +512,8 @@ impl CredentialBackupManager {
                 // Get recovery key
                 let recovery_key_store = self.recovery_keys.read().await;
                 if let Some(recovery_key) = recovery_key_store.get(key_id) {
-                    self.decrypt_recovery_key(&recovery_key.encrypted_master_key).await
+                    self.decrypt_recovery_key(&recovery_key.encrypted_master_key)
+                        .await
                 } else {
                     Err(anyhow!("Recovery key not found: {}", key_id))
                 }
@@ -455,11 +537,16 @@ impl CredentialBackupManager {
             let strategy_key = match &metadata.strategy {
                 BackupStrategy::LocalEncrypted { path } => format!("local:{}", path.display()),
                 BackupStrategy::RemoteService { endpoint, .. } => format!("remote:{}", endpoint),
-                BackupStrategy::CloudStorage { provider, bucket, .. } => format!("cloud:{}:{}", provider, bucket),
+                BackupStrategy::CloudStorage {
+                    provider, bucket, ..
+                } => format!("cloud:{}:{}", provider, bucket),
                 BackupStrategy::RecoveryKey { key_id, .. } => format!("recovery:{}", key_id),
             };
 
-            backups_by_strategy.entry(strategy_key).or_insert_with(Vec::new).push((backup_id.clone(), metadata.created_at));
+            backups_by_strategy
+                .entry(strategy_key)
+                .or_insert_with(Vec::new)
+                .push((backup_id.clone(), metadata.created_at));
         }
 
         drop(metadata_store);
@@ -485,13 +572,22 @@ impl CredentialBackupManager {
     }
 
     // Placeholder methods for actual implementations
-    async fn store_local_encrypted_backup(&self, _path: &PathBuf, backup_id: &str, data: &[u8]) -> Result<u64> {
+    async fn store_local_encrypted_backup(
+        &self,
+        _path: &PathBuf,
+        backup_id: &str,
+        data: &[u8],
+    ) -> Result<u64> {
         let backup_path = _path.join(format!("{}.backup", backup_id));
         fs::write(&backup_path, data).await?;
         Ok(data.len() as u64)
     }
 
-    async fn retrieve_local_encrypted_backup(&self, path: &PathBuf, backup_id: &str) -> Result<Vec<u8>> {
+    async fn retrieve_local_encrypted_backup(
+        &self,
+        path: &PathBuf,
+        backup_id: &str,
+    ) -> Result<Vec<u8>> {
         let backup_path = path.join(format!("{}.backup", backup_id));
         Ok(fs::read(&backup_path).await?)
     }
@@ -502,44 +598,95 @@ impl CredentialBackupManager {
         Ok(())
     }
 
-    async fn store_remote_backup(&self, _endpoint: &str, _auth_token: &str, backup_id: &str, data: &[u8]) -> Result<u64> {
+    async fn store_remote_backup(
+        &self,
+        _endpoint: &str,
+        _auth_token: &str,
+        backup_id: &str,
+        data: &[u8],
+    ) -> Result<u64> {
         warn!("Remote backup storage not implemented");
         Ok(data.len() as u64)
     }
 
-    async fn retrieve_remote_backup(&self, _endpoint: &str, _auth_token: &str, backup_id: &str) -> Result<Vec<u8>> {
+    async fn retrieve_remote_backup(
+        &self,
+        _endpoint: &str,
+        _auth_token: &str,
+        backup_id: &str,
+    ) -> Result<Vec<u8>> {
         Err(anyhow!("Remote backup retrieval not implemented"))
     }
 
-    async fn delete_remote_backup(&self, _endpoint: &str, _auth_token: &str, backup_id: &str) -> Result<()> {
+    async fn delete_remote_backup(
+        &self,
+        _endpoint: &str,
+        _auth_token: &str,
+        backup_id: &str,
+    ) -> Result<()> {
         warn!("Remote backup deletion not implemented");
         Ok(())
     }
 
-    async fn store_cloud_backup(&self, _provider: &str, _bucket: &str, _credentials: &str, backup_id: &str, data: &[u8]) -> Result<u64> {
+    async fn store_cloud_backup(
+        &self,
+        _provider: &str,
+        _bucket: &str,
+        _credentials: &str,
+        backup_id: &str,
+        data: &[u8],
+    ) -> Result<u64> {
         warn!("Cloud backup storage not implemented");
         Ok(data.len() as u64)
     }
 
-    async fn retrieve_cloud_backup(&self, _provider: &str, _bucket: &str, _credentials: &str, backup_id: &str) -> Result<Vec<u8>> {
+    async fn retrieve_cloud_backup(
+        &self,
+        _provider: &str,
+        _bucket: &str,
+        _credentials: &str,
+        backup_id: &str,
+    ) -> Result<Vec<u8>> {
         Err(anyhow!("Cloud backup retrieval not implemented"))
     }
 
-    async fn delete_cloud_backup(&self, _provider: &str, _bucket: &str, _credentials: &str, backup_id: &str) -> Result<()> {
+    async fn delete_cloud_backup(
+        &self,
+        _provider: &str,
+        _bucket: &str,
+        _credentials: &str,
+        backup_id: &str,
+    ) -> Result<()> {
         warn!("Cloud backup deletion not implemented");
         Ok(())
     }
 
-    async fn store_recovery_key_backup(&self, _key_id: &str, _encrypted_shares: &[String], backup_id: &str, data: &[u8]) -> Result<u64> {
+    async fn store_recovery_key_backup(
+        &self,
+        _key_id: &str,
+        _encrypted_shares: &[String],
+        backup_id: &str,
+        data: &[u8],
+    ) -> Result<u64> {
         warn!("Recovery key backup storage not implemented");
         Ok(data.len() as u64)
     }
 
-    async fn retrieve_recovery_key_backup(&self, _key_id: &str, _encrypted_shares: &[String], backup_id: &str) -> Result<Vec<u8>> {
+    async fn retrieve_recovery_key_backup(
+        &self,
+        _key_id: &str,
+        _encrypted_shares: &[String],
+        backup_id: &str,
+    ) -> Result<Vec<u8>> {
         Err(anyhow!("Recovery key backup retrieval not implemented"))
     }
 
-    async fn delete_recovery_key_backup(&self, _key_id: &str, _encrypted_shares: &[String], backup_id: &str) -> Result<()> {
+    async fn delete_recovery_key_backup(
+        &self,
+        _key_id: &str,
+        _encrypted_shares: &[String],
+        backup_id: &str,
+    ) -> Result<()> {
         warn!("Recovery key backup deletion not implemented");
         Ok(())
     }
@@ -551,13 +698,23 @@ impl CredentialBackupManager {
         let combined = format!("{}:{}:fuji-backup", hostname.to_string_lossy(), username);
 
         let mut key = [0u8; 32];
-        pbkdf2::pbkdf2_hmac::<sha2::Sha256>(combined.as_bytes(), b"fuji-backup-salt", 100_000, &mut key);
+        pbkdf2::pbkdf2_hmac::<sha2::Sha256>(
+            combined.as_bytes(),
+            b"fuji-backup-salt",
+            100_000,
+            &mut key,
+        );
         Ok(key.to_vec())
     }
 
     fn derive_key_from_token(&self, token: &str) -> Result<Vec<u8>> {
         let mut key = [0u8; 32];
-        pbkdf2::pbkdf2_hmac::<sha2::Sha256>(token.as_bytes(), b"fuji-backup-token", 100_000, &mut key);
+        pbkdf2::pbkdf2_hmac::<sha2::Sha256>(
+            token.as_bytes(),
+            b"fuji-backup-token",
+            100_000,
+            &mut key,
+        );
         Ok(key.to_vec())
     }
 
@@ -567,7 +724,12 @@ impl CredentialBackupManager {
         Ok(key)
     }
 
-    fn split_secret(&self, secret: &[u8], threshold: u8, total_shares: u8) -> Result<Vec<SecretShare>> {
+    fn split_secret(
+        &self,
+        secret: &[u8],
+        threshold: u8,
+        total_shares: u8,
+    ) -> Result<Vec<SecretShare>> {
         // Placeholder for Shamir's Secret Sharing implementation
         let mut shares = Vec::new();
         for i in 1..=total_shares {
@@ -604,42 +766,50 @@ impl CredentialBackupManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::security::{
+        hardware_credential_provider::{EnhancedCredential, KeyDerivationParams, SecurityMetadata},
+        Credential,
+    };
     use std::collections::HashMap;
-    use crate::security::{Credential, hardware_credential_provider::{EnhancedCredential, SecurityMetadata, KeyDerivationParams}};
 
     #[tokio::test]
     async fn test_backup_creation() {
-        let strategy = BackupStrategy::LocalEncrypted { path: PathBuf::from("/tmp/test_backups") };
+        let strategy = BackupStrategy::LocalEncrypted {
+            path: PathBuf::from("/tmp/test_backups"),
+        };
         let manager = CredentialBackupManager::new(strategy);
 
         // Create test credentials
         let mut credentials = HashMap::new();
-        credentials.insert("test_mount".to_string(), EnhancedCredential {
-            credential: Credential {
-                username: "testuser".to_string(),
-                password: "testpass".to_string(),
-                domain: Some("TESTDOMAIN".to_string()),
-                metadata: HashMap::new(),
-            },
-            version: 1,
-            created_at: SystemTime::now(),
-            expires_at: None,
-            last_rotated: Some(SystemTime::now()),
-            security_metadata: SecurityMetadata {
-                integrity_hash: "test_hash".to_string(),
-                kdf_params: KeyDerivationParams {
-                    iterations: 100_000,
-                    salt: vec![1, 2, 3, 4],
-                    key_length: 32,
-                    memory_cost: None,
-                    parallelism: Some(4),
+        credentials.insert(
+            "test_mount".to_string(),
+            EnhancedCredential {
+                credential: Credential {
+                    username: "testuser".to_string(),
+                    password: "testpass".to_string(),
+                    domain: Some("TESTDOMAIN".to_string()),
+                    metadata: HashMap::new(),
                 },
-                encryption_algorithm: "chacha20-poly1305".to_string(),
-                mfa_required: false,
-                access_restrictions: HashMap::new(),
-                audit_log_ids: vec![],
+                version: 1,
+                created_at: SystemTime::now(),
+                expires_at: None,
+                last_rotated: Some(SystemTime::now()),
+                security_metadata: SecurityMetadata {
+                    integrity_hash: "test_hash".to_string(),
+                    kdf_params: KeyDerivationParams {
+                        iterations: 100_000,
+                        salt: vec![1, 2, 3, 4],
+                        key_length: 32,
+                        memory_cost: None,
+                        parallelism: Some(4),
+                    },
+                    encryption_algorithm: "chacha20-poly1305".to_string(),
+                    mfa_required: false,
+                    access_restrictions: HashMap::new(),
+                    audit_log_ids: vec![],
+                },
             },
-        });
+        );
 
         // Create backup
         let backup_id = manager.create_backup(&credentials, None).await.unwrap();
@@ -653,7 +823,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_recovery_key_generation() {
-        let strategy = BackupStrategy::LocalEncrypted { path: PathBuf::from("/tmp/test_backups") };
+        let strategy = BackupStrategy::LocalEncrypted {
+            path: PathBuf::from("/tmp/test_backups"),
+        };
         let manager = CredentialBackupManager::new(strategy);
 
         // Generate recovery key
@@ -664,7 +836,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_backup_validation() {
-        let strategy = BackupStrategy::LocalEncrypted { path: PathBuf::from("/tmp/test_backups") };
+        let strategy = BackupStrategy::LocalEncrypted {
+            path: PathBuf::from("/tmp/test_backups"),
+        };
         let manager = CredentialBackupManager::new(strategy);
 
         let credentials = HashMap::new();

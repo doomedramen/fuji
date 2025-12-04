@@ -9,19 +9,19 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
-use tracing::{debug, error, info, warn};
 use tokio::process::Command as TokioCommand;
+use tracing::{debug, error, info, warn};
 
 // Use standard library types for cross-platform compatibility
 #[cfg(unix)]
-use std::os::unix::raw::{uid_t, gid_t};
+use std::os::unix::raw::{gid_t, uid_t};
 
 // Conditional compilation for namespace support
 #[cfg(target_os = "linux")]
 use libc::c_int;
 
 #[cfg(target_os = "linux")]
-use nix::unistd::{getuid, getgid, setuid, setgid, chroot};
+use nix::unistd::{chroot, getgid, getuid, setgid, setuid};
 
 #[cfg(target_os = "linux")]
 use nix::sched::{clone, CloneFlags};
@@ -150,11 +150,7 @@ impl ProcessIsolator {
 
     /// Create a process with namespace isolation (Linux only)
     #[cfg(target_os = "linux")]
-    pub fn create_isolated_process(
-        &self,
-        command: &str,
-        args: Vec<String>,
-    ) -> Result<u32> {
+    pub fn create_isolated_process(&self, command: &str, args: Vec<String>) -> Result<u32> {
         info!("Creating isolated process for command: {}", command);
 
         // Determine clone flags based on configuration
@@ -179,10 +175,14 @@ impl ProcessIsolator {
                 }
 
                 // Execute the command
-                let mut command = Command::new(&config.root_dir.as_ref()
-                    .map(|r| Path::new(r).join(&cmd))
-                    .as_deref()
-                    .unwrap_or(Path::new(&cmd)));
+                let mut command = Command::new(
+                    &config
+                        .root_dir
+                        .as_ref()
+                        .map(|r| Path::new(r).join(&cmd))
+                        .as_deref()
+                        .unwrap_or(Path::new(&cmd)),
+                );
 
                 command.args(&process_args);
                 command.stdout(Stdio::inherit());
@@ -211,7 +211,14 @@ impl ProcessIsolator {
         let config_box = Box::new(self.config.clone());
         let config_ptr = Box::into_raw(config_box);
 
-        match unsafe { clone(clone_flags, isolated_process_main as extern "C" fn(*mut libc::c_void) -> c_int, stack.as_mut_ptr() as *mut _, config_ptr as *mut _) } {
+        match unsafe {
+            clone(
+                clone_flags,
+                isolated_process_main as extern "C" fn(*mut libc::c_void) -> c_int,
+                stack.as_mut_ptr() as *mut _,
+                config_ptr as *mut _,
+            )
+        } {
             Ok(pid) => {
                 info!("Created isolated process with PID: {}", pid);
 
@@ -228,7 +235,9 @@ impl ProcessIsolator {
             }
             Err(e) => {
                 // Clean up the boxed config
-                unsafe { Box::from_raw(config_ptr); }
+                unsafe {
+                    Box::from_raw(config_ptr);
+                }
                 Err(anyhow!("Failed to create isolated process: {}", e))
             }
         }
@@ -236,11 +245,7 @@ impl ProcessIsolator {
 
     /// Create a process with isolation (fallback for non-Linux)
     #[cfg(not(target_os = "linux"))]
-    pub fn create_isolated_process(
-        &self,
-        command: &str,
-        args: Vec<String>,
-    ) -> Result<u32> {
+    pub fn create_isolated_process(&self, command: &str, args: Vec<String>) -> Result<u32> {
         // Fallback to basic process execution without namespaces
         info!("Creating process (no namespace isolation): {}", command);
 
@@ -265,7 +270,7 @@ impl ProcessIsolator {
                 self.isolated_processes.lock().unwrap().push(process);
                 Ok(pid)
             }
-            Err(e) => Err(anyhow!("Failed to create process: {}", e))
+            Err(e) => Err(anyhow!("Failed to create process: {}", e)),
         }
     }
 
@@ -421,7 +426,11 @@ impl ProcessIsolator {
             #[cfg(not(target_os = "linux"))]
             {
                 // Fallback for non-Linux platforms
-                match std::process::Command::new("kill").arg("-0").arg(p.pid.to_string()).output() {
+                match std::process::Command::new("kill")
+                    .arg("-0")
+                    .arg(p.pid.to_string())
+                    .output()
+                {
                     Ok(output) => {
                         if output.status.success() {
                             true // Process still exists
@@ -568,7 +577,11 @@ fn create_mount_point(mount: &MountPoint) -> Result<()> {
         Some(&options_str),
     )?;
 
-    info!("Mounted {} at {}", mount.source.display(), mount.target.display());
+    info!(
+        "Mounted {} at {}",
+        mount.source.display(),
+        mount.target.display()
+    );
     Ok(())
 }
 
@@ -583,7 +596,10 @@ fn create_mount_point(_mount: &MountPoint) -> Result<()> {
 #[cfg(target_os = "linux")]
 fn setup_chroot(root_dir: &Path) -> Result<()> {
     if !root_dir.exists() {
-        return Err(anyhow!("Root directory does not exist: {}", root_dir.display()));
+        return Err(anyhow!(
+            "Root directory does not exist: {}",
+            root_dir.display()
+        ));
     }
 
     // Ensure root directory is absolute
@@ -655,7 +671,13 @@ fn setup_network_namespace(config: &NamespaceConfig) -> Result<()> {
 
         // Assign IP address
         Command::new("ip")
-            .args(&["addr", "add", &format!("{}/{}", net_config.ip_address, net_config.netmask), "dev", &net_config.interface])
+            .args(&[
+                "addr",
+                "add",
+                &format!("{}/{}", net_config.ip_address, net_config.netmask),
+                "dev",
+                &net_config.interface,
+            ])
             .output()?;
 
         // Set gateway if configured
@@ -702,16 +724,18 @@ impl Sandbox {
             root_dir: Some(temp_dir.clone()),
             drop_uid: Some(65534), // nobody
             drop_gid: Some(65534), // nogroup
-            mount_points: vec![
-                MountPoint {
-                    source: PathBuf::from("none"),
-                    target: PathBuf::from("/tmp"),
-                    fs_type: "tmpfs".to_string(),
-                    options: vec!["size=100m".to_string(), "noexec".to_string(), "nosuid".to_string()],
-                    read_only: false,
-                    create_target: true,
-                },
-            ],
+            mount_points: vec![MountPoint {
+                source: PathBuf::from("none"),
+                target: PathBuf::from("/tmp"),
+                fs_type: "tmpfs".to_string(),
+                options: vec![
+                    "size=100m".to_string(),
+                    "noexec".to_string(),
+                    "nosuid".to_string(),
+                ],
+                read_only: false,
+                create_target: true,
+            }],
             network_config: None,
         };
 
@@ -723,7 +747,9 @@ impl Sandbox {
 
     /// Execute a command in the sandbox
     pub async fn execute(&self, command: &str, args: Vec<String>) -> Result<tokio::process::Child> {
-        self.isolator.create_isolated_process_async(command, args).await
+        self.isolator
+            .create_isolated_process_async(command, args)
+            .await
     }
 
     /// Cleanup sandbox resources

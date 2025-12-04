@@ -8,16 +8,16 @@
 
 use anyhow::Result;
 use fuji::security::audit_logging::{
-    AuditLogger, AuditEvent, AuditEventType, AuditSeverity, AuditOutcome,
-    AuditSource, AuditSourceType, NetworkContext, SessionContext, AuditConfig
+    AuditConfig, AuditEvent, AuditEventType, AuditLogger, AuditOutcome, AuditSeverity, AuditSource,
+    AuditSourceType, NetworkContext, SessionContext,
 };
 use fuji::security::audit_monitoring::{
-    AuditMonitor, AuditMonitoringConfig, SecurityAlert, AlertSeverity, AlertType
+    AlertSeverity, AlertType, AuditMonitor, AuditMonitoringConfig, SecurityAlert,
 };
+use serde_json::json;
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
-use serde_json::json;
 
 /// Test comprehensive audit logging functionality
 #[tokio::test]
@@ -53,35 +53,41 @@ async fn test_comprehensive_audit_logging() -> Result<()> {
     };
 
     // Log authentication success
-    logger.log_authentication(
-        source.clone(),
-        "test_user",
-        AuditOutcome::Success,
-        "password",
-        HashMap::from([("method".to_string(), json("local"))]),
-    ).await?;
+    logger
+        .log_authentication(
+            source.clone(),
+            "test_user",
+            AuditOutcome::Success,
+            "password",
+            HashMap::from([("method".to_string(), json("local"))]),
+        )
+        .await?;
 
     // Log credential operation
-    logger.log_credential_operation(
-        source.clone(),
-        "create",
-        "cred_123",
-        AuditOutcome::Success,
-        HashMap::from([
-            ("credential_type".to_string(), json("nfs")),
-            ("mount_point".to_string(), json("/mnt/share")),
-        ]),
-    ).await?;
+    logger
+        .log_credential_operation(
+            source.clone(),
+            "create",
+            "cred_123",
+            AuditOutcome::Success,
+            HashMap::from([
+                ("credential_type".to_string(), json("nfs")),
+                ("mount_point".to_string(), json("/mnt/share")),
+            ]),
+        )
+        .await?;
 
     // Log security violation
-    logger.log_security_violation(
-        source.clone(),
-        "unauthorized_access_attempt",
-        HashMap::from([
-            ("target".to_string(), json("secure_file")),
-            ("attempts".to_string(), json(5)),
-        ]),
-    ).await?;
+    logger
+        .log_security_violation(
+            source.clone(),
+            "unauthorized_access_attempt",
+            HashMap::from([
+                ("target".to_string(), json("secure_file")),
+                ("attempts".to_string(), json(5)),
+            ]),
+        )
+        .await?;
 
     // Verify events are logged
     let events = logger.get_events(None, None).await?;
@@ -99,32 +105,35 @@ async fn test_comprehensive_audit_logging() -> Result<()> {
     }
 
     // Test event search
-    let auth_events = logger.search_events(
-        Some(AuditEventType::Authentication),
-        None,
-        None,
-        None,
-        None,
-        None,
-    ).await?;
+    let auth_events = logger
+        .search_events(
+            Some(AuditEventType::Authentication),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await?;
     assert_eq!(auth_events.len(), 1);
 
-    let critical_events = logger.search_events(
-        None,
-        Some(AuditSeverity::High),
-        None,
-        None,
-        None,
-        None,
-    ).await?;
+    let critical_events = logger
+        .search_events(None, Some(AuditSeverity::High), None, None, None, None)
+        .await?;
     assert_eq!(critical_events.len(), 1);
 
     // Test audit statistics
     let stats = logger.get_statistics().await?;
     assert_eq!(stats.total_events, 3);
-    assert!(stats.events_by_type.contains_key(&AuditEventType::Authentication));
-    assert!(stats.events_by_type.contains_key(&AuditEventType::CredentialManagement));
-    assert!(stats.events_by_type.contains_key(&AuditEventType::SecurityViolation));
+    assert!(stats
+        .events_by_type
+        .contains_key(&AuditEventType::Authentication));
+    assert!(stats
+        .events_by_type
+        .contains_key(&AuditEventType::CredentialManagement));
+    assert!(stats
+        .events_by_type
+        .contains_key(&AuditEventType::SecurityViolation));
 
     Ok(())
 }
@@ -200,7 +209,8 @@ async fn test_real_time_monitoring() -> Result<()> {
     assert!(!alerts.is_empty());
 
     // Verify brute force alert
-    let brute_force_alert = alerts.iter()
+    let brute_force_alert = alerts
+        .iter()
         .find(|a| a.alert_type == AlertType::BruteForceAttack);
     assert!(brute_force_alert.is_some());
     assert_eq!(brute_force_alert.unwrap().severity, AlertSeverity::High);
@@ -249,8 +259,22 @@ async fn test_privilege_escalation_detection() -> Result<()> {
             outcome: AuditOutcome::Success,
             description: format!("Administrative action {}", i),
             details: HashMap::from([
-                ("action_type".to_string(), json(if i % 2 == 0 { "user_creation" } else { "config_change" })),
-                ("target".to_string(), json(if i % 2 == 0 { "new_user" } else { "system_config" })),
+                (
+                    "action_type".to_string(),
+                    json(if i % 2 == 0 {
+                        "user_creation"
+                    } else {
+                        "config_change"
+                    }),
+                ),
+                (
+                    "target".to_string(),
+                    json(if i % 2 == 0 {
+                        "new_user"
+                    } else {
+                        "system_config"
+                    }),
+                ),
             ]),
             network_context: None,
             session_context: Some(SessionContext {
@@ -275,7 +299,8 @@ async fn test_privilege_escalation_detection() -> Result<()> {
 
     // Check for privilege escalation alerts
     let alerts = monitor.get_active_alerts().await;
-    let privilege_alert = alerts.iter()
+    let privilege_alert = alerts
+        .iter()
         .find(|a| a.alert_type == AlertType::PrivilegeEscalation);
 
     assert!(privilege_alert.is_some());
@@ -329,7 +354,11 @@ async fn test_event_filtering_and_export() -> Result<()> {
         let event = AuditEvent {
             id: format!("event_{}", i),
             timestamp: chrono::Utc::now(),
-            event_type: if i == 2 { AuditEventType::SystemEvent } else { AuditEventType::Authentication },
+            event_type: if i == 2 {
+                AuditEventType::SystemEvent
+            } else {
+                AuditEventType::Authentication
+            },
             severity,
             source,
             outcome: AuditOutcome::Success,
@@ -354,7 +383,9 @@ async fn test_event_filtering_and_export() -> Result<()> {
     assert_eq!(events.len(), 1); // Only admin critical event passes all filters
 
     // Test export functionality
-    let exported_json = logger.export_logs(fuji::security::audit_logging::ExportFormat::JSON).await?;
+    let exported_json = logger
+        .export_logs(fuji::security::audit_logging::ExportFormat::JSON)
+        .await?;
     assert!(!exported_json.is_empty());
 
     Ok(())
@@ -392,13 +423,15 @@ async fn test_log_rotation_and_retention() -> Result<()> {
         let mut details = HashMap::new();
         details.insert("large_data".to_string(), json!("x".repeat(100)));
 
-        logger.log(
-            AuditEventType::SystemEvent,
-            source.clone(),
-            AuditOutcome::Success,
-            &format!("Large data event {}", i),
-            details,
-        ).await?;
+        logger
+            .log(
+                AuditEventType::SystemEvent,
+                source.clone(),
+                AuditOutcome::Success,
+                &format!("Large data event {}", i),
+                details,
+            )
+            .await?;
     }
 
     // Check that log file was created
@@ -451,13 +484,16 @@ async fn test_concurrent_audit_operations() -> Result<()> {
                     AuditOutcome::Success
                 };
 
-                logger_clone.log(
-                    event_type,
-                    source.clone(),
-                    outcome,
-                    &format!("Concurrent test {}-{}", i, j),
-                    details,
-                ).await.unwrap();
+                logger_clone
+                    .log(
+                        event_type,
+                        source.clone(),
+                        outcome,
+                        &format!("Concurrent test {}-{}", i, j),
+                        details,
+                    )
+                    .await
+                    .unwrap();
 
                 // Small delay to simulate real work
                 tokio::time::sleep(Duration::from_millis(1)).await;
@@ -502,33 +538,70 @@ async fn test_monitoring_statistics() -> Result<()> {
 
     // Generate varied events for statistics
     let events = vec![
-        (AuditEventType::Authentication, AuditSeverity::Medium, AuditOutcome::Success),
-        (AuditEventType::Authentication, AuditSeverity::Medium, AuditOutcome::Failure),
-        (AuditEventType::SecurityViolation, AuditSeverity::Critical, AuditOutcome::Blocked),
-        (AuditEventType::MountOperation, AuditSeverity::Low, AuditOutcome::Success),
-        (AuditEventType::AdministrativeAction, AuditSeverity::High, AuditOutcome::Success),
+        (
+            AuditEventType::Authentication,
+            AuditSeverity::Medium,
+            AuditOutcome::Success,
+        ),
+        (
+            AuditEventType::Authentication,
+            AuditSeverity::Medium,
+            AuditOutcome::Failure,
+        ),
+        (
+            AuditEventType::SecurityViolation,
+            AuditSeverity::Critical,
+            AuditOutcome::Blocked,
+        ),
+        (
+            AuditEventType::MountOperation,
+            AuditSeverity::Low,
+            AuditOutcome::Success,
+        ),
+        (
+            AuditEventType::AdministrativeAction,
+            AuditSeverity::High,
+            AuditOutcome::Success,
+        ),
     ];
 
     for (i, (event_type, severity, outcome)) in events.iter().enumerate() {
-        logger.log(
-            *event_type,
-            source.clone(),
-            *outcome,
-            &format!("Statistics test event {}", i),
-            HashMap::from([("test_id".to_string(), json!(i))]),
-        ).await?;
+        logger
+            .log(
+                *event_type,
+                source.clone(),
+                *outcome,
+                &format!("Statistics test event {}", i),
+                HashMap::from([("test_id".to_string(), json!(i))]),
+            )
+            .await?;
     }
 
     // Get and verify statistics
     let stats = logger.get_statistics().await?;
     assert_eq!(stats.total_events, 5);
     assert_eq!(stats.events_by_severity.get(&AuditSeverity::Low), Some(&1));
-    assert_eq!(stats.events_by_severity.get(&AuditSeverity::Medium), Some(&2));
+    assert_eq!(
+        stats.events_by_severity.get(&AuditSeverity::Medium),
+        Some(&2)
+    );
     assert_eq!(stats.events_by_severity.get(&AuditSeverity::High), Some(&1));
-    assert_eq!(stats.events_by_severity.get(&AuditSeverity::Critical), Some(&1));
-    assert_eq!(stats.events_by_outcome.get(&AuditOutcome::Success), Some(&3));
-    assert_eq!(stats.events_by_outcome.get(&AuditOutcome::Failure), Some(&1));
-    assert_eq!(stats.events_by_outcome.get(&AuditOutcome::Blocked), Some(&1));
+    assert_eq!(
+        stats.events_by_severity.get(&AuditSeverity::Critical),
+        Some(&1)
+    );
+    assert_eq!(
+        stats.events_by_outcome.get(&AuditOutcome::Success),
+        Some(&3)
+    );
+    assert_eq!(
+        stats.events_by_outcome.get(&AuditOutcome::Failure),
+        Some(&1)
+    );
+    assert_eq!(
+        stats.events_by_outcome.get(&AuditOutcome::Blocked),
+        Some(&1)
+    );
 
     Ok(())
 }

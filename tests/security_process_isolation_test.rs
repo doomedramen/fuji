@@ -10,7 +10,7 @@
 
 use anyhow::Result;
 use fuji::security::process_isolation::{
-    NamespaceConfig, MountPoint, NetworkConfig, ProcessIsolator, Sandbox
+    MountPoint, NamespaceConfig, NetworkConfig, ProcessIsolator, Sandbox,
 };
 use nix::unistd::getpid;
 use std::path::PathBuf;
@@ -60,16 +60,14 @@ async fn test_custom_namespace_config() {
         root_dir: Some(PathBuf::from("/tmp/test-root")),
         drop_uid: Some(1000),
         drop_gid: Some(1000),
-        mount_points: vec![
-            MountPoint {
-                source: PathBuf::from("/proc"),
-                target: PathBuf::from("/proc"),
-                fs_type: "proc".to_string(),
-                options: vec!["nosuid".to_string(), "noexec".to_string()],
-                read_only: false,
-                create_target: true,
-            }
-        ],
+        mount_points: vec![MountPoint {
+            source: PathBuf::from("/proc"),
+            target: PathBuf::from("/proc"),
+            fs_type: "proc".to_string(),
+            options: vec!["nosuid".to_string(), "noexec".to_string()],
+            read_only: false,
+            create_target: true,
+        }],
         network_config: Some(NetworkConfig {
             interface: "eth0".to_string(),
             ip_address: "192.168.1.100".to_string(),
@@ -125,10 +123,9 @@ async fn test_isolated_process_lifecycle() -> Result<()> {
     let isolator = ProcessIsolator::new(config);
 
     // Create isolated process
-    let child = isolator.create_isolated_process_async(
-        "echo",
-        vec!["Hello from isolated process".to_string()],
-    ).await?;
+    let child = isolator
+        .create_isolated_process_async("echo", vec!["Hello from isolated process".to_string()])
+        .await?;
 
     // Wait for process to complete
     let output = child.wait_with_output().await?;
@@ -146,7 +143,9 @@ async fn test_sandbox_process_execution() -> Result<()> {
     let sandbox = Sandbox::new()?;
 
     // Execute command in sandbox
-    let child = sandbox.execute("echo", vec!["Hello from sandbox".to_string()]).await?;
+    let child = sandbox
+        .execute("echo", vec!["Hello from sandbox".to_string()])
+        .await?;
 
     // Wait for process to complete
     let output = child.wait_with_output().await?;
@@ -165,10 +164,9 @@ async fn test_process_termination() -> Result<()> {
     let isolator = ProcessIsolator::new(config);
 
     // Create long-running process
-    let child = isolator.create_isolated_process_async(
-        "sleep",
-        vec!["10".to_string()],
-    ).await?;
+    let child = isolator
+        .create_isolated_process_async("sleep", vec!["10".to_string()])
+        .await?;
 
     let pid = child.id().unwrap() as u32;
 
@@ -193,10 +191,9 @@ async fn test_hostname_isolation() -> Result<()> {
     let isolator = ProcessIsolator::new(config);
 
     // Create process that checks hostname
-    let child = isolator.create_isolated_process_async(
-        "hostname",
-        vec![],
-    ).await?;
+    let child = isolator
+        .create_isolated_process_async("hostname", vec![])
+        .await?;
 
     // Wait for process to complete
     let output = child.wait_with_output().await?;
@@ -220,10 +217,9 @@ async fn test_pid_namespace_isolation() -> Result<()> {
     let isolator = ProcessIsolator::new(config);
 
     // Create process that checks PID
-    let child = isolator.create_isolated_process_async(
-        "sh",
-        vec!["-c".to_string(), "echo $$".to_string()],
-    ).await?;
+    let child = isolator
+        .create_isolated_process_async("sh", vec!["-c".to_string(), "echo $$".to_string()])
+        .await?;
 
     // Wait for process to complete
     let output = child.wait_with_output().await?;
@@ -246,10 +242,9 @@ async fn test_multiple_isolated_processes() -> Result<()> {
 
     // Create multiple isolated processes
     for i in 0..5 {
-        let child = isolator.create_isolated_process_async(
-            "echo",
-            vec![format!("Process {}", i)],
-        ).await?;
+        let child = isolator
+            .create_isolated_process_async("echo", vec![format!("Process {}", i)])
+            .await?;
         children.push(child);
     }
 
@@ -276,16 +271,14 @@ async fn test_mount_namespace_isolation() -> Result<()> {
     // For now, we test that the configuration is properly set
     let config = NamespaceConfig {
         mount_namespace: true,
-        mount_points: vec![
-            MountPoint {
-                source: PathBuf::from("none"),
-                target: PathBuf::from("/tmp/test-mount"),
-                fs_type: "tmpfs".to_string(),
-                options: vec!["size=10M".to_string()],
-                read_only: false,
-                create_target: true,
-            }
-        ],
+        mount_points: vec![MountPoint {
+            source: PathBuf::from("none"),
+            target: PathBuf::from("/tmp/test-mount"),
+            fs_type: "tmpfs".to_string(),
+            options: vec!["size=10M".to_string()],
+            read_only: false,
+            create_target: true,
+        }],
         ..Default::default()
     };
 
@@ -326,10 +319,9 @@ async fn test_process_isolation_timeout() -> Result<()> {
     let isolator = ProcessIsolator::new(config);
 
     // Create a process that runs longer than our timeout
-    let child = isolator.create_isolated_process_async(
-        "sleep",
-        vec!["5".to_string()],
-    ).await?;
+    let child = isolator
+        .create_isolated_process_async("sleep", vec!["5".to_string()])
+        .await?;
 
     // Set a short timeout
     let result = timeout(Duration::from_millis(100), child.wait_with_output()).await;
@@ -363,7 +355,11 @@ async fn test_comprehensive_namespace_configuration() {
                 source: PathBuf::from("proc"),
                 target: PathBuf::from("/proc"),
                 fs_type: "proc".to_string(),
-                options: vec!["nosuid".to_string(), "nodev".to_string(), "noexec".to_string()],
+                options: vec![
+                    "nosuid".to_string(),
+                    "nodev".to_string(),
+                    "noexec".to_string(),
+                ],
                 read_only: false,
                 create_target: true,
             },
@@ -374,7 +370,7 @@ async fn test_comprehensive_namespace_configuration() {
                 options: vec!["size=100M".to_string(), "mode=1777".to_string()],
                 read_only: false,
                 create_target: true,
-            }
+            },
         ],
         network_config: None,
     };
@@ -427,10 +423,9 @@ mod integration_tests {
         let isolator = ProcessIsolator::new(config);
 
         // Test network interface in isolated namespace
-        let child = isolator.create_isolated_process_async(
-            "ip",
-            vec!["addr".to_string(), "show".to_string()],
-        ).await?;
+        let child = isolator
+            .create_isolated_process_async("ip", vec!["addr".to_string(), "show".to_string()])
+            .await?;
 
         let output = child.wait_with_output().await?;
         assert!(output.status.success());

@@ -11,9 +11,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tracing::{error, info, warn};
 
-use crate::security::audit_logging::{
-    AuditEvent, AuditEventType, AuditSeverity, AuditOutcome
-};
+use crate::security::audit_logging::{AuditEvent, AuditEventType, AuditOutcome, AuditSeverity};
 
 /// Simple audit monitor for basic security event analysis
 pub struct SimpleAuditMonitor {
@@ -81,7 +79,8 @@ impl SimpleAuditMonitor {
     /// Start monitoring events
     pub async fn start_monitoring(&self) -> Result<()> {
         let receiver = self.event_receiver.read().await;
-        let receiver = receiver.as_ref()
+        let receiver = receiver
+            .as_ref()
             .ok_or_else(|| anyhow!("Monitor not initialized"))?;
 
         let receiver = receiver.clone();
@@ -107,8 +106,9 @@ impl SimpleAuditMonitor {
                     stats.last_update = Some(Utc::now());
 
                     // Count failed authentication attempts
-                    if event.event_type == AuditEventType::Authentication &&
-                       event.outcome == AuditOutcome::Failure {
+                    if event.event_type == AuditEventType::Authentication
+                        && event.outcome == AuditOutcome::Failure
+                    {
                         let now = Utc::now();
                         if (now - last_minute_time).num_seconds() >= 60 {
                             stats.failed_auth_last_minute = last_minute_count;
@@ -120,7 +120,10 @@ impl SimpleAuditMonitor {
                         // Check for brute force attempt
                         if last_minute_count >= 5 {
                             stats.suspicious_activities += 1;
-                            warn!("Possible brute force attack detected: {} failed auth attempts", last_minute_count);
+                            warn!(
+                                "Possible brute force attack detected: {} failed auth attempts",
+                                last_minute_count
+                            );
                         }
                     }
 
@@ -173,7 +176,8 @@ impl SimpleAuditMonitor {
         let history = self.event_history.read().await;
         let effective_limit = limit.unwrap_or(100);
 
-        history.iter()
+        history
+            .iter()
             .rev()
             .take(effective_limit)
             .cloned()
@@ -183,7 +187,8 @@ impl SimpleAuditMonitor {
     /// Get events by type
     pub async fn get_events_by_type(&self, event_type: AuditEventType) -> Vec<AuditEvent> {
         let history = self.event_history.read().await;
-        history.iter()
+        history
+            .iter()
             .filter(|e| e.event_type == event_type)
             .cloned()
             .collect()
@@ -194,11 +199,12 @@ impl SimpleAuditMonitor {
         let history = self.event_history.read().await;
         let cutoff = Utc::now() - chrono::Duration::minutes(minutes as i64);
 
-        history.iter()
+        history
+            .iter()
             .filter(|e| {
-                e.event_type == AuditEventType::Authentication &&
-                e.outcome == AuditOutcome::Failure &&
-                e.timestamp > cutoff
+                e.event_type == AuditEventType::Authentication
+                    && e.outcome == AuditOutcome::Failure
+                    && e.timestamp > cutoff
             })
             .cloned()
             .collect()
@@ -209,11 +215,9 @@ impl SimpleAuditMonitor {
         let history = self.event_history.read().await;
         let cutoff = Utc::now() - chrono::Duration::hours(hours as i64);
 
-        history.iter()
-            .filter(|e| {
-                e.event_type == AuditEventType::SecurityViolation &&
-                e.timestamp > cutoff
-            })
+        history
+            .iter()
+            .filter(|e| e.event_type == AuditEventType::SecurityViolation && e.timestamp > cutoff)
             .cloned()
             .collect()
     }

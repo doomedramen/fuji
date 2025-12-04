@@ -222,12 +222,8 @@ impl KDFParameters {
                 pbkdf2_hmac::<Sha512>(password, salt, self.iterations as usize, &mut derived_key);
                 derived_key
             }
-            KeyDerivationFunction::Argon2id => {
-                self.derive_key_argon2id(password, salt)?
-            }
-            KeyDerivationFunction::Scrypt => {
-                self.derive_key_scrypt(password, salt)?
-            }
+            KeyDerivationFunction::Argon2id => self.derive_key_argon2id(password, salt)?,
+            KeyDerivationFunction::Scrypt => self.derive_key_scrypt(password, salt)?,
         };
 
         let elapsed = start_time.elapsed().unwrap_or_default();
@@ -238,9 +234,7 @@ impl KDFParameters {
         );
 
         if elapsed.as_millis() < self.estimated_time_ms as u128 / 2 {
-            warn!(
-                "Key derivation completed faster than expected. Consider increasing parameters."
-            );
+            warn!("Key derivation completed faster than expected. Consider increasing parameters.");
         }
 
         Ok(key)
@@ -262,7 +256,12 @@ impl KDFParameters {
         // For now, fall back to PBKDF2 as placeholder
         warn!("Scrypt not available, falling back to PBKDF2-SHA512");
         let mut derived_key = vec![0u8; self.key_length];
-        pbkdf2_hmac::<Sha512>(password, salt, self.iterations as usize * 10, &mut derived_key);
+        pbkdf2_hmac::<Sha512>(
+            password,
+            salt,
+            self.iterations as usize * 10,
+            &mut derived_key,
+        );
         Ok(derived_key)
     }
 
@@ -302,12 +301,14 @@ impl KDFParameters {
             }
             KeyDerivationFunction::Argon2id | KeyDerivationFunction::Scrypt => {
                 // Tune memory cost and parallelism
-                if let (Some(mut memory), Some(mut parallel)) = (self.memory_cost, self.parallelism) {
+                if let (Some(mut memory), Some(mut parallel)) = (self.memory_cost, self.parallelism)
+                {
                     for mem_multiplier in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0] {
                         for par_multiplier in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0] {
                             let mut test_params = self.clone();
                             test_params.memory_cost = Some((memory as f64 * mem_multiplier) as u32);
-                            test_params.parallelism = Some((parallel as f64 * par_multiplier) as u32);
+                            test_params.parallelism =
+                                Some((parallel as f64 * par_multiplier) as u32);
 
                             let actual_time = test_params.benchmark(password, &salt)?;
                             let actual_ms = actual_time.as_millis() as u64;
@@ -334,7 +335,8 @@ pub struct KeyDerivationManager {
     /// Default KDF function
     default_function: KeyDerivationFunction,
     /// Cached parameters for different functions
-    parameter_cache: std::collections::HashMap<(KeyDerivationFunction, SecurityLevel), KDFParameters>,
+    parameter_cache:
+        std::collections::HashMap<(KeyDerivationFunction, SecurityLevel), KDFParameters>,
 }
 
 impl KeyDerivationManager {
@@ -351,7 +353,11 @@ impl KeyDerivationManager {
     }
 
     /// Get parameters for a specific security level
-    pub fn get_parameters(&mut self, function: KeyDerivationFunction, security_level: SecurityLevel) -> KDFParameters {
+    pub fn get_parameters(
+        &mut self,
+        function: KeyDerivationFunction,
+        security_level: SecurityLevel,
+    ) -> KDFParameters {
         let cache_key = (function, security_level);
 
         if let Some(params) = self.parameter_cache.get(&cache_key) {
@@ -378,7 +384,12 @@ impl KeyDerivationManager {
     }
 
     /// Derive key with custom parameters
-    pub fn derive_key_with_params(&self, password: &[u8], salt: &[u8], params: &KDFParameters) -> Result<Vec<u8>> {
+    pub fn derive_key_with_params(
+        &self,
+        password: &[u8],
+        salt: &[u8],
+        params: &KDFParameters,
+    ) -> Result<Vec<u8>> {
         params.derive_key(password, salt)
     }
 
@@ -411,7 +422,8 @@ impl KeyDerivationManager {
                     SecurityLevel::VeryHigh => function.high_security_parameters(),
                 };
 
-                self.parameter_cache.insert((function, security_level), params);
+                self.parameter_cache
+                    .insert((function, security_level), params);
             }
         }
     }

@@ -19,8 +19,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{RwLock, Semaphore};
 use tracing::{debug, error, info, warn};
 
-use crate::security::encryption::{EncryptionAlgorithm, EncryptedData};
 use crate::security::auth::JWTAuthenticator;
+use crate::security::encryption::{EncryptedData, EncryptionAlgorithm};
 
 /// Hardware-backed credential provider
 pub struct HardwareCredentialProvider {
@@ -214,7 +214,9 @@ impl HardwareCredentialProvider {
         self.validate_password(&credential.password)?;
 
         // Generate enhanced credential with security metadata
-        let enhanced = self.create_enhanced_credential(mount_id, credential).await?;
+        let enhanced = self
+            .create_enhanced_credential(mount_id, credential)
+            .await?;
 
         // Generate unique key for this credential
         let key_id = format!("credential_{}", mount_id);
@@ -283,7 +285,10 @@ impl HardwareCredentialProvider {
         let key_id = format!("credential_{}", mount_id);
 
         // Get existing credential
-        let key_data = self.hsm_backend.get_key(&key_id).await?
+        let key_data = self
+            .hsm_backend
+            .get_key(&key_id)
+            .await?
             .ok_or_else(|| anyhow!("Credential not found for rotation: {}", mount_id))?;
 
         let mut credential = self.decrypt_credential(&key_data)?;
@@ -326,7 +331,9 @@ impl HardwareCredentialProvider {
             let has_upper = password.chars().any(|c| c.is_uppercase());
             let has_lower = password.chars().any(|c| c.is_lowercase());
             let has_digit = password.chars().any(|c| c.is_numeric());
-            let has_special = password.chars().any(|c| "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(c));
+            let has_special = password
+                .chars()
+                .any(|c| "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(c));
 
             if !has_upper || !has_lower || !has_digit || !has_special {
                 return Err(anyhow!(
@@ -380,7 +387,10 @@ impl HardwareCredentialProvider {
     }
 
     /// Calculate integrity hash for credential
-    fn calculate_credential_hash(&self, credential: &crate::security::Credential) -> Result<String> {
+    fn calculate_credential_hash(
+        &self,
+        credential: &crate::security::Credential,
+    ) -> Result<String> {
         use sha2::{Digest, Sha256};
 
         let mut hasher = Sha256::new();
@@ -400,11 +410,13 @@ impl HardwareCredentialProvider {
         credential: &EnhancedCredential,
     ) -> Result<Vec<u8>> {
         // Derive key from mount_id and credential metadata
-        let mut key_material = format!("{}:{}:{}",
+        let mut key_material = format!(
+            "{}:{}:{}",
             mount_id,
             credential.version,
             credential.created_at.duration_since(UNIX_EPOCH)?.as_secs()
-        ).into_bytes();
+        )
+        .into_bytes();
 
         // Add salt from KDF parameters
         key_material.extend_from_slice(&credential.security_metadata.kdf_params.salt);
@@ -442,8 +454,8 @@ impl Default for KeyRotationConfig {
     fn default() -> Self {
         Self {
             rotation_interval: Duration::from_secs(90 * 24 * 60 * 60), // 90 days
-            grace_period: Duration::from_secs(7 * 24 * 60 * 60),     // 7 days
-            max_key_age: Duration::from_secs(365 * 24 * 60 * 60),   // 1 year
+            grace_period: Duration::from_secs(7 * 24 * 60 * 60),       // 7 days
+            max_key_age: Duration::from_secs(365 * 24 * 60 * 60),      // 1 year
             notification_period: Duration::from_secs(14 * 24 * 60 * 60), // 14 days
         }
     }
@@ -529,16 +541,24 @@ mod tests {
             key_store: Arc::new(RwLock::new(HashMap::new())),
             master_key: Arc::new(RwLock::new(None)),
             key_store_path: PathBuf::from("/tmp/test"),
-            encryptor: ChaCha20Poly1305Encryptor { cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32])) },
-        })).validate_password("SecurePass123!").is_ok());
+            encryptor: ChaCha20Poly1305Encryptor {
+                cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32]))
+            },
+        }))
+        .validate_password("SecurePass123!")
+        .is_ok());
 
         // Too short
         assert!(HardwareCredentialProvider::new(Arc::new(SoftwareHSM {
             key_store: Arc::new(RwLock::new(HashMap::new())),
             master_key: Arc::new(RwLock::new(None)),
             key_store_path: PathBuf::from("/tmp/test"),
-            encryptor: ChaCha20Poly1305Encryptor { cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32])) },
-        })).validate_password("short").is_err());
+            encryptor: ChaCha20Poly1305Encryptor {
+                cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32]))
+            },
+        }))
+        .validate_password("short")
+        .is_err());
     }
 
     #[test]
@@ -547,7 +567,9 @@ mod tests {
             key_store: Arc::new(RwLock::new(HashMap::new())),
             master_key: Arc::new(RwLock::new(None)),
             key_store_path: PathBuf::from("/tmp/test"),
-            encryptor: ChaCha20Poly1305Encryptor { cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32])) },
+            encryptor: ChaCha20Poly1305Encryptor {
+                cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32])),
+            },
         }));
 
         let credential = Credential {
@@ -570,7 +592,9 @@ mod tests {
             key_store: Arc::new(RwLock::new(HashMap::new())),
             master_key: Arc::new(RwLock::new(None)),
             key_store_path: PathBuf::from("/tmp/test"),
-            encryptor: ChaCha20Poly1305Encryptor { cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32])) },
+            encryptor: ChaCha20Poly1305Encryptor {
+                cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32])),
+            },
         };
 
         assert!(hsm.is_available());

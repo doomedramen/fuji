@@ -12,7 +12,7 @@ use tokio::sync::{mpsc, RwLock};
 use tracing::{error, info, warn};
 
 use crate::security::audit_logging::{
-    AuditEvent, AuditEventType, AuditSeverity, AuditOutcome, AuditSource
+    AuditEvent, AuditEventType, AuditOutcome, AuditSeverity, AuditSource,
 };
 
 /// Real-time audit monitor for security event analysis
@@ -81,7 +81,9 @@ pub trait PatternDetector: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Get detector priority
-    fn priority(&self) -> u8 { 1 }
+    fn priority(&self) -> u8 {
+        1
+    }
 }
 
 /// Alert handler interface
@@ -259,19 +261,24 @@ impl AuditMonitor {
     /// Add default pattern detectors
     async fn add_default_detectors(&self) {
         // Brute force attack detector
-        self.add_detector(Box::new(BruteForceDetector::new(&self.config))).await;
+        self.add_detector(Box::new(BruteForceDetector::new(&self.config)))
+            .await;
 
         // Suspicious IP detector
-        self.add_detector(Box::new(SuspiciousIPDetector::new(&self.config))).await;
+        self.add_detector(Box::new(SuspiciousIPDetector::new(&self.config)))
+            .await;
 
         // Privilege escalation detector
-        self.add_detector(Box::new(PrivilegeEscalationDetector::new(&self.config))).await;
+        self.add_detector(Box::new(PrivilegeEscalationDetector::new(&self.config)))
+            .await;
 
         // Anomaly detector
-        self.add_detector(Box::new(AnomalyDetector::new(&self.config))).await;
+        self.add_detector(Box::new(AnomalyDetector::new(&self.config)))
+            .await;
 
         // Policy violation detector
-        self.add_detector(Box::new(PolicyViolationDetector::new(&self.config))).await;
+        self.add_detector(Box::new(PolicyViolationDetector::new(&self.config)))
+            .await;
     }
 
     /// Add default alert handlers
@@ -280,7 +287,8 @@ impl AuditMonitor {
         self.add_handler(Box::new(LogAlertHandler::new())).await;
 
         // System response handler
-        self.add_handler(Box::new(SystemResponseHandler::new())).await;
+        self.add_handler(Box::new(SystemResponseHandler::new()))
+            .await;
 
         // Email alert handler (if configured)
         // self.add_handler(Box::new(EmailAlertHandler::new())).await;
@@ -405,9 +413,10 @@ impl AuditMonitor {
 
         // Check for similar active alerts
         for existing_alert in alerts.values() {
-            if existing_alert.alert_type == alert.alert_type &&
-               existing_alert.status == AlertStatus::Active &&
-               (alert.timestamp - existing_alert.timestamp).num_seconds() < config.alert_cooldown as i64
+            if existing_alert.alert_type == alert.alert_type
+                && existing_alert.status == AlertStatus::Active
+                && (alert.timestamp - existing_alert.timestamp).num_seconds()
+                    < config.alert_cooldown as i64
             {
                 return false; // Suppress duplicate alert
             }
@@ -424,7 +433,9 @@ pub struct BruteForceDetector {
 
 impl BruteForceDetector {
     pub fn new(config: &AuditMonitoringConfig) -> Self {
-        Self { config: config.clone() }
+        Self {
+            config: config.clone(),
+        }
     }
 }
 
@@ -438,13 +449,19 @@ impl PatternDetector for BruteForceDetector {
         let mut auth_failures: HashMap<String, Vec<&AuditEvent>> = HashMap::new();
 
         for event in events {
-            if event.event_type == AuditEventType::Authentication &&
-               event.outcome == AuditOutcome::Failure &&
-               event.timestamp > window_start
+            if event.event_type == AuditEventType::Authentication
+                && event.outcome == AuditOutcome::Failure
+                && event.timestamp > window_start
             {
-                let key = format!("{}:{}", event.source.identifier,
-                    event.source.ip_address.as_deref().unwrap_or("unknown"));
-                auth_failures.entry(key).or_insert_with(Vec::new).push(event);
+                let key = format!(
+                    "{}:{}",
+                    event.source.identifier,
+                    event.source.ip_address.as_deref().unwrap_or("unknown")
+                );
+                auth_failures
+                    .entry(key)
+                    .or_insert_with(Vec::new)
+                    .push(event);
             }
         }
 
@@ -454,7 +471,11 @@ impl PatternDetector for BruteForceDetector {
                 let alert = SecurityAlert {
                     id: uuid::Uuid::new_v4().to_string(),
                     timestamp: now,
-                    severity: if failures.len() >= 10 { AlertSeverity::High } else { AlertSeverity::Medium },
+                    severity: if failures.len() >= 10 {
+                        AlertSeverity::High
+                    } else {
+                        AlertSeverity::Medium
+                    },
                     alert_type: AlertType::BruteForceAttack,
                     title: "Potential Brute Force Attack Detected".to_string(),
                     description: format!(
@@ -500,7 +521,9 @@ pub struct SuspiciousIPDetector {
 
 impl SuspiciousIPDetector {
     pub fn new(config: &AuditMonitoringConfig) -> Self {
-        Self { config: config.clone() }
+        Self {
+            config: config.clone(),
+        }
     }
 }
 
@@ -516,7 +539,10 @@ impl PatternDetector for SuspiciousIPDetector {
         for event in events {
             if event.timestamp > window_start {
                 if let Some(ip) = &event.source.ip_address {
-                    ip_activities.entry(ip.clone()).or_insert_with(Vec::new).push(event);
+                    ip_activities
+                        .entry(ip.clone())
+                        .or_insert_with(Vec::new)
+                        .push(event);
                 }
             }
         }
@@ -601,7 +627,9 @@ pub struct PrivilegeEscalationDetector {
 
 impl PrivilegeEscalationDetector {
     pub fn new(config: &AuditMonitoringConfig) -> Self {
-        Self { config: config.clone() }
+        Self {
+            config: config.clone(),
+        }
     }
 }
 
@@ -615,12 +643,13 @@ impl PatternDetector for PrivilegeEscalationDetector {
         let mut admin_actions: HashMap<String, Vec<&AuditEvent>> = HashMap::new();
 
         for event in events {
-            if event.timestamp > window_start &&
-               (event.event_type == AuditEventType::AdministrativeAction ||
-                event.event_type == AuditEventType::ConfigurationChange ||
-                event.event_type == AuditEventType::SecurityPolicy)
+            if event.timestamp > window_start
+                && (event.event_type == AuditEventType::AdministrativeAction
+                    || event.event_type == AuditEventType::ConfigurationChange
+                    || event.event_type == AuditEventType::SecurityPolicy)
             {
-                admin_actions.entry(event.source.identifier.clone())
+                admin_actions
+                    .entry(event.source.identifier.clone())
                     .or_insert_with(Vec::new)
                     .push(event);
             }
@@ -696,7 +725,9 @@ pub struct AnomalyDetector {
 
 impl AnomalyDetector {
     pub fn new(config: &AuditMonitoringConfig) -> Self {
-        Self { config: config.clone() }
+        Self {
+            config: config.clone(),
+        }
     }
 }
 
@@ -718,9 +749,11 @@ impl PatternDetector for AnomalyDetector {
             let counts: Vec<u32> = hourly_counts.values().cloned().collect();
             let mean = counts.iter().sum::<u32>() as f64 / counts.len() as f64;
             let std_dev = {
-                let variance = counts.iter()
+                let variance = counts
+                    .iter()
                     .map(|&x| (x as f64 - mean).powi(2))
-                    .sum::<f64>() / counts.len() as f64;
+                    .sum::<f64>()
+                    / counts.len() as f64;
                 variance.sqrt()
             };
 
@@ -776,7 +809,9 @@ pub struct PolicyViolationDetector {
 
 impl PolicyViolationDetector {
     pub fn new(config: &AuditMonitoringConfig) -> Self {
-        Self { config: config.clone() }
+        Self {
+            config: config.clone(),
+        }
     }
 }
 
@@ -805,7 +840,10 @@ impl PatternDetector for PolicyViolationDetector {
                         status: AlertStatus::Active,
                         metadata: {
                             let mut meta = HashMap::new();
-                            meta.insert("violation_type".to_string(), "security_policy".to_string());
+                            meta.insert(
+                                "violation_type".to_string(),
+                                "security_policy".to_string(),
+                            );
                             meta
                         },
                     };
@@ -822,7 +860,8 @@ impl PatternDetector for PolicyViolationDetector {
                                 alert_type: AlertType::PolicyViolation,
                                 title: "Authentication from Unusual Location".to_string(),
                                 description: format!(
-                                    "Authentication event from potentially unusual IP address: {}", ip
+                                    "Authentication event from potentially unusual IP address: {}",
+                                    ip
                                 ),
                                 trigger_events: vec![event.id.clone()],
                                 recommended_actions: vec![
@@ -891,9 +930,7 @@ impl AlertHandler for LogAlertHandler {
 
         error!(
             "[SECURITY ALERT] [{}] {}: {}",
-            severity_str,
-            alert.title,
-            alert.description
+            severity_str, alert.title, alert.description
         );
 
         for action in &alert.recommended_actions {

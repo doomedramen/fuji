@@ -7,11 +7,11 @@
 //! - Credential backup and recovery
 
 use anyhow::Result;
+use fuji::security::credential_backup::{BackupStrategy, CredentialBackupManager, RecoveryKey};
 use fuji::security::hardware_credential_provider::{
-    HardwareCredentialProvider, SecurityPolicy, KeyRotationConfig, EnhancedCredential
+    EnhancedCredential, HardwareCredentialProvider, KeyRotationConfig, SecurityPolicy,
 };
-use fuji::security::key_derivation::{KeyDerivationManager, KeyDerivationFunction, SecurityLevel};
-use fuji::security::credential_backup::{CredentialBackupManager, BackupStrategy, RecoveryKey};
+use fuji::security::key_derivation::{KeyDerivationFunction, KeyDerivationManager, SecurityLevel};
 use fuji::security::Credential;
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -33,7 +33,9 @@ async fn test_hardware_credential_storage() -> Result<()> {
     };
 
     // Store credential
-    provider.store_enhanced_credential("test_mount", &credential).await?;
+    provider
+        .store_enhanced_credential("test_mount", &credential)
+        .await?;
 
     // Retrieve credential
     let retrieved = provider.get_enhanced_credential("test_mount").await?;
@@ -79,7 +81,10 @@ async fn test_security_policy_enforcement() -> Result<()> {
     };
 
     // Should succeed
-    assert!(provider.store_enhanced_credential("valid_test", &valid_credential).await.is_ok());
+    assert!(provider
+        .store_enhanced_credential("valid_test", &valid_credential)
+        .await
+        .is_ok());
 
     // Test invalid password (too short)
     let invalid_credential = Credential {
@@ -90,7 +95,10 @@ async fn test_security_policy_enforcement() -> Result<()> {
     };
 
     // Should fail
-    assert!(provider.store_enhanced_credential("invalid_test", &invalid_credential).await.is_err());
+    assert!(provider
+        .store_enhanced_credential("invalid_test", &invalid_credential)
+        .await
+        .is_err());
 
     Ok(())
 }
@@ -130,38 +138,41 @@ async fn test_key_derivation_functions() -> Result<()> {
 #[tokio::test]
 async fn test_credential_backup_recovery() -> Result<()> {
     let backup_strategy = BackupStrategy::LocalEncrypted {
-        path: std::path::PathBuf::from("/tmp/test_backups")
+        path: std::path::PathBuf::from("/tmp/test_backups"),
     };
     let backup_manager = CredentialBackupManager::new(backup_strategy);
 
     // Create test credentials
     let mut credentials = HashMap::new();
-    credentials.insert("mount1".to_string(), EnhancedCredential {
-        credential: Credential {
-            username: "user1".to_string(),
-            password: "password1".to_string(),
-            domain: Some("DOMAIN1".to_string()),
-            metadata: HashMap::new(),
-        },
-        version: 1,
-        created_at: SystemTime::now(),
-        expires_at: None,
-        last_rotated: None,
-        security_metadata: fuji::security::hardware_credential_provider::SecurityMetadata {
-            integrity_hash: "hash1".to_string(),
-            kdf_params: fuji::security::hardware_credential_provider::KeyDerivationParams {
-                iterations: 100_000,
-                salt: vec![1, 2, 3, 4],
-                key_length: 32,
-                memory_cost: None,
-                parallelism: Some(4),
+    credentials.insert(
+        "mount1".to_string(),
+        EnhancedCredential {
+            credential: Credential {
+                username: "user1".to_string(),
+                password: "password1".to_string(),
+                domain: Some("DOMAIN1".to_string()),
+                metadata: HashMap::new(),
             },
-            encryption_algorithm: "chacha20-poly1305".to_string(),
-            mfa_required: false,
-            access_restrictions: HashMap::new(),
-            audit_log_ids: vec![],
+            version: 1,
+            created_at: SystemTime::now(),
+            expires_at: None,
+            last_rotated: None,
+            security_metadata: fuji::security::hardware_credential_provider::SecurityMetadata {
+                integrity_hash: "hash1".to_string(),
+                kdf_params: fuji::security::hardware_credential_provider::KeyDerivationParams {
+                    iterations: 100_000,
+                    salt: vec![1, 2, 3, 4],
+                    key_length: 32,
+                    memory_cost: None,
+                    parallelism: Some(4),
+                },
+                encryption_algorithm: "chacha20-poly1305".to_string(),
+                mfa_required: false,
+                access_restrictions: HashMap::new(),
+                audit_log_ids: vec![],
+            },
         },
-    });
+    );
 
     // Create backup
     let backup_id = backup_manager.create_backup(&credentials, None).await?;
@@ -195,7 +206,7 @@ async fn test_credential_backup_recovery() -> Result<()> {
 #[tokio::test]
 async fn test_recovery_key_generation() -> Result<()> {
     let backup_strategy = BackupStrategy::LocalEncrypted {
-        path: std::path::PathBuf::from("/tmp/test_backups")
+        path: std::path::PathBuf::from("/tmp/test_backups"),
     };
     let backup_manager = CredentialBackupManager::new(backup_strategy);
 
@@ -224,15 +235,21 @@ async fn test_recovery_key_generation() -> Result<()> {
 async fn test_key_rotation_policies() -> Result<()> {
     let rotation_config = KeyRotationConfig {
         rotation_interval: Duration::from_secs(7 * 24 * 60 * 60), // 7 days
-        grace_period: Duration::from_secs(24 * 60 * 60),            // 1 day
+        grace_period: Duration::from_secs(24 * 60 * 60),          // 1 day
         max_key_age: Duration::from_secs(90 * 24 * 60 * 60),      // 90 days
         notification_period: Duration::from_secs(2 * 24 * 60 * 60), // 2 days
     };
 
-    assert_eq!(rotation_config.rotation_interval.as_secs(), 7 * 24 * 60 * 60);
+    assert_eq!(
+        rotation_config.rotation_interval.as_secs(),
+        7 * 24 * 60 * 60
+    );
     assert_eq!(rotation_config.grace_period.as_secs(), 24 * 60 * 60);
     assert_eq!(rotation_config.max_key_age.as_secs(), 90 * 24 * 60 * 60);
-    assert_eq!(rotation_config.notification_period.as_secs(), 2 * 24 * 60 * 60);
+    assert_eq!(
+        rotation_config.notification_period.as_secs(),
+        2 * 24 * 60 * 60
+    );
 
     Ok(())
 }
@@ -259,7 +276,9 @@ async fn test_concurrent_credential_operations() -> Result<()> {
             let mount_id = format!("mount{}", i);
 
             // Store credential
-            let _ = provider_clone.store_enhanced_credential(&mount_id, &credential).await?;
+            let _ = provider_clone
+                .store_enhanced_credential(&mount_id, &credential)
+                .await?;
 
             // Small delay to simulate real work
             sleep(Duration::from_millis(10)).await;
@@ -289,7 +308,9 @@ struct MockHSM {
 impl MockHSM {
     fn new() -> Self {
         Self {
-            key_store: std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+            key_store: std::sync::Arc::new(tokio::sync::RwLock::new(
+                std::collections::HashMap::new(),
+            )),
         }
     }
 }
