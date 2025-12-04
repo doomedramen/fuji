@@ -3,7 +3,7 @@
 //! Provides configurable retry mechanisms with exponential backoff
 //! for failed operations and reconnection attempts.
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use backoff::{backoff::Backoff, ExponentialBackoff};
 use chrono;
 use std::collections::HashMap;
@@ -233,7 +233,7 @@ impl RetryHandler {
 
         let start_time = std::time::Instant::now();
         let mut attempts = 0;
-        let mut last_error = None;
+        let mut last_error: Option<String>;
 
         loop {
             attempts += 1;
@@ -344,6 +344,7 @@ impl Default for RetryHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::anyhow;
     use tokio::time::Duration;
 
     #[tokio::test]

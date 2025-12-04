@@ -265,7 +265,7 @@ impl HealthCheckScheduler {
         debug!("Running health checks for mount {}", mount_id);
 
         let mut healthy_count = 0;
-        let mut total_count = check_types.len();
+        let total_count = check_types.len();
         let mut last_error = None;
         let mut health_score: u32 = 100;
 

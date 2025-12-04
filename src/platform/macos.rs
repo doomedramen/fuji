@@ -72,14 +72,6 @@ impl Platform for MacOSPlatform {
     }
 
     fn get_current_user(&self) -> Result<String> {
-        // Try getlogin first
-        #[cfg(feature = "user")]
-        {
-            if let Ok(username) = unistd::getlogin() {
-                return Ok(username);
-            }
-        }
-
         // Fallback to environment variables
         std::env::var("USER")
             .or_else(|_| std::env::var("LOGNAME"))

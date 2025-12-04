@@ -54,7 +54,7 @@ impl FileAccessHealthCheck {
 
 #[async_trait]
 impl HealthCheck for FileAccessHealthCheck {
-    async fn execute(&self, mount_id: &str, mount_config: &crate::mount::MountConfig) -> Result<HealthCheckResult> {
+    async fn execute(&self, _mount_id: &str, mount_config: &crate::mount::MountConfig) -> Result<HealthCheckResult> {
         let start = std::time::Instant::now();
 
         // Check if mount point exists
@@ -168,7 +168,7 @@ impl PingHealthCheck {
 
 #[async_trait]
 impl HealthCheck for PingHealthCheck {
-    async fn execute(&self, mount_id: &str, mount_config: &crate::mount::MountConfig) -> Result<HealthCheckResult> {
+    async fn execute(&self, _mount_id: &str, mount_config: &crate::mount::MountConfig) -> Result<HealthCheckResult> {
         let start = std::time::Instant::now();
 
         let host = self.extract_host(mount_config)?;
@@ -244,7 +244,7 @@ impl ProtocolHealthCheck {
 
 #[async_trait]
 impl HealthCheck for ProtocolHealthCheck {
-    async fn execute(&self, mount_id: &str, mount_config: &crate::mount::MountConfig) -> Result<HealthCheckResult> {
+    async fn execute(&self, _mount_id: &str, mount_config: &crate::mount::MountConfig) -> Result<HealthCheckResult> {
         let start = std::time::Instant::now();
 
         // Get the appropriate handler for this mount type

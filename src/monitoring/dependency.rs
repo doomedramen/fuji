@@ -253,7 +253,7 @@ impl DependencyGraph {
         let reverse_index = self.reverse_index.read().await;
 
         // Perform topological sort
-        let sorted_indices = toposort(&*graph, None).map_err(|e| {
+        let sorted_indices = toposort(&*graph, None).map_err(|_e| {
             anyhow!("Failed to sort dependencies: cycle detected in dependency graph")
         })?;
 

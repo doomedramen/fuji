@@ -1187,7 +1187,7 @@ async fn handle_batch(
                     *disable,
                     *dry_run,
                     *progress,
-                    platform.as_ref(),
+                    platform.clone(),
                 )
                 .await
             }
