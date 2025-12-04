@@ -1,11 +1,12 @@
 //! SMB/CIFS mount handler implementation
 
-use crate::mount::options::MountOptionParser;
+use crate::mount::drivers::{
+    create_secure_mount_command, MountOptionsValidator, MountUrlValidator, SecureCommand,
+};
 use crate::mount::{MountConfig, MountHandler, MountState, MountType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::path::PathBuf;
-use std::process::Command;
 use tokio::fs;
 use tracing::{debug, error, info, warn};
 use url::Url;
@@ -25,6 +26,10 @@ impl MountHandler for SmbHandler {
     }
 
     fn parse_url(&self, url: &str) -> Result<MountType> {
+        // Validate URL first
+        let validator = MountUrlValidator::new()?;
+        validator.validate_url(url)?;
+
         let parsed = Url::parse(url)?;
 
         if !matches!(parsed.scheme(), "smb" | "cifs") {
@@ -42,10 +47,10 @@ impl MountHandler for SmbHandler {
             parsed.path().trim_start_matches('/').to_string()
         };
 
-        let username = if parsed.username().is_empty() {
-            None
-        } else {
+        let username = if !parsed.username().is_empty() {
             Some(parsed.username().to_string())
+        } else {
+            None
         };
         let password = parsed.password().map(|p| p.to_string());
 
@@ -77,24 +82,21 @@ impl MountHandler for SmbHandler {
     async fn discover_shares(&self, host: &str) -> Result<Vec<String>> {
         info!("Discovering SMB shares on {}", host);
 
-        let host_owned = host.to_owned();
         // Use smbclient to list shares
-        let output = tokio::task::spawn_blocking(move || {
-            Command::new("smbclient")
-                .arg("-L")
-                .arg(&host_owned)
-                .arg("-N")
-                .output()
-        })
-        .await??;
+        let output = SecureCommand::new("smbclient")
+            .arg("-L")
+            .arg(host)
+            .arg("-N")
+            .output()
+            .await;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            warn!("Failed to discover SMB shares: {}", stderr);
-            return Ok(vec![]);
-        }
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stdout = match output {
+            Ok(output) => output,
+            Err(e) => {
+                warn!("Failed to discover SMB shares: {}", e);
+                return Ok(vec![]);
+            }
+        };
         let mut shares = Vec::new();
 
         // Parse smbclient output
@@ -135,57 +137,44 @@ impl MountHandler for SmbHandler {
                     mount_point.display()
                 );
 
-                // Parse and validate options using MountOptionParser
-                let parser = MountOptionParser::new();
-
-                // Build options string including credentials
-                let mut opts_vec = options.clone();
+                // Validate and prepare mount options
+                let validator = MountOptionsValidator::new()?;
+                let mut mount_options = options.clone();
 
                 // Add credentials to options
                 if let Some(user) = username {
-                    opts_vec.push(format!("username={}", user));
+                    mount_options.push(format!("username={}", user));
                 }
                 if let Some(pass) = password {
-                    opts_vec.push(format!("password={}", pass));
+                    mount_options.push(format!("password={}", pass));
                 }
                 if let Some(d) = domain {
-                    opts_vec.push(format!("domain={}", d));
+                    mount_options.push(format!("domain={}", d));
                 }
 
-                let options_str = if opts_vec.is_empty() {
-                    ""
-                } else {
-                    &opts_vec.join(",")
-                };
-                let parsed_options = parser.parse(options_str, "cifs")?;
+                // Add default options if none specified
+                if mount_options.is_empty() {
+                    mount_options.extend(self.get_default_options());
+                }
 
-                // Format options for mount command
-                let formatted_options = parser.format(&parsed_options);
-                debug!("Using SMB mount options: {}", formatted_options);
+                // Validate all options
+                validator.validate_options("smb", &mount_options)?;
+
+                // Build remote path
+                let remote_path = format!("//{}/{}", host, share);
+
+                // Create secure mount command
+                let cmd = create_secure_mount_command("smb", &remote_path, mount_point.to_str().unwrap(), &mount_options)?;
 
                 // Ensure mount point exists
                 fs::create_dir_all(mount_point).await?;
 
-                // Build mount command
-                let mut cmd = Command::new("mount");
-                cmd.arg("-t").arg("cifs");
-
-                if !formatted_options.is_empty() {
-                    cmd.arg("-o").arg(&formatted_options);
-                }
-
-                let remote_path = format!("//{}/{}", host, share);
-                cmd.arg(&remote_path);
-                cmd.arg(mount_point);
-
                 // Execute mount command
-                let output = tokio::task::spawn_blocking(move || cmd.output()).await??;
+                let output = cmd.output().await?;
 
-                if !output.status.success() {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    error!("Mount failed: {}", stderr);
-                    return Err(anyhow!("Failed to mount SMB share: {}", stderr));
-                }
+                // SecureCommand::output returns Result<String>, not a status object
+                // If we get here, the command succeeded
+                debug!("Mount command output: {}", output);
 
                 info!(
                     "Successfully mounted SMB share //{}/{}/ to {}",
@@ -202,16 +191,18 @@ impl MountHandler for SmbHandler {
     async fn unmount(&self, mount_point: &PathBuf) -> Result<()> {
         info!("Unmounting SMB share at {}", mount_point.display());
 
-        let mount_point_clone = mount_point.clone();
-        let output = tokio::task::spawn_blocking(move || {
-            Command::new("umount").arg(&mount_point_clone).output()
-        })
-        .await??;
+        // Create secure unmount command
+        let cmd = SecureCommand::new("umount").arg(mount_point.to_str().unwrap());
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            error!("Unmount failed: {}", stderr);
-            return Err(anyhow!("Failed to unmount: {}", stderr));
+        // Execute unmount command
+        let output = cmd.output().await?;
+
+        if !output.is_empty() {
+            // Check if output contains error indicators
+            if output.to_lowercase().contains("error") || output.to_lowercase().contains("failed") {
+                error!("Unmount failed: {}", output);
+                return Err(anyhow!("Failed to unmount: {}", output));
+            }
         }
 
         // Remove mount point directory

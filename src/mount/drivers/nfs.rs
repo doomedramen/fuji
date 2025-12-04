@@ -1,11 +1,12 @@
 //! NFS mount handler implementation
 
-use crate::mount::options::MountOptionParser;
+use crate::mount::drivers::{
+    create_secure_mount_command, MountOptionsValidator, MountUrlValidator, SecureCommand,
+};
 use crate::mount::{MountConfig, MountHandler, MountState, MountType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::path::PathBuf;
-use std::process::Command;
 use tokio::fs;
 use tracing::{debug, error, info, warn};
 use url::Url;
@@ -19,10 +20,10 @@ impl NfsHandler {
 
     /// Check if showmount is available
     async fn check_showmount(&self) -> bool {
-        Command::new("which")
+        SecureCommand::new("which")
             .arg("showmount")
-            .output()
-            .map(|o| o.status.success())
+            .status()
+            .await
             .unwrap_or(false)
     }
 }
@@ -34,6 +35,10 @@ impl MountHandler for NfsHandler {
     }
 
     fn parse_url(&self, url: &str) -> Result<MountType> {
+        // Validate URL first
+        let validator = MountUrlValidator::new()?;
+        validator.validate_url(url)?;
+
         let parsed = Url::parse(url)?;
 
         if parsed.scheme() != "nfs" {
@@ -80,24 +85,15 @@ impl MountHandler for NfsHandler {
 
         info!("Discovering NFS shares on {}", host);
 
-        let host_owned = host.to_owned();
-        let output = tokio::task::spawn_blocking(move || {
-            Command::new("showmount")
-                .arg("-e")
-                .arg(&host_owned)
-                .output()
-        })
-        .await??;
+        let output = SecureCommand::new("showmount")
+            .arg("-e")
+            .arg(host)
+            .output()
+            .await?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow!("Failed to discover shares: {}", stderr));
-        }
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
         let mut shares = Vec::new();
 
-        for line in stdout.lines().skip(1) {
+        for line in output.lines().skip(1) {
             // Skip header line
             if let Some(share) = line.split_whitespace().nth(0) {
                 shares.push(share.to_string());
@@ -124,44 +120,34 @@ impl MountHandler for NfsHandler {
                     mount_point.display()
                 );
 
-                // Parse and validate options using MountOptionParser
-                let parser = MountOptionParser::new();
-                let options_str = if options.is_empty() {
-                    ""
-                } else {
-                    &options.join(",")
-                };
-                let parsed_options = parser.parse(options_str, "nfs")?;
+                // Validate and prepare mount options
+                let validator = MountOptionsValidator::new()?;
+                let mut mount_options = options.clone();
 
-                // Format options for mount command
-                let formatted_options = parser.format(&parsed_options);
-                debug!("Using NFS mount options: {}", formatted_options);
-
-                // Build mount command
-                let mut cmd = Command::new("mount");
-                cmd.arg("-t").arg("nfs");
-
-                if !formatted_options.is_empty() {
-                    cmd.arg("-o").arg(&formatted_options);
+                // Add default options if none specified
+                if mount_options.is_empty() {
+                    mount_options.extend(self.get_default_options());
                 }
 
+                // Validate all options
+                validator.validate_options("nfs", &mount_options)?;
+
+                // Build remote path
                 let remote_path = if share.is_empty() {
                     format!("{}:/", host)
                 } else {
                     format!("{}:{}", host, share)
                 };
 
-                cmd.arg(&remote_path);
-                cmd.arg(mount_point);
+                // Create secure mount command
+                let cmd = create_secure_mount_command("nfs", &remote_path, mount_point.to_str().unwrap(), &mount_options)?;
 
                 // Execute mount command
-                let output = tokio::task::spawn_blocking(move || cmd.output()).await??;
+                let output = cmd.output().await?;
 
-                if !output.status.success() {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    error!("Mount failed: {}", stderr);
-                    return Err(anyhow!("Failed to mount NFS share: {}", stderr));
-                }
+                // SecureCommand::output returns Result<String>, not a status object
+                // If we get here, the command succeeded
+                debug!("Mount command output: {}", output);
 
                 info!(
                     "Successfully mounted NFS share {}:{} to {}",
@@ -178,16 +164,18 @@ impl MountHandler for NfsHandler {
     async fn unmount(&self, mount_point: &PathBuf) -> Result<()> {
         info!("Unmounting NFS share at {}", mount_point.display());
 
-        let mount_point_clone = mount_point.clone();
-        let output = tokio::task::spawn_blocking(move || {
-            Command::new("umount").arg(&mount_point_clone).output()
-        })
-        .await??;
+        // Create secure unmount command
+        let cmd = SecureCommand::new("umount").arg(mount_point.to_str().unwrap());
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            error!("Unmount failed: {}", stderr);
-            return Err(anyhow!("Failed to unmount: {}", stderr));
+        // Execute unmount command
+        let output = cmd.output().await?;
+
+        if !output.is_empty() {
+            // Check if output contains error indicators
+            if output.to_lowercase().contains("error") || output.to_lowercase().contains("failed") {
+                error!("Unmount failed: {}", output);
+                return Err(anyhow!("Failed to unmount: {}", output));
+            }
         }
 
         // Remove mount point directory

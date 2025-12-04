@@ -32,6 +32,14 @@ path = "tests/unit/config_test.rs"
 name = "monitoring_test"
 path = "tests/unit/monitoring_test.rs"
 
+[[test]]
+name = "security_command_injection"
+path = "tests/security_command_injection.rs"
+
+[[test]]
+name = "daemon_error_test"
+path = "tests/unit/daemon_error_test.rs"
+
 [dependencies]
 # Core dependencies
 tokio = { version = "1.35", features = ["full"] }
@@ -62,7 +70,7 @@ pbkdf2 = { version = "0.12", features = ["std"] }
 sha2 = "0.10"
 rand = "0.8"
 jsonwebtoken = "9.0"
-ring = "0.16"
+ring = "0.17.8"
 hex = "0.4"
 
 

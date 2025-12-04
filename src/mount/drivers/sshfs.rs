@@ -1,13 +1,15 @@
 //! SSHFS mount handler implementation
 
-use crate::mount::options::MountOptionParser;
+use crate::mount::drivers::{
+    create_secure_mount_command, MountOptionsValidator, MountUrlValidator, SecureCommand,
+};
 use crate::mount::{MountConfig, MountHandler, MountState, MountType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::path::PathBuf;
-use std::process::Command;
 use tokio::fs;
 use tracing::{debug, error, info, warn};
+use url::Url;
 
 pub struct SshfsHandler;
 
@@ -18,13 +20,11 @@ impl SshfsHandler {
 
     /// Check if sshfs is available
     async fn check_sshfs(&self) -> bool {
-        let output =
-            tokio::task::spawn_blocking(|| Command::new("which").arg("sshfs").output()).await;
-
-        match output {
-            Ok(Ok(output)) => output.status.success(),
-            _ => false,
-        }
+        SecureCommand::new("which")
+            .arg("sshfs")
+            .status()
+            .await
+            .unwrap_or(false)
     }
 }
 
@@ -35,9 +35,13 @@ impl MountHandler for SshfsHandler {
     }
 
     fn parse_url(&self, url: &str) -> Result<MountType> {
+        // Validate URL first
+        let validator = MountUrlValidator::new()?;
+        validator.validate_url(url)?;
+
         let parsed = url::Url::parse(url)?;
 
-        if parsed.scheme() != "sshfs" && parsed.scheme() != "ssh" {
+        if parsed.scheme() != "sshfs" && parsed.scheme() != "ssh" && parsed.scheme() != "sftp" {
             return Err(anyhow!("Invalid scheme for SSHFS: {}", parsed.scheme()));
         }
 
@@ -46,10 +50,10 @@ impl MountHandler for SshfsHandler {
             .ok_or_else(|| anyhow!("No host specified in URL"))?
             .to_string();
 
-        let username = if parsed.username().is_empty() {
-            None
-        } else {
+        let username = if !parsed.username().is_empty() {
             Some(parsed.username().to_string())
+        } else {
+            None
         };
 
         let _port = parsed.port().map(|p| p.to_string());
@@ -114,44 +118,30 @@ impl MountHandler for SshfsHandler {
 
                 info!("Mounting SSHFS {} to {}", share, mount_point.display());
 
-                // Parse and validate options using MountOptionParser
-                let parser = MountOptionParser::new();
+                // Validate and prepare mount options
+                let validator = MountOptionsValidator::new()?;
+                let mut mount_options = options.clone();
 
-                // Build options string
-                let options_str = if options.is_empty() {
-                    ""
-                } else {
-                    &options.join(",")
-                };
-                let parsed_options = parser.parse(options_str, "sshfs")?;
+                // Add default options if none specified
+                if mount_options.is_empty() {
+                    mount_options.extend(self.get_default_options());
+                }
 
-                // Format options for mount command
-                let formatted_options = parser.format(&parsed_options);
-                debug!("Using SSHFS mount options: {}", formatted_options);
+                // Validate all options
+                validator.validate_options("sshfs", &mount_options)?;
+
+                // Create secure mount command
+                let cmd = create_secure_mount_command("sshfs", share, mount_point.to_str().unwrap(), &mount_options)?;
 
                 // Ensure mount point exists
                 fs::create_dir_all(mount_point).await?;
 
-                // Build mount command
-                let mut cmd = Command::new("sshfs");
-
-                // Add options if any
-                if !formatted_options.is_empty() {
-                    cmd.arg("-o").arg(&formatted_options);
-                }
-
-                // Add source and destination
-                cmd.arg(share);
-                cmd.arg(mount_point);
-
                 // Execute mount command
-                let output = tokio::task::spawn_blocking(move || cmd.output()).await??;
+                let output = cmd.output().await?;
 
-                if !output.status.success() {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    error!("Mount failed: {}", stderr);
-                    return Err(anyhow!("Failed to mount SSHFS: {}", stderr));
-                }
+                // SecureCommand::output returns Result<String>, not a status object
+                // If we get here, the command succeeded
+                debug!("Mount command output: {}", output);
 
                 info!(
                     "Successfully mounted SSHFS {} to {}",
@@ -168,28 +158,28 @@ impl MountHandler for SshfsHandler {
         info!("Unmounting SSHFS at {}", mount_point.display());
 
         // Try fusermount first (preferred for SSHFS)
-        let mount_point_clone = mount_point.clone();
-        let output = tokio::task::spawn_blocking(move || {
-            Command::new("fusermount")
-                .arg("-u")
-                .arg(&mount_point_clone)
-                .output()
-        })
-        .await??;
+        let mount_point_str = mount_point.to_str().unwrap();
+        match SecureCommand::new("fusermount")
+            .arg("-u")
+            .arg(mount_point_str)
+            .output()
+            .await
+        {
+            Ok(_) => {
+                debug!("Successfully unmounted with fusermount");
+            }
+            Err(e) => {
+                warn!("fusermount failed: {}, trying umount", e);
+                // Fallback to umount
+                let output = SecureCommand::new("umount")
+                    .arg(mount_point_str)
+                    .output()
+                    .await;
 
-        if !output.status.success() {
-            // Fallback to umount
-            warn!("fusermount failed, trying umount");
-            let mount_point_clone = mount_point.clone();
-            let output = tokio::task::spawn_blocking(move || {
-                Command::new("umount").arg(&mount_point_clone).output()
-            })
-            .await??;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                error!("Unmount failed: {}", stderr);
-                return Err(anyhow!("Failed to unmount SSHFS: {}", stderr));
+                if let Err(e) = output {
+                    error!("Unmount failed: {}", e);
+                    return Err(anyhow!("Failed to unmount SSHFS: {}", e));
+                }
             }
         }
 

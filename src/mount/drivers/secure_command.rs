@@ -43,6 +43,16 @@ impl SecureCommand {
         self
     }
 
+    /// Get the program name (for testing)
+    pub fn get_program(&self) -> &str {
+        &self.program
+    }
+
+    /// Get the arguments (for testing)
+    pub fn get_args(&self) -> &[String] {
+        &self.args
+    }
+
     /// Execute the command and return the output
     pub async fn output(&self) -> Result<String> {
         trace!(
@@ -143,8 +153,8 @@ pub fn escape_shell_arg(arg: &str) -> Result<String> {
 
 /// Validate that a string contains only safe characters
 pub fn validate_safe_string(input: &str) -> Result<()> {
-    // Allow only alphanumeric, forward slash, dot, hyphen, underscore, colon, and at
-    let safe_pattern = regex::Regex::new(r"^[a-zA-Z0-9/._:-@]+$")
+    // Allow only alphanumeric, forward slash, dot, hyphen, underscore, colon, at, and space
+    let safe_pattern = regex::Regex::new(r"^[a-zA-Z0-9/._:-@ ]+$")
         .context("Failed to compile safe string regex")?;
 
     if !safe_pattern.is_match(input) {
