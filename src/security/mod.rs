@@ -16,6 +16,7 @@ pub mod audit_logging;
 pub mod audit_monitoring;
 pub mod audit_monitoring_simple;
 pub mod auth;
+pub mod config_security;
 pub mod credential_backup;
 pub mod encryption;
 pub mod env_provider;

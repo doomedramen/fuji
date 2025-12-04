@@ -81,6 +81,10 @@ name = "security_integrity_test"
 path = "tests/security_integrity_test.rs"
 
 [[test]]
+name = "security_config_security_test"
+path = "tests/security_config_security_test.rs"
+
+[[test]]
 name = "mount_drivers_test"
 path = "tests/unit/mount_drivers_test.rs"
 
@@ -91,12 +95,12 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 toml = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.4", features = ["derive", "env"] }
 anyhow = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "chrono"] }
-chrono = { version = "0.4", features = ["serde"] }
 url = "2.5"
 base64 = "0.21"
 shlex = "1.3"
