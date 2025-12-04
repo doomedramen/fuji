@@ -18,6 +18,7 @@ pub struct PersistenceManager {
     /// Database connection
     connection: Arc<RwLock<Connection>>,
     /// Database file path
+    #[allow(dead_code)]
     db_path: PathBuf,
 }
 
@@ -485,7 +486,6 @@ impl Default for PersistenceManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_persistence_creation() {

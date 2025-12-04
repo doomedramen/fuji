@@ -32,10 +32,12 @@ pub struct FujiClaims {
 /// JWT authenticator for socket authentication
 pub struct JWTAuthenticator {
     /// Ed25519 key pair for signing
+    #[allow(dead_code)]
     key_pair: Ed25519KeyPair,
     /// PKCS#8 encoded key pair bytes for encoding
     key_pair_bytes: Vec<u8>,
     /// Public key for verification (derived from key_pair)
+    #[allow(dead_code)]
     public_key: UnparsedPublicKey<[u8; 32]>,
     /// Raw public key bytes
     public_key_array: [u8; 32],

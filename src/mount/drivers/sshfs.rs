@@ -101,10 +101,11 @@ impl MountHandler for SshfsHandler {
 
         match &config.mount_type {
             MountType::SMB {
+                host: _,
                 share,
-                username,
-                password,
-                domain,
+                username: _,
+                password: _,
+                domain: _,
                 options,
             } => {
                 if !self.check_sshfs().await {

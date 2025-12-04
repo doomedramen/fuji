@@ -27,6 +27,7 @@ pub struct HealthCheckScheduler {
 
 /// A health check job configuration
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct HealthCheckJob {
     /// Mount ID
     mount_id: String,

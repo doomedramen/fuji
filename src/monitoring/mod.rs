@@ -22,6 +22,7 @@ pub struct MonitoringManager {
     /// Health check scheduler
     scheduler: Arc<scheduler::HealthCheckScheduler>,
     /// Retry logic handler
+    #[allow(dead_code)]
     retry_handler: Arc<retry::RetryHandler>,
     /// Persistence layer
     persistence: Arc<persistence::PersistenceManager>,

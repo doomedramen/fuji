@@ -14,6 +14,7 @@ use super::{Credential, CredentialProvider};
 
 /// Environment variable credential provider
 pub struct EnvironmentCredentialProvider {
+    #[allow(dead_code)]
     cache: HashMap<String, Option<Credential>>,
     prefix: String,
 }

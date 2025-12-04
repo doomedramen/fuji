@@ -71,7 +71,7 @@ pub struct GlobalConfig {
 }
 
 /// Platform-specific configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlatformConfig {
     /// Custom socket path (overrides default)
     pub socket_path: Option<PathBuf>,
@@ -114,15 +114,6 @@ impl Default for GlobalConfig {
     }
 }
 
-impl Default for PlatformConfig {
-    fn default() -> Self {
-        Self {
-            socket_path: None,
-            config_dir: None,
-            mount_dir: None,
-        }
-    }
-}
 
 impl Config {
     /// Load configuration from various possible locations

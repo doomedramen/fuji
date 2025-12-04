@@ -9,14 +9,18 @@ use std::time::Duration;
 use tokio::fs;
 use tracing::{debug, warn};
 
-use crate::platform::Platform;
 use crate::mount::{get_mount_handler, MountType};
+use crate::platform::Platform;
 
 /// Health check trait
 #[async_trait]
 pub trait HealthCheck: Send + Sync {
     /// Run the health check
-    async fn execute(&self, mount_id: &str, mount_config: &crate::mount::MountConfig) -> Result<HealthCheckResult>;
+    async fn execute(
+        &self,
+        mount_id: &str,
+        mount_config: &crate::mount::MountConfig,
+    ) -> Result<HealthCheckResult>;
 
     /// Get the name of this health check
     fn name(&self) -> &'static str;
@@ -54,7 +58,11 @@ impl FileAccessHealthCheck {
 
 #[async_trait]
 impl HealthCheck for FileAccessHealthCheck {
-    async fn execute(&self, _mount_id: &str, mount_config: &crate::mount::MountConfig) -> Result<HealthCheckResult> {
+    async fn execute(
+        &self,
+        _mount_id: &str,
+        mount_config: &crate::mount::MountConfig,
+    ) -> Result<HealthCheckResult> {
         let start = std::time::Instant::now();
 
         // Check if mount point exists
@@ -135,7 +143,10 @@ impl HealthCheck for FileAccessHealthCheck {
             response_time_ms: total_time.as_millis() as u64,
             metadata: {
                 let mut meta = std::collections::HashMap::new();
-                meta.insert("write_time_ms".to_string(), format!("{}", write_time.as_millis()));
+                meta.insert(
+                    "write_time_ms".to_string(),
+                    format!("{}", write_time.as_millis()),
+                );
                 meta
             },
         })
@@ -148,6 +159,7 @@ impl HealthCheck for FileAccessHealthCheck {
 
 /// Network ping health check
 pub struct PingHealthCheck {
+    #[allow(dead_code)]
     platform: Box<dyn Platform>,
 }
 
@@ -168,7 +180,11 @@ impl PingHealthCheck {
 
 #[async_trait]
 impl HealthCheck for PingHealthCheck {
-    async fn execute(&self, _mount_id: &str, mount_config: &crate::mount::MountConfig) -> Result<HealthCheckResult> {
+    async fn execute(
+        &self,
+        _mount_id: &str,
+        mount_config: &crate::mount::MountConfig,
+    ) -> Result<HealthCheckResult> {
         let start = std::time::Instant::now();
 
         let host = self.extract_host(mount_config)?;
@@ -183,7 +199,9 @@ impl HealthCheck for PingHealthCheck {
                 .arg("5")
                 .arg(&host_clone)
                 .output()
-        }).await.map_err(|e| anyhow!("Failed to execute ping: {}", e))??;
+        })
+        .await
+        .map_err(|e| anyhow!("Failed to execute ping: {}", e))??;
 
         let elapsed = start.elapsed();
 
@@ -232,6 +250,7 @@ impl HealthCheck for PingHealthCheck {
 
 /// Protocol-specific health check
 pub struct ProtocolHealthCheck {
+    #[allow(dead_code)]
     platform: Box<dyn Platform>,
 }
 
@@ -244,7 +263,11 @@ impl ProtocolHealthCheck {
 
 #[async_trait]
 impl HealthCheck for ProtocolHealthCheck {
-    async fn execute(&self, _mount_id: &str, mount_config: &crate::mount::MountConfig) -> Result<HealthCheckResult> {
+    async fn execute(
+        &self,
+        _mount_id: &str,
+        mount_config: &crate::mount::MountConfig,
+    ) -> Result<HealthCheckResult> {
         let start = std::time::Instant::now();
 
         // Get the appropriate handler for this mount type
@@ -269,7 +292,10 @@ impl HealthCheck for ProtocolHealthCheck {
                 metadata: {
                     let mut meta = std::collections::HashMap::new();
                     meta.insert("health_score".to_string(), state.health_score.to_string());
-                    meta.insert("last_check".to_string(), state.last_health_check.to_rfc3339());
+                    meta.insert(
+                        "last_check".to_string(),
+                        state.last_health_check.to_rfc3339(),
+                    );
                     meta
                 },
             },
@@ -373,7 +399,7 @@ mod tests {
 
     #[test]
     fn test_health_check_registry() {
-        let registry = HealthCheckRegistry::new();
+        let _registry = HealthCheckRegistry::new();
         // Should have default checks registered
     }
 

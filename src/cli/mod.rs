@@ -257,11 +257,13 @@ pub async fn run(cli: Cli, platform: Box<dyn Platform>) -> Result<()> {
                 disable,
                 dry_run,
                 progress,
-                platform,
+                platform.as_ref(),
             )
             .await
         }
-        Commands::Unmount { mount_id, force } => handle_unmount(mount_id, force, platform).await,
+        Commands::Unmount { mount_id, force } => {
+            handle_unmount(mount_id, force, platform.as_ref()).await
+        }
         Commands::Status {
             verbose,
             watch,
@@ -303,13 +305,13 @@ pub async fn run(cli: Cli, platform: Box<dyn Platform>) -> Result<()> {
             .await
         }
         Commands::Daemon { command } => handle_daemon(command, platform).await,
-        Commands::Discover { url } => handle_discover(url, platform).await,
-        Commands::Enable { mount_id } => handle_enable(mount_id, platform).await,
-        Commands::Disable { mount_id } => handle_disable(mount_id, platform).await,
-        Commands::Remove { mount_id } => handle_remove(mount_id, platform).await,
-        Commands::Remount { mount_id } => handle_remount(mount_id, platform).await,
-        Commands::Config { command } => handle_config(command, platform).await,
-        Commands::Doctor => handle_doctor(platform).await,
+        Commands::Discover { url } => handle_discover(url, platform.as_ref()).await,
+        Commands::Enable { mount_id } => handle_enable(mount_id, platform.as_ref()).await,
+        Commands::Disable { mount_id } => handle_disable(mount_id, platform.as_ref()).await,
+        Commands::Remove { mount_id } => handle_remove(mount_id, platform.as_ref()).await,
+        Commands::Remount { mount_id } => handle_remount(mount_id, platform.as_ref()).await,
+        Commands::Config { command } => handle_config(command, platform.as_ref()).await,
+        Commands::Doctor => handle_doctor(platform.as_ref()).await,
         Commands::Batch {
             file,
             continue_on_error,
@@ -326,7 +328,7 @@ async fn handle_mount(
     disable: bool,
     dry_run: bool,
     progress: bool,
-    platform: Box<dyn Platform>,
+    platform: &dyn Platform,
 ) -> Result<()> {
     let request = Request::Mount {
         url: url.clone(),
@@ -337,7 +339,7 @@ async fn handle_mount(
         progress,
     };
 
-    let client = create_socket_client(platform.as_ref()).await?;
+    let client = create_socket_client(platform).await?;
     let response = client.send_request(request).await;
 
     match response {
@@ -369,11 +371,11 @@ async fn handle_mount(
 }
 
 /// Handle unmount command
-async fn handle_unmount(mount_id: String, force: bool, platform: Box<dyn Platform>) -> Result<()> {
+async fn handle_unmount(mount_id: String, force: bool, platform: &dyn Platform) -> Result<()> {
     let mount_id_display = mount_id.clone();
     let request = Request::Unmount { mount_id, force };
 
-    let client = create_socket_client(platform.as_ref()).await?;
+    let client = create_socket_client(platform).await?;
     let response = client.send_request(request).await;
 
     match response {
@@ -386,11 +388,12 @@ async fn handle_unmount(mount_id: String, force: bool, platform: Box<dyn Platfor
             Err(anyhow!(msg))
         }
         Ok(_) => Err(anyhow!("Unexpected response")),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
 /// Handle status command
+#[allow(clippy::too_many_arguments)]
 async fn handle_status(
     verbose: bool,
     watch: bool,
@@ -442,7 +445,7 @@ async fn handle_status(
                             let status_icon = if health.healthy { "🟢" } else { "🔴" };
                             let uptime = health
                                 .uptime
-                                .map(|d| format_duration(d))
+                                .map(format_duration)
                                 .unwrap_or_else(|| "Unknown".to_string());
                             println!(
                                 "{} Daemon Status: {} (Uptime: {})",
@@ -515,7 +518,7 @@ async fn handle_status(
                 let status_icon = if health.healthy { "🟢" } else { "🔴" };
                 let uptime = health
                     .uptime
-                    .map(|d| format_duration(d))
+                    .map(format_duration)
                     .unwrap_or_else(|| "Unknown".to_string());
                 println!(
                     "{} Daemon Status: {} (Uptime: {})",
@@ -539,32 +542,30 @@ async fn handle_status(
 
             if json {
                 println!("{}", serde_json::to_string_pretty(&mounts)?);
+            } else if mounts.is_empty() {
+                println!("No mounts configured");
             } else {
-                if mounts.is_empty() {
-                    println!("No mounts configured");
-                } else {
-                    for mount in mounts {
-                        println!("{}: {}", mount.id, mount.status);
-                        println!("  URL: {}", mount.url);
-                        println!("  Mount point: {}", mount.mount_point.display());
-                        println!("  Enabled: {}", mount.enabled);
+                for mount in mounts {
+                    println!("{}: {}", mount.id, mount.status);
+                    println!("  URL: {}", mount.url);
+                    println!("  Mount point: {}", mount.mount_point.display());
+                    println!("  Enabled: {}", mount.enabled);
 
-                        if verbose {
-                            if let Some(last_connected) = mount.last_connected {
-                                println!(
-                                    "  Last connected: {}",
-                                    last_connected.format("%Y-%m-%d %H:%M:%S UTC")
-                                );
-                            }
-                            if mount.reconnect_attempts > 0 {
-                                println!("  Reconnect attempts: {}", mount.reconnect_attempts);
-                            }
-                            if let Some(health) = mount.health_score {
-                                println!("  Health score: {}%", health);
-                            }
+                    if verbose {
+                        if let Some(last_connected) = mount.last_connected {
+                            println!(
+                                "  Last connected: {}",
+                                last_connected.format("%Y-%m-%d %H:%M:%S UTC")
+                            );
                         }
-                        println!();
+                        if mount.reconnect_attempts > 0 {
+                            println!("  Reconnect attempts: {}", mount.reconnect_attempts);
+                        }
+                        if let Some(health) = mount.health_score {
+                            println!("  Health score: {}%", health);
+                        }
                     }
+                    println!();
                 }
             }
             Ok(())
@@ -574,7 +575,7 @@ async fn handle_status(
             Err(anyhow!(msg))
         }
         Ok(_) => Err(anyhow!("Unexpected response")),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
@@ -628,7 +629,7 @@ async fn handle_list(
             Err(anyhow!(msg))
         }
         Ok(_) => Err(anyhow!("Unexpected response")),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
@@ -654,7 +655,7 @@ async fn handle_daemon(command: DaemonCommand, platform: Box<dyn Platform>) -> R
                     Err(anyhow!(msg))
                 }
                 Ok(_) => Err(anyhow!("Unexpected response")),
-                Err(e) => Err(e.into()),
+                Err(e) => Err(e),
             }
         }
         DaemonCommand::Logs { lines } => {
@@ -673,15 +674,15 @@ async fn handle_daemon(command: DaemonCommand, platform: Box<dyn Platform>) -> R
                     Err(anyhow!(msg))
                 }
                 Ok(_) => Err(anyhow!("Unexpected response")),
-                Err(e) => Err(e.into()),
+                Err(e) => Err(e),
             }
         }
     }
 }
 
 /// Handle discover command
-async fn handle_discover(url: String, platform: Box<dyn Platform>) -> Result<()> {
-    let client = create_socket_client(platform.as_ref()).await?;
+async fn handle_discover(url: String, platform: &dyn Platform) -> Result<()> {
+    let client = create_socket_client(platform).await?;
     let response = client.send_request(Request::Discover { url }).await;
 
     match response {
@@ -701,13 +702,13 @@ async fn handle_discover(url: String, platform: Box<dyn Platform>) -> Result<()>
             Err(anyhow!(msg))
         }
         Ok(_) => Err(anyhow!("Unexpected response")),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
 /// Handle enable command
-async fn handle_enable(mount_id: String, platform: Box<dyn Platform>) -> Result<()> {
-    let client = create_socket_client(platform.as_ref()).await?;
+async fn handle_enable(mount_id: String, platform: &dyn Platform) -> Result<()> {
+    let client = create_socket_client(platform).await?;
     let response = client.send_request(Request::Enable { mount_id }).await;
 
     match response {
@@ -720,13 +721,13 @@ async fn handle_enable(mount_id: String, platform: Box<dyn Platform>) -> Result<
             Err(anyhow!(msg))
         }
         Ok(_) => Err(anyhow!("Unexpected response")),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
 /// Handle disable command
-async fn handle_disable(mount_id: String, platform: Box<dyn Platform>) -> Result<()> {
-    let client = create_socket_client(platform.as_ref()).await?;
+async fn handle_disable(mount_id: String, platform: &dyn Platform) -> Result<()> {
+    let client = create_socket_client(platform).await?;
     let response = client.send_request(Request::Disable { mount_id }).await;
 
     match response {
@@ -739,13 +740,13 @@ async fn handle_disable(mount_id: String, platform: Box<dyn Platform>) -> Result
             Err(anyhow!(msg))
         }
         Ok(_) => Err(anyhow!("Unexpected response")),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
 /// Handle remove command
-async fn handle_remove(mount_id: String, platform: Box<dyn Platform>) -> Result<()> {
-    let client = create_socket_client(platform.as_ref()).await?;
+async fn handle_remove(mount_id: String, platform: &dyn Platform) -> Result<()> {
+    let client = create_socket_client(platform).await?;
     let response = client.send_request(Request::Remove { mount_id }).await;
 
     match response {
@@ -758,13 +759,13 @@ async fn handle_remove(mount_id: String, platform: Box<dyn Platform>) -> Result<
             Err(anyhow!(msg))
         }
         Ok(_) => Err(anyhow!("Unexpected response")),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
 /// Handle remount command
-async fn handle_remount(mount_id: String, platform: Box<dyn Platform>) -> Result<()> {
-    let client = create_socket_client(platform.as_ref()).await?;
+async fn handle_remount(mount_id: String, platform: &dyn Platform) -> Result<()> {
+    let client = create_socket_client(platform).await?;
     let response = client.send_request(Request::Remount { mount_id }).await;
 
     match response {
@@ -777,15 +778,15 @@ async fn handle_remount(mount_id: String, platform: Box<dyn Platform>) -> Result
             Err(anyhow!(msg))
         }
         Ok(_) => Err(anyhow!("Unexpected response")),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
 /// Handle config command
-async fn handle_config(command: ConfigCommand, platform: Box<dyn Platform>) -> Result<()> {
+async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Result<()> {
     match command {
         ConfigCommand::Show { json } => {
-            let client = create_socket_client(platform.as_ref()).await?;
+            let client = create_socket_client(platform).await?;
             let response = client.send_request(Request::GetConfig).await;
 
             match response {
@@ -805,12 +806,12 @@ async fn handle_config(command: ConfigCommand, platform: Box<dyn Platform>) -> R
                     Err(anyhow!(msg))
                 }
                 Ok(_) => Err(anyhow!("Unexpected response")),
-                Err(e) => Err(e.into()),
+                Err(e) => Err(e),
             }
         }
 
         ConfigCommand::Get { key, json } => {
-            let client = create_socket_client(platform.as_ref()).await?;
+            let client = create_socket_client(platform).await?;
             let response = client.send_request(Request::GetConfig).await;
 
             match response {
@@ -833,7 +834,7 @@ async fn handle_config(command: ConfigCommand, platform: Box<dyn Platform>) -> R
                     Err(anyhow!(msg))
                 }
                 Ok(_) => Err(anyhow!("Unexpected response")),
-                Err(e) => Err(e.into()),
+                Err(e) => Err(e),
             }
         }
 
@@ -846,7 +847,10 @@ async fn handle_config(command: ConfigCommand, platform: Box<dyn Platform>) -> R
             } else if let Ok(num) = value.parse::<i64>() {
                 Value::Number(num.into())
             } else if let Ok(num) = value.parse::<f64>() {
-                Value::Number(serde_json::Number::from_f64(num).unwrap_or(0.into()))
+                Value::Number(
+                    serde_json::Number::from_f64(num)
+                        .unwrap_or_else(|| serde_json::Number::from(0)),
+                )
             } else {
                 Value::String(value)
             };
@@ -857,7 +861,7 @@ async fn handle_config(command: ConfigCommand, platform: Box<dyn Platform>) -> R
         }
 
         ConfigCommand::List { json } => {
-            let client = create_socket_client(platform.as_ref()).await?;
+            let client = create_socket_client(platform).await?;
             let response = client.send_request(Request::GetConfig).await;
 
             match response {
@@ -882,7 +886,7 @@ async fn handle_config(command: ConfigCommand, platform: Box<dyn Platform>) -> R
                     Err(anyhow!(msg))
                 }
                 Ok(_) => Err(anyhow!("Unexpected response")),
-                Err(e) => Err(e.into()),
+                Err(e) => Err(e),
             }
         }
 
@@ -949,12 +953,12 @@ fn get_nested_value(value: &toml::Value, key: &str) -> Option<Value> {
         toml::Value::String(s) => Some(Value::String(s.clone())),
         toml::Value::Integer(i) => Some(Value::Number((*i).into())),
         toml::Value::Float(f) => Some(Value::Number(
-            serde_json::Number::from_f64(*f).unwrap_or(0.into()),
+            serde_json::Number::from_f64(*f).unwrap_or_else(|| serde_json::Number::from(0)),
         )),
         toml::Value::Boolean(b) => Some(Value::Bool(*b)),
         toml::Value::Datetime(dt) => Some(Value::String(dt.to_string())),
         toml::Value::Array(arr) => {
-            let json_arr: Result<Vec<Value>, _> = arr.iter().map(|v| toml_to_json(v)).collect();
+            let json_arr: Result<Vec<Value>, _> = arr.iter().map(toml_to_json).collect();
             json_arr.ok().map(Value::Array)
         }
         toml::Value::Table(table) => {
@@ -1002,8 +1006,8 @@ fn collect_keys(value: &toml::Value, prefix: String) -> Vec<String> {
 }
 
 /// Handle doctor command
-async fn handle_doctor(platform: Box<dyn Platform>) -> Result<()> {
-    let client = create_socket_client(platform.as_ref()).await?;
+async fn handle_doctor(platform: &dyn Platform) -> Result<()> {
+    let client = create_socket_client(platform).await?;
     let response = client.send_request(Request::Doctor).await;
 
     match response {
@@ -1040,7 +1044,7 @@ async fn handle_doctor(platform: Box<dyn Platform>) -> Result<()> {
             Err(anyhow!(msg))
         }
         Ok(_) => Err(anyhow!("Unexpected response")),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
@@ -1187,7 +1191,7 @@ async fn handle_batch(
                     *disable,
                     *dry_run,
                     *progress,
-                    platform.clone(),
+                    platform.as_ref(),
                 )
                 .await
             }
@@ -1265,7 +1269,7 @@ fn display_status_table(mounts: &[crate::socket::protocol::MountStatusInfo], ver
         let mut row = vec![
             Cell::new(&mount.id),
             Cell::new(&mount.url),
-            Cell::new(&mount.mount_point.display().to_string()),
+            Cell::new(mount.mount_point.display().to_string()),
             Cell::new(format_status(&mount.status)),
             Cell::new(if mount.enabled { "✓" } else { "✗" }),
         ];
@@ -1342,6 +1346,7 @@ fn format_duration(duration: std::time::Duration) -> String {
 }
 
 /// Format health state for display
+#[allow(dead_code)]
 fn format_health_state(state: &crate::monitoring::HealthState) -> &'static str {
     match state {
         crate::monitoring::HealthState::Healthy => "Healthy",

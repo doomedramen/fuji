@@ -327,10 +327,8 @@ impl Default for MountPointValidator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     #[cfg(target_os = "linux")]
     use crate::platform::linux::LinuxPlatform;
-    use tempfile::TempDir;
 
     #[cfg(target_os = "linux")]
     #[tokio::test]

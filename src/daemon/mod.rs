@@ -37,6 +37,7 @@ pub struct Daemon {
 
 /// Internal mount state tracking
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct MountInternalState {
     /// Mount configuration
     config: MountConfig,
@@ -273,7 +274,7 @@ async fn handle_request(
 
         Request::StopDaemon => Response::Success,
 
-        Request::GetLogs { _lines } => {
+        Request::GetLogs { lines: _ } => {
             // TODO: Implement log retrieval
             Response::Logs { lines: vec![] }
         }
@@ -722,6 +723,7 @@ async fn handle_doctor_request() -> Response {
 }
 
 /// Convert monitor health states to HealthStatus structs
+#[allow(dead_code)]
 async fn get_all_health_statuses_from_monitor(
     monitor: &MountMonitor,
 ) -> Option<Vec<crate::monitoring::HealthStatus>> {
