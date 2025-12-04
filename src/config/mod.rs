@@ -114,7 +114,6 @@ impl Default for GlobalConfig {
     }
 }
 
-
 impl Config {
     /// Load configuration from various possible locations
     pub async fn load(platform: &dyn Platform) -> Result<Self> {
