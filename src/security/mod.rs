@@ -34,6 +34,7 @@ pub mod seccomp;
 pub mod secure_socket;
 pub mod socket;
 pub mod secure_updates;
+pub mod security_dashboard;
 
 /// Credential information for network mounts
 #[derive(Debug, Clone, Serialize, Deserialize)]

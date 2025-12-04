@@ -89,6 +89,10 @@ name = "security_secure_updates_test"
 path = "tests/security_secure_updates_test.rs"
 
 [[test]]
+name = "security_dashboard_test"
+path = "tests/security_dashboard_test.rs"
+
+[[test]]
 name = "mount_drivers_test"
 path = "tests/unit/mount_drivers_test.rs"
 
