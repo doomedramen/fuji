@@ -36,7 +36,7 @@ pub enum MountType {
 }
 
 /// Mount status
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MountStatus {
     /// Mount is active and accessible
     Active,
@@ -46,6 +46,10 @@ pub enum MountStatus {
     Failed,
     /// Mount is disabled in configuration
     Disabled,
+    /// Mount is in progress (being set up or checked)
+    InProgress,
+    /// Mount encountered an error
+    Error(String),
 }
 
 impl std::fmt::Display for MountStatus {
@@ -55,6 +59,8 @@ impl std::fmt::Display for MountStatus {
             MountStatus::Reconnecting => write!(f, "Reconnecting"),
             MountStatus::Failed => write!(f, "Failed"),
             MountStatus::Disabled => write!(f, "Disabled"),
+            MountStatus::InProgress => write!(f, "InProgress"),
+            MountStatus::Error(msg) => write!(f, "Error: {}", msg),
         }
     }
 }
@@ -184,10 +190,11 @@ impl MountConfig {
 
     /// Update the mount status
     pub fn update_status(&mut self, status: MountStatus) {
+        let is_active = status == MountStatus::Active;
         self.status = status;
         self.updated_at = Utc::now();
 
-        if status == MountStatus::Active {
+        if is_active {
             self.last_connected = Some(Utc::now());
             self.reconnect_attempts = 0;
         }

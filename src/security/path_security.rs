@@ -81,7 +81,7 @@ pub struct ValidationResult {
 }
 
 /// Validation status enum
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ValidationStatus {
     /// Path is valid and safe
     Valid,

@@ -267,6 +267,7 @@ impl fmt::Display for EncryptionAlgorithm {
 }
 
 /// ChaCha20-Poly1305 encryptor implementation
+#[derive(Debug)]
 pub struct ChaCha20Poly1305Encryptor {
     algorithm: EncryptionAlgorithm,
 }

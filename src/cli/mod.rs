@@ -1293,6 +1293,8 @@ fn format_status(status: &crate::mount::MountStatus) -> String {
         crate::mount::MountStatus::Failed => "🔴 Failed".to_string(),
         crate::mount::MountStatus::Disabled => "⚪ Disabled".to_string(),
         crate::mount::MountStatus::Reconnecting => "🟡 Reconnecting".to_string(),
+        crate::mount::MountStatus::InProgress => "🔄 In Progress".to_string(),
+        crate::mount::MountStatus::Error(msg) => format!("❌ Error: {}", msg),
     }
 }
 

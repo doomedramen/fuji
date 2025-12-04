@@ -8,7 +8,9 @@
 //! - Seccomp filtering for system call restrictions
 //! - Rate limiting and connection validation
 
-use crate::security::encryption::{ChaCha20Poly1305Encryptor, EncryptionAlgorithm, EncryptedData, Encryptor};
+use crate::security::encryption::{
+    ChaCha20Poly1305Encryptor, EncryptedData, EncryptionAlgorithm, Encryptor,
+};
 use crate::security::seccomp::{SeccompProfile, SecureExecutor};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
@@ -186,7 +188,10 @@ impl SocketSecurityContext {
             security_context: Arc::new(self.clone()),
         };
 
-        self.client_sessions.write().await.insert(session_id.clone(), session);
+        self.client_sessions
+            .write()
+            .await
+            .insert(session_id.clone(), session);
         session_id
     }
 
@@ -216,7 +221,10 @@ impl SocketSecurityContext {
 
         // Encrypt payload if present and encryption is enabled
         let encrypted_payload = if self.config.enable_encryption && payload.is_some() {
-            Some(self.encryptor.encrypt(&payload.unwrap(), &self.encryption_key)?)
+            Some(
+                self.encryptor
+                    .encrypt(&payload.unwrap(), &self.encryption_key)?,
+            )
         } else {
             None
         };
@@ -245,10 +253,7 @@ impl SocketSecurityContext {
         // Sign the message
         let mac = self.calculate_message_mac(&message)?;
 
-        Ok(SecureMessage {
-            mac,
-            ..message
-        })
+        Ok(SecureMessage { mac, ..message })
     }
 
     /// Verify and decrypt a message
@@ -273,25 +278,35 @@ impl SocketSecurityContext {
 
         // Check for replay attacks
         if self.config.enable_replay_protection {
-            if let Some(previous_timestamp) = self.message_history.lock().await.get(&message.message_id) {
+            if let Some(previous_timestamp) =
+                self.message_history.lock().await.get(&message.message_id)
+            {
                 if *previous_timestamp == message.timestamp {
-                    return Err(anyhow!("Replay attack detected for message: {}", message.message_id));
+                    return Err(anyhow!(
+                        "Replay attack detected for message: {}",
+                        message.message_id
+                    ));
                 }
             }
 
             // Store message ID for replay protection
-            self.message_history.lock().await.insert(
-                message.message_id.clone(),
-                message.timestamp,
-            );
+            self.message_history
+                .lock()
+                .await
+                .insert(message.message_id.clone(), message.timestamp);
         }
 
         // Decrypt payload if present
         let decrypted_payload = if let Some(ref encrypted_data) = message.encrypted_payload {
             if self.config.enable_encryption {
-                Some(self.encryptor.decrypt(encrypted_data, &self.encryption_key)?)
+                Some(
+                    self.encryptor
+                        .decrypt(encrypted_data, &self.encryption_key)?,
+                )
             } else {
-                return Err(anyhow!("Received encrypted payload but encryption is disabled"));
+                return Err(anyhow!(
+                    "Received encrypted payload but encryption is disabled"
+                ));
             }
         } else {
             None
@@ -346,10 +361,7 @@ impl SocketSecurityContext {
 
             // Check rate limits
             if session.message_count > self.config.rate_limit as u64 {
-                return Err(anyhow!(
-                    "Rate limit exceeded for session: {}",
-                    session_id
-                ));
+                return Err(anyhow!("Rate limit exceeded for session: {}", session_id));
             }
 
             Ok(())
@@ -720,7 +732,9 @@ impl SecureSocketConnection {
 
             Ok(session_id)
         } else {
-            Err(anyhow!("No security context available for session initialization"))
+            Err(anyhow!(
+                "No security context available for session initialization"
+            ))
         }
     }
 
@@ -812,7 +826,9 @@ impl SecureSocketConnection {
 
     /// Perform mutual authentication handshake
     pub async fn authenticate(&mut self, credentials: &[u8]) -> Result<bool> {
-        if let (Some(context), Some(ref _session_id)) = (self.security_context.clone(), &self.session_id) {
+        if let (Some(context), Some(ref _session_id)) =
+            (self.security_context.clone(), &self.session_id)
+        {
             // Send authentication response with credentials
             let auth_response = context.create_secure_message(
                 MessageType::AuthResponse,
@@ -835,7 +851,9 @@ impl SecureSocketConnection {
                 Ok(false)
             }
         } else {
-            Err(anyhow!("No security context or session available for authentication"))
+            Err(anyhow!(
+                "No security context or session available for authentication"
+            ))
         }
     }
 
@@ -867,7 +885,9 @@ impl SecureSocketConnection {
 
     /// Get session information
     pub async fn get_session_info(&self) -> Option<ClientSession> {
-        if let (Some(ref context), Some(ref session_id)) = (&self.security_context, &self.session_id) {
+        if let (Some(ref context), Some(ref session_id)) =
+            (&self.security_context, &self.session_id)
+        {
             context.get_session(session_id).await
         } else {
             None
@@ -876,7 +896,9 @@ impl SecureSocketConnection {
 
     /// Update session activity timestamp
     pub async fn update_activity(&mut self) -> Result<()> {
-        if let (Some(ref context), Some(ref session_id)) = (&self.security_context, &self.session_id) {
+        if let (Some(ref context), Some(ref session_id)) =
+            (&self.security_context, &self.session_id)
+        {
             context.update_session_activity(session_id).await?;
         }
         Ok(())
@@ -1306,7 +1328,10 @@ mod tests {
         let config = SocketSecurityConfig::default();
         assert!(config.enable_encryption);
         assert!(config.enable_authentication);
-        assert_eq!(config.encryption_algorithm, EncryptionAlgorithm::ChaCha20Poly1305);
+        assert_eq!(
+            config.encryption_algorithm,
+            EncryptionAlgorithm::ChaCha20Poly1305
+        );
         assert_eq!(config.message_timeout, 300);
         assert_eq!(config.rate_limit, 1000);
         assert!(config.enable_replay_protection);
@@ -1368,7 +1393,9 @@ mod tests {
         assert_eq!(session.message_count, 1);
 
         // Test authentication
-        let authenticated = context.authenticate_session(&session_id, b"test_credentials").await?;
+        let authenticated = context
+            .authenticate_session(&session_id, b"test_credentials")
+            .await?;
         assert!(authenticated);
 
         let session = context.get_session(&session_id).await.unwrap();
@@ -1410,11 +1437,8 @@ mod tests {
         let context = SocketSecurityContext::new(config)?;
 
         // Create a message
-        let message = context.create_secure_message(
-            MessageType::KeepAlive,
-            None,
-            "sender".to_string(),
-        )?;
+        let message =
+            context.create_secure_message(MessageType::KeepAlive, None, "sender".to_string())?;
 
         // Verify it once (should succeed)
         let result1 = context.verify_and_decrypt_message(&message).await;
@@ -1454,11 +1478,8 @@ mod tests {
         let context = SocketSecurityContext::new(config)?;
 
         // Create a message
-        let message = context.create_secure_message(
-            MessageType::AuthInit,
-            None,
-            "sender".to_string(),
-        )?;
+        let message =
+            context.create_secure_message(MessageType::AuthInit, None, "sender".to_string())?;
 
         // Manually age the message by modifying its timestamp
         let mut old_message = message;
@@ -1539,11 +1560,9 @@ mod tests {
 
         // Create enhanced server
         let security_config = SocketSecurityConfig::default();
-        let server = SecureSocketFactory::create_secure_server(
-            &socket_path,
-            None,
-            Some(security_config),
-        ).await?;
+        let server =
+            SecureSocketFactory::create_secure_server(&socket_path, None, Some(security_config))
+                .await?;
 
         // Verify server was created
         assert!(server.local_addr().is_ok());
