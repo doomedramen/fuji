@@ -52,6 +52,18 @@ path = "tests/security_encryption_improvements.rs"
 name = "connection_limits_test"
 path = "tests/connection_limits_test.rs"
 
+[[test]]
+name = "platform_test"
+path = "tests/unit/platform_test.rs"
+
+[[test]]
+name = "cli_test"
+path = "tests/unit/cli_test.rs"
+
+[[test]]
+name = "mount_drivers_test"
+path = "tests/unit/mount_drivers_test.rs"
+
 [dependencies]
 # Core dependencies
 tokio = { version = "1.35", features = ["full"] }
