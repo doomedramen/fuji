@@ -3,8 +3,8 @@
 //! Tests command-line interface functionality, argument validation,
 //! and error handling for various CLI commands.
 
-use fuji::cli::{Cli, Commands, ConfigCommands, DaemonCommands, MountCommands};
 use clap::Parser;
+use fuji::cli::{Cli, Commands, ConfigCommands, DaemonCommands, MountCommands};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -80,7 +80,12 @@ fn test_cli_daemon_home_argument() {
 
 #[test]
 fn test_mount_command_parsing() {
-    let args = vec!["fuji", "mount", "nfs://server.example.com/export", "/mnt/point"];
+    let args = vec![
+        "fuji",
+        "mount",
+        "nfs://server.example.com/export",
+        "/mnt/point",
+    ];
     let cli = Cli::try_parse_from(args);
 
     assert!(cli.is_ok());
@@ -100,13 +105,16 @@ fn test_mount_command_parsing() {
 #[test]
 fn test_mount_command_with_options() {
     let args = vec![
-        "fuji", "mount",
+        "fuji",
+        "mount",
         "nfs://server.example.com/export",
         "/mnt/point",
         "--read-only",
         "--allow-other",
-        "--option", "debug",
-        "--option", "uid=1000"
+        "--option",
+        "debug",
+        "--option",
+        "uid=1000",
     ];
     let cli = Cli::try_parse_from(args);
 
@@ -165,7 +173,11 @@ fn test_daemon_start_command() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Daemon(DaemonCommands::Start { no_automount, foreground }) = cli.command {
+    if let Commands::Daemon(DaemonCommands::Start {
+        no_automount,
+        foreground,
+    }) = cli.command
+    {
         assert!(no_automount);
         assert!(!foreground);
     } else {
@@ -181,7 +193,11 @@ fn test_daemon_start_with_foreground() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Daemon(DaemonCommands::Start { no_automount, foreground }) = cli.command {
+    if let Commands::Daemon(DaemonCommands::Start {
+        no_automount,
+        foreground,
+    }) = cli.command
+    {
         assert!(!no_automount);
         assert!(foreground);
     } else {
@@ -335,7 +351,12 @@ fn test_list_command() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::List { all, format, status } = cli.command {
+    if let Commands::List {
+        all,
+        format,
+        status,
+    } = cli.command
+    {
         assert!(all);
         assert_eq!(format, "table");
         assert!(status.is_none());
@@ -352,7 +373,12 @@ fn test_list_command_with_status_filter() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::List { all, format, status } = cli.command {
+    if let Commands::List {
+        all,
+        format,
+        status,
+    } = cli.command
+    {
         assert!(!all);
         assert_eq!(format, "table"); // default format
         assert_eq!(status, Some("mounted".to_string()));
@@ -486,9 +512,12 @@ fn test_cli_with_temporary_files() {
 
     let args = vec![
         "fuji",
-        "--config", config_path.to_str().unwrap(),
-        "--log-file", log_path.to_str().unwrap(),
-        "--daemon-home", temp_dir.path().to_str().unwrap()
+        "--config",
+        config_path.to_str().unwrap(),
+        "--log-file",
+        log_path.to_str().unwrap(),
+        "--daemon-home",
+        temp_dir.path().to_str().unwrap(),
     ];
 
     let cli = Cli::try_parse_from(args);
@@ -538,13 +567,16 @@ fn test_cli_multiple_global_flags() {
     // Test multiple global flags together
     let args = vec![
         "fuji",
-        "-vv",           // verbosity level 2
-        "--quiet",       // quiet flag
-        "--config", "/etc/fuji.toml",
-        "--log-file", "/var/log/fuji.log",
-        "--daemon-home", "/var/lib/fuji",
-        "status",        // command
-        "--json",        // command-specific flag
+        "-vv",     // verbosity level 2
+        "--quiet", // quiet flag
+        "--config",
+        "/etc/fuji.toml",
+        "--log-file",
+        "/var/log/fuji.log",
+        "--daemon-home",
+        "/var/lib/fuji",
+        "status", // command
+        "--json", // command-specific flag
     ];
 
     let cli = Cli::try_parse_from(args);
@@ -576,12 +608,15 @@ mod stress_tests {
 
         let args = vec![
             "fuji",
-            "--config", &long_path,
-            "--log-file", &long_path,
+            "--config",
+            &long_path,
+            "--log-file",
+            &long_path,
             "mount",
             "nfs://server.example.com/export",
             "/mnt/point",
-            "--option", &long_option,
+            "--option",
+            &long_option,
         ];
 
         let cli = Cli::try_parse_from(args);
@@ -618,7 +653,8 @@ mod stress_tests {
             "mount",
             "nfs://server.example.com/export",
             unicode_path,
-            "--option", unicode_option,
+            "--option",
+            unicode_option,
         ];
 
         let cli = Cli::try_parse_from(args);

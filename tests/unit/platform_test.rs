@@ -3,8 +3,8 @@
 //! Tests cross-platform compatibility, platform detection accuracy,
 //! and platform-specific mount operations.
 
-use fuji::platform::{get_platform, Signal};
 use fuji::mount::MountType;
+use fuji::platform::{get_platform, Signal};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
@@ -160,10 +160,14 @@ fn test_platform_mount_operations() {
     assert!(mount_info.is_ok());
     match mount_info.unwrap() {
         Some(info) => {
-            println!("✓ Mount info found: {} -> {}", info.device, info.mount_point.display());
+            println!(
+                "✓ Mount info found: {} -> {}",
+                info.device,
+                info.mount_point.display()
+            );
             assert!(!info.device.is_empty());
             assert!(!info.fs_type.is_empty());
-        },
+        }
         None => {
             println!("✓ No mount info found for /tmp (expected)");
         }

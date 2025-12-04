@@ -3,13 +3,13 @@
 //! Tests mount driver implementations, command generation, and
 //! protocol-specific behavior for NFS, SMB/CIFS, and SSHFS.
 
-use fuji::mount::{MountDriver, MountDriverError, MountConfig, MountStatus};
 use fuji::mount::nfs::NfsDriver;
 use fuji::mount::smb::SmbDriver;
 use fuji::mount::sshfs::SshfsDriver;
-use url::Url;
-use std::path::PathBuf;
+use fuji::mount::{MountConfig, MountDriver, MountDriverError, MountStatus};
 use std::collections::HashMap;
+use std::path::PathBuf;
+use url::Url;
 
 #[test]
 fn test_nfs_driver_creation() {
@@ -24,10 +24,22 @@ fn test_nfs_url_parsing() {
 
     // Test valid NFS URLs
     let valid_urls = vec![
-        ("nfs://server.example.com/export", "server.example.com", "/export"),
+        (
+            "nfs://server.example.com/export",
+            "server.example.com",
+            "/export",
+        ),
         ("nfs://192.168.1.100/data", "192.168.1.100", "/data"),
-        ("nfs://server.local/mnt/backup", "server.local", "/mnt/backup"),
-        ("nfs://nfs-server.example.com/", "nfs-server.example.com", "/"),
+        (
+            "nfs://server.local/mnt/backup",
+            "server.local",
+            "/mnt/backup",
+        ),
+        (
+            "nfs://nfs-server.example.com/",
+            "nfs-server.example.com",
+            "/",
+        ),
     ];
 
     for (url_str, expected_host, expected_path) in valid_urls {
@@ -46,11 +58,11 @@ fn test_nfs_invalid_url_parsing() {
 
     // Test invalid URLs
     let invalid_urls = vec![
-        "http://server.example.com/export",     // Wrong protocol
-        "ftp://server.example.com/export",      // Wrong protocol
-        "nfs://",                               // Missing host
-        "nfs:///export",                        // Missing host
-        "",                                     // Empty string
+        "http://server.example.com/export", // Wrong protocol
+        "ftp://server.example.com/export",  // Wrong protocol
+        "nfs://",                           // Missing host
+        "nfs:///export",                    // Missing host
+        "",                                 // Empty string
     ];
 
     for url_str in invalid_urls {
@@ -76,8 +88,12 @@ fn test_nfs_command_generation() {
 
     // Add some NFS-specific options
     config.options.insert("vers".to_string(), "4".to_string());
-    config.options.insert("rsize".to_string(), "1048576".to_string());
-    config.options.insert("wsize".to_string(), "1048576".to_string());
+    config
+        .options
+        .insert("rsize".to_string(), "1048576".to_string());
+    config
+        .options
+        .insert("wsize".to_string(), "1048576".to_string());
 
     let command = driver.generate_mount_command(&config);
     let cmd_str = command.join(" ");
@@ -124,9 +140,21 @@ fn test_smb_url_parsing() {
 
     // Test valid SMB URLs
     let valid_urls = vec![
-        ("smb://server.example.com/share", "server.example.com", "share"),
-        ("smb://user@server.example.com/share", "server.example.com", "share"),
-        ("smb://user:pass@server.example.com/share", "server.example.com", "share"),
+        (
+            "smb://server.example.com/share",
+            "server.example.com",
+            "share",
+        ),
+        (
+            "smb://user@server.example.com/share",
+            "server.example.com",
+            "share",
+        ),
+        (
+            "smb://user:pass@server.example.com/share",
+            "server.example.com",
+            "share",
+        ),
         ("cifs://server.local/data", "server.local", "data"),
         ("smb://192.168.1.100/backup", "192.168.1.100", "backup"),
     ];
@@ -160,9 +188,15 @@ fn test_smb_command_generation() {
     };
 
     // Add SMB-specific options
-    config.options.insert("username".to_string(), "testuser".to_string());
-    config.options.insert("password".to_string(), "testpass".to_string());
-    config.options.insert("domain".to_string(), "WORKGROUP".to_string());
+    config
+        .options
+        .insert("username".to_string(), "testuser".to_string());
+    config
+        .options
+        .insert("password".to_string(), "testpass".to_string());
+    config
+        .options
+        .insert("domain".to_string(), "WORKGROUP".to_string());
     config.options.insert("vers".to_string(), "3.0".to_string());
 
     let command = driver.generate_mount_command(&config);
@@ -213,11 +247,36 @@ fn test_sshfs_url_parsing() {
 
     // Test valid SSHFS URLs
     let valid_urls = vec![
-        ("sshfs://user@server.example.com/path", "server.example.com", "/path", "user"),
-        ("sshfs://server.example.com/home/user", "server.example.com", "/home/user", ""),
-        ("sshfs://admin@192.168.1.100/data", "192.168.1.100", "/data", "admin"),
-        ("sshfs://root@server.local/root", "server.local", "/root", "root"),
-        ("sshfs://user@host.com:2222/path", "host.com", "/path", "user"), // With port
+        (
+            "sshfs://user@server.example.com/path",
+            "server.example.com",
+            "/path",
+            "user",
+        ),
+        (
+            "sshfs://server.example.com/home/user",
+            "server.example.com",
+            "/home/user",
+            "",
+        ),
+        (
+            "sshfs://admin@192.168.1.100/data",
+            "192.168.1.100",
+            "/data",
+            "admin",
+        ),
+        (
+            "sshfs://root@server.local/root",
+            "server.local",
+            "/root",
+            "root",
+        ),
+        (
+            "sshfs://user@host.com:2222/path",
+            "host.com",
+            "/path",
+            "user",
+        ), // With port
     ];
 
     for (url_str, expected_host, expected_path, expected_user) in valid_urls {
@@ -253,9 +312,16 @@ fn test_sshfs_command_generation() {
     };
 
     // Add SSHFS-specific options
-    config.options.insert("user".to_string(), "testuser".to_string());
-    config.options.insert("port".to_string(), "2222".to_string());
-    config.options.insert("IdentityFile".to_string(), "/home/user/.ssh/id_rsa".to_string());
+    config
+        .options
+        .insert("user".to_string(), "testuser".to_string());
+    config
+        .options
+        .insert("port".to_string(), "2222".to_string());
+    config.options.insert(
+        "IdentityFile".to_string(),
+        "/home/user/.ssh/id_rsa".to_string(),
+    );
 
     let command = driver.generate_mount_command(&config);
     let cmd_str = command.join(" ");
@@ -318,8 +384,12 @@ fn test_driver_force_unmount() {
         let cmd_str = command.join(" ");
 
         // Check for lazy/force unmount options
-        assert!(cmd_str.contains("-l") || cmd_str.contains("-f") ||
-                cmd_str.contains("--lazy") || cmd_str.contains("--force"));
+        assert!(
+            cmd_str.contains("-l")
+                || cmd_str.contains("-f")
+                || cmd_str.contains("--lazy")
+                || cmd_str.contains("--force")
+        );
     }
 }
 
@@ -406,8 +476,9 @@ fn test_driver_option_handling() {
     // Verify options are included in command
     for (key, value) in test_options {
         if value.is_empty() {
-            assert!(cmd_str.contains(&format!("-o {}", key)) ||
-                    cmd_str.contains(&format!(",{}", key)));
+            assert!(
+                cmd_str.contains(&format!("-o {}", key)) || cmd_str.contains(&format!(",{}", key))
+            );
         } else {
             assert!(cmd_str.contains(&format!("{}={}", key, value)));
         }
@@ -468,7 +539,7 @@ fn test_driver_edge_cases() {
         Ok(config) => {
             assert_eq!(config.server, "server.example.com");
             assert_eq!(config.remote_path, "/export");
-        },
+        }
         Err(_) => {
             // It's acceptable to reject URLs with query parameters
         }

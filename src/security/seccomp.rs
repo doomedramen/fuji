@@ -13,7 +13,10 @@ use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
 
 #[cfg(target_os = "linux")]
-use libc::{c_void, size_t, sock_fprog, __NR_seccomp, __NR_prctl, SECCOMP_SET_MODE_FILTER, PR_SET_SECCOMP, SECCOMP_MODE_FILTER, PR_SET_NO_NEW_PRIVS};
+use libc::{
+    __NR_prctl, __NR_seccomp, c_void, size_t, sock_fprog, PR_SET_NO_NEW_PRIVS, PR_SET_SECCOMP,
+    SECCOMP_MODE_FILTER, SECCOMP_SET_MODE_FILTER,
+};
 
 /// System call numbers for filtering
 #[cfg(target_os = "linux")]
@@ -388,8 +391,8 @@ impl SeccompFilterBuilder {
     }
 
     fn build(&mut self) -> Result<Vec<sock_filter>> {
-        use syscall_numbers::*;
         use seccomp_actions::*;
+        use syscall_numbers::*;
 
         // Load architecture
         self.instructions.push(sock_filter {
@@ -519,82 +522,276 @@ impl SeccompProfile {
 
         match self {
             Self::Minimal => vec![
-                READ, WRITE, CLOSE, FSTAT, LSEEK, MMAP, MPROTECT, MUNMAP, BRK,
-                RT_SIGACTION, RT_SIGPROCMASK, RT_SIGRETURN, IOCTL, PREAD64, PWRITE64,
-                READV, WRITEV, ACCESS, PIPE, SELECT, SCHED_YIELD, MSYNC, MINCORE,
-                MADVISE, DUP, DUP2, PAUSE, NANOSLEEP, GETITIMER, ALARM, SETITIMER,
-                GETPID, EXIT_GROUP, CLOCK_GETTIME, CLOCK_GETRES, EPOLL_WAIT, EPOLL_CTL,
-                TGKILL, FUTEX, SCHED_SETAFFINITY, SCHED_GETAFFINITY, EPOLL_CREATE1,
-                DUP3, PIPE2, PSELECT6, PPOLL, GETCPU, FUTEX,
+                READ,
+                WRITE,
+                CLOSE,
+                FSTAT,
+                LSEEK,
+                MMAP,
+                MPROTECT,
+                MUNMAP,
+                BRK,
+                RT_SIGACTION,
+                RT_SIGPROCMASK,
+                RT_SIGRETURN,
+                IOCTL,
+                PREAD64,
+                PWRITE64,
+                READV,
+                WRITEV,
+                ACCESS,
+                PIPE,
+                SELECT,
+                SCHED_YIELD,
+                MSYNC,
+                MINCORE,
+                MADVISE,
+                DUP,
+                DUP2,
+                PAUSE,
+                NANOSLEEP,
+                GETITIMER,
+                ALARM,
+                SETITIMER,
+                GETPID,
+                EXIT_GROUP,
+                CLOCK_GETTIME,
+                CLOCK_GETRES,
+                EPOLL_WAIT,
+                EPOLL_CTL,
+                TGKILL,
+                FUTEX,
+                SCHED_SETAFFINITY,
+                SCHED_GETAFFINITY,
+                EPOLL_CREATE1,
+                DUP3,
+                PIPE2,
+                PSELECT6,
+                PPOLL,
+                GETCPU,
+                FUTEX,
             ],
 
             Self::Network => {
                 let mut syscalls = Self::Minimal.get_allowed_syscalls();
                 syscalls.extend_from_slice(&[
-                    SOCKET, CONNECT, ACCEPT, SENDTO, RECVFROM, SENDMSG, RECVMSG,
-                    SHUTDOWN, BIND, LISTEN, GETSOCKNAME, GETPEERNAME, SOCKETPAIR,
-                    SETSOCKOPT, GETSOCKOPT, SENDFILE, ACCEPT4, RECVMMSG,
+                    SOCKET,
+                    CONNECT,
+                    ACCEPT,
+                    SENDTO,
+                    RECVFROM,
+                    SENDMSG,
+                    RECVMSG,
+                    SHUTDOWN,
+                    BIND,
+                    LISTEN,
+                    GETSOCKNAME,
+                    GETPEERNAME,
+                    SOCKETPAIR,
+                    SETSOCKOPT,
+                    GETSOCKOPT,
+                    SENDFILE,
+                    ACCEPT4,
+                    RECVMMSG,
                 ]);
                 syscalls
-            },
+            }
 
             Self::FileSystem => {
                 let mut syscalls = Self::Minimal.get_allowed_syscalls();
                 syscalls.extend_from_slice(&[
-                    STAT, LSTAT, POLL, OPEN, CREAT, TRUNCATE, FTRUNCATE, GETDENTS,
-                    GETCWD, CHDIR, FCHDIR, RENAME, MKDIR, RMDIR, LINK, UNLINK,
-                    SYMLINK, READLINK, CHMOD, FCHMOD, CHOWN, FCHOWN, LCHOWN, UMASK,
-                    GETTIMEOFDAY, GETRLIMIT, GETRUSAGE, SYSINFO, TIMES, GETUID,
-                    GETGID, GETEUID, GETEGID, GETPPID, GETPGRP, GETSID,
-                    STATFS, FSTATFS, GETPRIORITY, SETPRIORITY, MLOCK, MUNLOCK,
-                    MLOCKALL, MUNLOCKALL, SETRLIMIT, SYNC, CHROOT, SETTIMEOFDAY,
-                    UTIMES, NEWFSTATAT, OPENAT, MKDIRAT, FCHOWNAT, FUTIMESAT,
-                    UNLINKAT, RENAMEAT, LINKAT, SYMLINKAT, READLINKAT, FCHMODAT,
-                    FACCESSAT, UTIME, MKNODAT, FALLOCATE, SYNCFS,
+                    STAT,
+                    LSTAT,
+                    POLL,
+                    OPEN,
+                    CREAT,
+                    TRUNCATE,
+                    FTRUNCATE,
+                    GETDENTS,
+                    GETCWD,
+                    CHDIR,
+                    FCHDIR,
+                    RENAME,
+                    MKDIR,
+                    RMDIR,
+                    LINK,
+                    UNLINK,
+                    SYMLINK,
+                    READLINK,
+                    CHMOD,
+                    FCHMOD,
+                    CHOWN,
+                    FCHOWN,
+                    LCHOWN,
+                    UMASK,
+                    GETTIMEOFDAY,
+                    GETRLIMIT,
+                    GETRUSAGE,
+                    SYSINFO,
+                    TIMES,
+                    GETUID,
+                    GETGID,
+                    GETEUID,
+                    GETEGID,
+                    GETPPID,
+                    GETPGRP,
+                    GETSID,
+                    STATFS,
+                    FSTATFS,
+                    GETPRIORITY,
+                    SETPRIORITY,
+                    MLOCK,
+                    MUNLOCK,
+                    MLOCKALL,
+                    MUNLOCKALL,
+                    SETRLIMIT,
+                    SYNC,
+                    CHROOT,
+                    SETTIMEOFDAY,
+                    UTIMES,
+                    NEWFSTATAT,
+                    OPENAT,
+                    MKDIRAT,
+                    FCHOWNAT,
+                    FUTIMESAT,
+                    UNLINKAT,
+                    RENAMEAT,
+                    LINKAT,
+                    SYMLINKAT,
+                    READLINKAT,
+                    FCHMODAT,
+                    FACCESSAT,
+                    UTIME,
+                    MKNODAT,
+                    FALLOCATE,
+                    SYNCFS,
                 ]);
                 syscalls
-            },
+            }
 
             Self::Mount => {
                 let mut syscalls = Self::FileSystem.get_allowed_syscalls();
                 syscalls.extend_from_slice(&[
-                    MOUNT, UMOUNT2, SWAPON, SWAPOFF, PIVOT_ROOT, QUOTACTL,
-                    SETUID, SETGID, SETREUID, SETREGID, SETRESUID, SETRESGID,
-                    SETPGID, SETSID, CAPGET, CAPSET, INIT_MODULE, DELETE_MODULE,
-                    CREATE_MODULE, SETDOMAINNAME, SETHOSTNAME, REBOOT, NFSSERVCTL,
+                    MOUNT,
+                    UMOUNT2,
+                    SWAPON,
+                    SWAPOFF,
+                    PIVOT_ROOT,
+                    QUOTACTL,
+                    SETUID,
+                    SETGID,
+                    SETREUID,
+                    SETREGID,
+                    SETRESUID,
+                    SETRESGID,
+                    SETPGID,
+                    SETSID,
+                    CAPGET,
+                    CAPSET,
+                    INIT_MODULE,
+                    DELETE_MODULE,
+                    CREATE_MODULE,
+                    SETDOMAINNAME,
+                    SETHOSTNAME,
+                    REBOOT,
+                    NFSSERVCTL,
                 ]);
                 syscalls
-            },
+            }
 
             Self::Daemon => {
                 let mut syscalls = Self::Mount.get_allowed_syscalls();
                 syscalls.extend_from_slice(&[
-                    CLONE, FORK, VFORK, EXECVE, WAIT4, KILL, UNAME, SEMGET, SEMOP,
-                    SEMCTL, SHMGET, SHMAT, SHMCTL, SHMDT, MSGGET, MSGSND, MSGRCV,
-                    MSGCTL, FCNTL, FLOCK, FSYNC, FDATASYNC, SETXATTR, LSETXATTR,
-                    FSETXATTR, GETXATTR, LGETXATTR, FGETXATTR, LISTXATTR,
-                    LLISTXATTR, FLISTXATTR, REMOVEXATTR, LREMOVEXATTR,
-                    FREMOVEXATTR, TKILL, TIME, SCHED_SETPARAM, SCHED_GETPARAM,
-                    SCHED_SETSCHEDULER, SCHED_GETSCHEDULER, SCHED_GET_PRIORITY_MAX,
-                    SCHED_GET_PRIORITY_MIN, SCHED_RR_GET_INTERVAL, SET_FSUID,
-                    SETFSGID, INOTIFY_INIT, INOTIFY_ADD_WATCH, INOTIFY_RM_WATCH,
-                    TIMER_CREATE, TIMER_SETTIME, TIMER_GETTIME, TIMER_GETOVERRUN,
-                    TIMER_DELETE, CLOCK_SETTIME, CLOCK_NANOSLEEP, SIGNALFD,
-                    TIMERFD_CREATE, EVENTFD, TIMERFD_SETTIME, TIMERFD_GETTIME,
-                    SIGNALED, EVENTFD2, INOTIFY_INIT1, PREADV, PWRITEV,
-                    RT_SIGPENDING, RT_SIGTIMEDWAIT, RT_SIGQUEUEINFO,
-                    RT_SIGSUSPEND, SIGALTSTACK, FANOTIFY_INIT, FANOTIFY_MARK,
-                    PRLIMIT64, NAME_TO_HANDLE_AT, OPEN_BY_HANDLE_AT,
-                    CLOCK_ADJTIME, SENDMMSG, SETNS, PROCESS_VM_READV,
-                    PROCESS_VM_WRITEV, KCMP, FINIT_MODULE,
+                    CLONE,
+                    FORK,
+                    VFORK,
+                    EXECVE,
+                    WAIT4,
+                    KILL,
+                    UNAME,
+                    SEMGET,
+                    SEMOP,
+                    SEMCTL,
+                    SHMGET,
+                    SHMAT,
+                    SHMCTL,
+                    SHMDT,
+                    MSGGET,
+                    MSGSND,
+                    MSGRCV,
+                    MSGCTL,
+                    FCNTL,
+                    FLOCK,
+                    FSYNC,
+                    FDATASYNC,
+                    SETXATTR,
+                    LSETXATTR,
+                    FSETXATTR,
+                    GETXATTR,
+                    LGETXATTR,
+                    FGETXATTR,
+                    LISTXATTR,
+                    LLISTXATTR,
+                    FLISTXATTR,
+                    REMOVEXATTR,
+                    LREMOVEXATTR,
+                    FREMOVEXATTR,
+                    TKILL,
+                    TIME,
+                    SCHED_SETPARAM,
+                    SCHED_GETPARAM,
+                    SCHED_SETSCHEDULER,
+                    SCHED_GETSCHEDULER,
+                    SCHED_GET_PRIORITY_MAX,
+                    SCHED_GET_PRIORITY_MIN,
+                    SCHED_RR_GET_INTERVAL,
+                    SET_FSUID,
+                    SETFSGID,
+                    INOTIFY_INIT,
+                    INOTIFY_ADD_WATCH,
+                    INOTIFY_RM_WATCH,
+                    TIMER_CREATE,
+                    TIMER_SETTIME,
+                    TIMER_GETTIME,
+                    TIMER_GETOVERRUN,
+                    TIMER_DELETE,
+                    CLOCK_SETTIME,
+                    CLOCK_NANOSLEEP,
+                    SIGNALFD,
+                    TIMERFD_CREATE,
+                    EVENTFD,
+                    TIMERFD_SETTIME,
+                    TIMERFD_GETTIME,
+                    SIGNALED,
+                    EVENTFD2,
+                    INOTIFY_INIT1,
+                    PREADV,
+                    PWRITEV,
+                    RT_SIGPENDING,
+                    RT_SIGTIMEDWAIT,
+                    RT_SIGQUEUEINFO,
+                    RT_SIGSUSPEND,
+                    SIGALTSTACK,
+                    FANOTIFY_INIT,
+                    FANOTIFY_MARK,
+                    PRLIMIT64,
+                    NAME_TO_HANDLE_AT,
+                    OPEN_BY_HANDLE_AT,
+                    CLOCK_ADJTIME,
+                    SENDMMSG,
+                    SETNS,
+                    PROCESS_VM_READV,
+                    PROCESS_VM_WRITEV,
+                    KCMP,
+                    FINIT_MODULE,
                 ]);
                 syscalls
-            },
+            }
 
             Self::Test => {
                 // Allow all syscalls for testing
                 (0..=FINIT_MODULE).collect()
-            },
+            }
         }
     }
 
@@ -606,13 +803,13 @@ impl SeccompProfile {
         match self {
             Self::Minimal | Self::Network | Self::FileSystem | Self::Mount => {
                 ERRNO | 0x16 // EPERM (Operation not permitted)
-            },
+            }
             Self::Daemon => {
                 LOG // Log violations but don't kill the process
-            },
+            }
             Self::Test => {
                 ALLOW // Allow all syscalls in test mode
-            },
+            }
         }
     }
 
@@ -808,9 +1005,12 @@ impl SyscallFilter {
                     Ok(_) => {
                         self.real_filter_active = true;
                         info!("Real seccomp filtering activated");
-                    },
+                    }
                     Err(e) => {
-                        warn!("Failed to set up real seccomp filtering: {}. Using validation mode.", e);
+                        warn!(
+                            "Failed to set up real seccomp filtering: {}. Using validation mode.",
+                            e
+                        );
                         // Fall back to validation mode
                     }
                 }
@@ -824,6 +1024,7 @@ impl SyscallFilter {
 
     /// Set up real Linux seccomp filtering
     #[cfg(target_os = "linux")]
+    #[allow(dead_code)]
     fn setup_real_seccomp(&self) -> Result<()> {
         use libc::{prctl, SECCOMP_MODE_FILTER};
         use seccomp_actions::*;
@@ -856,8 +1057,10 @@ impl SyscallFilter {
                 __NR_seccomp,
                 SECCOMP_SET_MODE_FILTER,
                 SECCOMP_MODE_FILTER,
-                &prog as *const _ as usize
-            ) as i32 != 0 {
+                &prog as *const _ as usize,
+            ) as i32
+                != 0
+            {
                 return Err(anyhow!("Failed to load seccomp filter"));
             }
         }
@@ -1021,15 +1224,34 @@ impl SyscallFilter {
         let mut info = HashMap::new();
 
         info.insert("name".to_string(), format!("{:?}", self.profile));
-        info.insert("description".to_string(), self.profile.description().to_string());
-        info.insert("allows_network".to_string(), self.profile.allows_network().to_string());
-        info.insert("allows_filesystem".to_string(), self.profile.allows_filesystem().to_string());
-        info.insert("allows_mount".to_string(), self.profile.allows_mount().to_string());
-        info.insert("real_filter_active".to_string(), self.real_filter_active.to_string());
-        info.insert("allowed_syscalls_count".to_string(),
-                   self.profile.get_allowed_syscalls().len().to_string());
-        info.insert("default_action".to_string(),
-                   format!("0x{:x}", self.profile.get_default_action()));
+        info.insert(
+            "description".to_string(),
+            self.profile.description().to_string(),
+        );
+        info.insert(
+            "allows_network".to_string(),
+            self.profile.allows_network().to_string(),
+        );
+        info.insert(
+            "allows_filesystem".to_string(),
+            self.profile.allows_filesystem().to_string(),
+        );
+        info.insert(
+            "allows_mount".to_string(),
+            self.profile.allows_mount().to_string(),
+        );
+        info.insert(
+            "real_filter_active".to_string(),
+            self.real_filter_active.to_string(),
+        );
+        info.insert(
+            "allowed_syscalls_count".to_string(),
+            self.profile.get_allowed_syscalls().len().to_string(),
+        );
+        info.insert(
+            "default_action".to_string(),
+            format!("0x{:x}", self.profile.get_default_action()),
+        );
 
         info
     }
@@ -1291,7 +1513,10 @@ impl GlobalSeccompManager {
         report.insert("active_filters".to_string(), active_filters.to_string());
         report.insert("real_filters".to_string(), real_filters.to_string());
         report.insert("total_violations".to_string(), violations.to_string());
-        report.insert("default_profile".to_string(), format!("{:?}", self.default_profile));
+        report.insert(
+            "default_profile".to_string(),
+            format!("{:?}", self.default_profile),
+        );
 
         // Add operation statistics
         for (key, count) in stats {
@@ -1326,7 +1551,11 @@ impl GlobalSeccompManager {
         // Check if seccomp is available and working
         #[cfg(target_os = "linux")]
         {
-            let real_count = self.filters.values().filter(|f| f.is_real_filter_active()).count();
+            let real_count = self
+                .filters
+                .values()
+                .filter(|f| f.is_real_filter_active())
+                .count();
             if real_count > 0 {
                 status.insert("seccomp_status".to_string(), "Active".to_string());
                 status.insert("real_filters_count".to_string(), real_count.to_string());
@@ -1345,17 +1574,29 @@ impl GlobalSeccompManager {
         // Check for violations
         let violations = self.get_violation_count();
         if violations > 0 {
-            status.insert("security_status".to_string(), "Violations Detected".to_string());
-            status.insert("violation_severity".to_string(),
-                          if violations > 100 { "High".to_string() }
-                          else if violations > 10 { "Medium".to_string() }
-                          else { "Low".to_string() });
+            status.insert(
+                "security_status".to_string(),
+                "Violations Detected".to_string(),
+            );
+            status.insert(
+                "violation_severity".to_string(),
+                if violations > 100 {
+                    "High".to_string()
+                } else if violations > 10 {
+                    "Medium".to_string()
+                } else {
+                    "Low".to_string()
+                },
+            );
         } else {
             status.insert("security_status".to_string(), "Secure".to_string());
             status.insert("violation_severity".to_string(), "None".to_string());
         }
 
-        status.insert("monitored_operations".to_string(), self.filters.len().to_string());
+        status.insert(
+            "monitored_operations".to_string(),
+            self.filters.len().to_string(),
+        );
 
         Ok(status)
     }
@@ -1377,7 +1618,10 @@ impl GlobalSeccompManager {
             SeccompProfile::Daemon
         };
 
-        info!("Applying seccomp to daemon process with profile: {:?}", profile);
+        info!(
+            "Applying seccomp to daemon process with profile: {:?}",
+            profile
+        );
         self.initialize_operation("daemon_main", Some(profile))
     }
 }

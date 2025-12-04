@@ -68,6 +68,8 @@ pub struct GlobalConfig {
     pub log_level: String,
     /// Whether to automatically mount enabled shares on startup
     pub auto_mount: bool,
+    /// Resource limits configuration
+    pub resource_limits: ResourceLimitsConfig,
 }
 
 /// Platform-specific configuration
@@ -79,6 +81,48 @@ pub struct PlatformConfig {
     pub config_dir: Option<PathBuf>,
     /// Custom mount directory
     pub mount_dir: Option<PathBuf>,
+}
+
+/// Resource limits configuration for the global config
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct ResourceLimitsConfig {
+    /// Maximum memory usage in bytes (0 = no limit)
+    #[validate(range(min = 0, max = 17179869184))] // 16GB max
+    pub max_memory_mb: u32,
+    /// Maximum CPU usage percentage (0-100, 0 = no limit)
+    #[validate(range(min = 0, max = 100))]
+    pub max_cpu_percent: u8,
+    /// Maximum number of concurrent mount operations
+    #[validate(range(min = 1, max = 100))]
+    pub max_concurrent_mounts: u32,
+    /// Maximum number of file descriptors
+    #[validate(range(min = 64, max = 65536))]
+    pub max_file_descriptors: u32,
+    /// Maximum number of network connections
+    #[validate(range(min = 10, max = 10000))]
+    pub max_connections: u32,
+    /// Enable resource limits enforcement
+    pub enable_enforcement: bool,
+    /// Violation action when limits exceeded: 'warn', 'throttle', 'reject', 'terminate'
+    pub violation_action: String,
+    /// Resource monitoring interval in seconds
+    #[validate(range(min = 1, max = 3600))]
+    pub monitoring_interval_secs: u64,
+}
+
+impl Default for ResourceLimitsConfig {
+    fn default() -> Self {
+        Self {
+            max_memory_mb: 1024, // 1GB
+            max_cpu_percent: 80,
+            max_concurrent_mounts: 10,
+            max_file_descriptors: 1024,
+            max_connections: 100,
+            enable_enforcement: true,
+            violation_action: "throttle".to_string(),
+            monitoring_interval_secs: 30,
+        }
+    }
 }
 
 impl Default for Config {
@@ -110,6 +154,7 @@ impl Default for GlobalConfig {
             health_check_interval_secs: 30,
             log_level: "info".to_string(),
             auto_mount: true,
+            resource_limits: ResourceLimitsConfig::default(),
         }
     }
 }

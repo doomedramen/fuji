@@ -7,7 +7,6 @@
 use crate::mount::drivers::MountCommandsAllowlist;
 use crate::security::seccomp::{SeccompProfile, SecureExecutor};
 use anyhow::{Context, Result};
-use lazy_static::lazy_static;
 use regex;
 use shlex;
 use std::process::Command;

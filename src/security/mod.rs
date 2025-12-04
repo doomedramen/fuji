@@ -13,10 +13,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub mod auth;
+pub mod encryption;
 pub mod env_provider;
 pub mod file_provider;
 pub mod keyring_provider;
+pub mod path_security;
 pub mod permissions;
+pub mod resource_limits;
 pub mod seccomp;
 pub mod secure_socket;
 pub mod socket;

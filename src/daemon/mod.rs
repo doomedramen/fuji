@@ -5,6 +5,8 @@
 use crate::config::Config;
 use crate::mount::{get_mount_handler, MountConfig, MountState, MountStatus};
 use crate::platform::Platform;
+use crate::security::path_security::{PathSecurityValidator, SecurityProfile, PathSecurityEvent, IntegrityStatus};
+use crate::security::resource_limits::ResourceLimitsManager;
 use crate::socket::protocol::DaemonHealthInfo;
 use crate::socket::{MountStatusInfo, Request, Response, SocketServer};
 use anyhow::{anyhow, Result};
@@ -32,6 +34,10 @@ pub struct Daemon {
     config: Arc<RwLock<Config>>,
     /// Mount monitor
     monitor: Arc<MountMonitor>,
+    /// Path security validator for enhanced runtime path validation
+    path_security: Arc<PathSecurityValidator>,
+    /// Resource limits manager for preventing resource exhaustion attacks
+    resource_limits: Arc<ResourceLimitsManager>,
     /// Shutdown channel receiver
     shutdown_rx: Arc<RwLock<Option<oneshot::Receiver<()>>>>,
     /// Daemon start time for uptime tracking
@@ -56,12 +62,24 @@ impl Daemon {
         let config = Config::load(platform.as_ref()).await?;
         let config = Arc::new(RwLock::new(config));
         let monitor = Arc::new(MountMonitor::new());
+
+        // Initialize path security validator with high-security profile for daemon operations
+        let path_security = Arc::new(PathSecurityValidator::new(SecurityProfile::High));
+
+        // Initialize resource limits manager with configuration
+        let resource_limits = {
+            let config_read = config.read().await;
+            Arc::new(ResourceLimitsManager::new(config_read.global.resource_limits.clone().into()))
+        };
+
         let start_time = Instant::now();
 
         Ok(Self {
             platform,
             config,
             monitor,
+            path_security,
+            resource_limits,
             shutdown_rx: Arc::new(RwLock::new(None)),
             start_time,
         })
@@ -110,6 +128,8 @@ impl Daemon {
         let server = SocketServer::new(&socket_path).await?;
         let config = Arc::clone(&self.config);
         let monitor = Arc::clone(&self.monitor);
+        let path_security = Arc::clone(&self.path_security);
+        let resource_limits = Arc::clone(&self.resource_limits);
         let _platform = self.platform.as_ref() as *const dyn Platform;
 
         let start_time = self.start_time;
@@ -118,8 +138,10 @@ impl Daemon {
                 .run(move |request| {
                     let config = Arc::clone(&config);
                     let monitor = Arc::clone(&monitor);
+                    let path_security = Arc::clone(&path_security);
+                    let resource_limits = Arc::clone(&resource_limits);
 
-                    async move { handle_request(request, config, monitor, start_time).await }
+                    async move { handle_request(request, config, monitor, path_security, resource_limits, start_time).await }
                 })
                 .await
         });
@@ -128,11 +150,22 @@ impl Daemon {
         let monitor_handle = {
             let config = Arc::clone(&self.config);
             let monitor = Arc::clone(&self.monitor);
+            let path_security = Arc::clone(&self.path_security);
             let _platform = self.platform.as_ref() as *const dyn Platform;
 
             tokio::spawn(async move {
-                if let Err(e) = run_monitoring_loop(config, monitor, no_automount).await {
+                if let Err(e) = run_monitoring_loop(config, monitor, path_security, no_automount).await {
                     error!("Monitoring loop failed: {}", e);
+                }
+            })
+        };
+
+        // Start resource limits monitoring task
+        let resource_limits_handle = {
+            let resource_limits = Arc::clone(&self.resource_limits);
+            tokio::spawn(async move {
+                if let Err(e) = resource_limits.start_monitoring().await {
+                    error!("Resource limits monitoring failed: {}", e);
                 }
             })
         };
@@ -152,6 +185,12 @@ impl Daemon {
                 match result {
                     Ok(_) => info!("Monitor task completed"),
                     Err(e) => error!("Monitor task error: {}", e),
+                }
+            }
+            result = resource_limits_handle => {
+                match result {
+                    Ok(_) => info!("Resource limits task completed"),
+                    Err(e) => error!("Resource limits task error: {}", e),
                 }
             }
         }
@@ -226,6 +265,8 @@ async fn handle_request(
     request: Request,
     config: Arc<RwLock<Config>>,
     monitor: Arc<MountMonitor>,
+    path_security: Arc<PathSecurityValidator>,
+    resource_limits: Arc<ResourceLimitsManager>,
     start_time: Instant,
 ) -> Response {
     match request {
@@ -247,6 +288,8 @@ async fn handle_request(
                 dry_run,
                 progress,
                 config,
+                path_security,
+                resource_limits,
             )
             .await
         }
@@ -329,6 +372,8 @@ async fn handle_mount_request(
     dry_run: bool,
     _progress: bool, // TODO: Implement progress reporting
     config: Arc<RwLock<Config>>,
+    path_security: Arc<PathSecurityValidator>,
+    resource_limits: Arc<ResourceLimitsManager>,
 ) -> Response {
     // Parse URL
     let protocol = url.split("://").next().unwrap_or("");
@@ -367,10 +412,89 @@ async fn handle_mount_request(
         }
     };
 
+    // Validate mount point path security using enhanced path security validator
+    match path_security.validate_mount_point(&mount_point).await {
+        Ok(validation_result) => {
+            if !validation_result.is_safe {
+                error!(
+                    "Mount point path security validation failed for {}: {}",
+                    mount_point.display(),
+                    validation_result.warning_message.as_deref().unwrap_or("Security violation detected")
+                );
+                return Response::Error(format!(
+                    "Mount point path security validation failed: {}",
+                    validation_result.warning_message.as_deref().unwrap_or("Security violation detected")
+                ));
+            }
+
+            // Log security events if any
+            for event in validation_result.security_events {
+                match event {
+                    PathSecurityEvent::PathValidation { path, operation, result: _, timestamp, context: _ } => {
+                        warn!(
+                            "Path security event for {}: {} operation on {} at {}",
+                            mount_point.display(),
+                            operation,
+                            path,
+                            timestamp
+                        );
+                    }
+                    PathSecurityEvent::MountIntegrityCheck { mount_id, mount_point: mp, integrity_status, timestamp, violations } => {
+                        warn!(
+                            "Mount integrity event for {}: mount {} at {} - status: {:?}, violations: {:?}",
+                            mount_point.display(),
+                            mount_id,
+                            mp,
+                            integrity_status,
+                            violations
+                        );
+                    }
+                    PathSecurityEvent::SymlinkAttack { mount_point: mp, suspicious_path, attack_type, timestamp, blocked } => {
+                        warn!(
+                            "Symlink attack detected for {}: {:?} attack on {} at {} - blocked: {}",
+                            mount_point.display(),
+                            attack_type,
+                            suspicious_path,
+                            mp,
+                            blocked
+                        );
+                    }
+                    PathSecurityEvent::RuntimeValidation { original_path, current_path, validation_result: _, timestamp, mount_age_seconds: _ } => {
+                        warn!(
+                            "Runtime validation event for {}: original {} != current {} at {}",
+                            mount_point.display(),
+                            original_path,
+                            current_path,
+                            timestamp
+                        );
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            error!("Path security validation error for {}: {}", mount_point.display(), e);
+            return Response::Error(format!("Path security validation failed: {}", e));
+        }
+    }
+
     // Create mount config
-    let mut mount_config = MountConfig::new(url.clone(), mount_type, mount_point);
+    let mut mount_config = MountConfig::new(url.clone(), mount_type, mount_point.clone());
     if disable {
         mount_config.disable();
+    }
+
+    // Register mount with path security validator for ongoing monitoring
+    if let Err(e) = path_security.register_mount(
+        mount_id.clone(),
+        mount_point.clone(),
+        mount_config.url.clone(),
+        vec![mount_point.clone()] // allowed paths
+    ).await {
+        warn!(
+            "Failed to register mount {} with path security validator: {}",
+            mount_id, e
+        );
+        // Continue anyway - this is not a fatal error
     }
 
     // If dry run, just return what would happen
@@ -386,10 +510,30 @@ async fn handle_mount_request(
 
     // If enabled, attempt to mount
     if !disable {
-        if let Err(e) = handler
+        // Check resource limits before attempting mount operation
+        let mount_permit = match resource_limits.acquire_mount_permit().await {
+            Ok(permit) => {
+                info!("Acquired mount permit for {}", mount_id);
+                Some(permit)
+            },
+            Err(e) => {
+                warn!("Failed to acquire mount permit for {}: {}", mount_id, e);
+                return Response::Error(format!("Resource limit exceeded: {}", e));
+            }
+        };
+
+        // Perform the actual mount operation
+        let mount_result = handler
             .mount(&mount_config, &mount_config.mount_point)
-            .await
-        {
+            .await;
+
+        // Release the mount permit
+        if let Some(_permit) = mount_permit {
+            resource_limits.release_mount_permit();
+        }
+
+        // Handle mount result
+        if let Err(e) = mount_result {
             error!("Failed to mount {}: {}", mount_id, e);
             if let Err(status_err) =
                 Daemon::update_mount_status(config.clone(), &mount_id, MountStatus::Failed).await
@@ -787,6 +931,7 @@ async fn get_all_health_statuses_from_monitor(
 async fn run_monitoring_loop(
     config: Arc<RwLock<Config>>,
     monitor: Arc<MountMonitor>,
+    path_security: Arc<PathSecurityValidator>,
     no_automount: bool,
 ) -> Result<()> {
     // Auto-mount enabled shares on startup if requested
@@ -804,6 +949,11 @@ async fn run_monitoring_loop(
         // Check health of all active mounts
         if let Err(e) = check_mount_health(config.clone(), monitor.clone()).await {
             error!("Health check error: {}", e);
+        }
+
+        // Check mount integrity using path security validator
+        if let Err(e) = check_mount_integrity(config.clone(), path_security.clone()).await {
+            error!("Mount integrity check error: {}", e);
         }
 
         // Attempt reconnections for failed mounts
@@ -988,6 +1138,45 @@ async fn attempt_reconnections(config: Arc<RwLock<Config>>) -> Result<()> {
                         );
                     }
                 }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Check integrity of all mount points using path security validator
+async fn check_mount_integrity(
+    config: Arc<RwLock<Config>>,
+    path_security: Arc<PathSecurityValidator>,
+) -> Result<()> {
+    let active_mounts: Vec<MountConfig> = {
+        let cfg = config.read().await;
+        cfg.get_active_mounts().cloned().collect()
+    };
+
+    for mount in active_mounts {
+        // Perform periodic path integrity check
+        match path_security.check_mount_integrity(&mount.id, &mount.mount_point).await {
+            Ok(integrity_result) => {
+                match integrity_result {
+                    IntegrityStatus::Intact => {
+                        // Mount is intact, no action needed
+                    }
+                    status => {
+                        warn!(
+                            "Mount integrity check failed for {}: {:?}",
+                            mount.id,
+                            status
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                error!(
+                    "Mount integrity check error for {}: {}",
+                    mount.id, e
+                );
             }
         }
     }
