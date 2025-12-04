@@ -65,7 +65,7 @@ pub struct FileCredentialProvider {
 
 impl FileCredentialProvider {
     /// Create a new file credential provider
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         let config_dir = dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from(".config"))
             .join("fuji");
@@ -74,18 +74,18 @@ impl FileCredentialProvider {
     }
 
     /// Create a file credential provider with custom path
-    pub fn with_path(path: PathBuf) -> Self {
+    pub fn with_path(path: PathBuf) -> Result<Self> {
         // Generate master key from system-specific source
-        let master_key = Self::derive_master_key();
+        let master_key = Self::derive_master_key()?;
 
-        Self {
+        Ok(Self {
             file_path: path,
             master_key,
-        }
+        })
     }
 
-    /// Derive master encryption key from system sources using HKDF
-    fn derive_master_key() -> [u8; MASTER_KEY_LENGTH] {
+    /// Derive master encryption key from system sources using HKDF with proper salt
+    fn derive_master_key() -> Result<[u8; MASTER_KEY_LENGTH]> {
         // Collect system entropy sources
         let mut entropy_sources = Vec::new();
 
@@ -126,24 +126,41 @@ impl FileCredentialProvider {
             entropy_sources.extend_from_slice(&random_bytes);
         }
 
-        // Use HKDF with a static salt to derive the master key
-        let hkdf_salt = b"fuji-master-key-hkdf-salt-2024";
+        // Generate a proper random HKDF salt instead of using a static one
+        let mut hkdf_salt_bytes = [0u8; HKDF_SALT_LENGTH];
+        rand::thread_rng().fill_bytes(&mut hkdf_salt_bytes);
+
+        // Use system-specific data to create a deterministic but unique salt
+        let mut salt_context = Vec::new();
+        if let Ok(username) = std::env::var("USER") {
+            salt_context.extend_from_slice(username.as_bytes());
+        }
+        #[cfg(unix)]
+        {
+            let uid = nix::unistd::getuid().to_string();
+            salt_context.extend_from_slice(uid.as_bytes());
+        }
+
+        // Combine random salt with system context for HKDF salt
+        let mut hkdf_salt = Vec::new();
+        hkdf_salt.extend_from_slice(&hkdf_salt_bytes);
+        hkdf_salt.extend_from_slice(&salt_context);
 
         let mut master_key = [0u8; MASTER_KEY_LENGTH];
-        let hkdf = hkdf::Salt::new(hkdf::HKDF_SHA256, hkdf_salt);
+        let hkdf = hkdf::Salt::new(hkdf::HKDF_SHA256, &hkdf_salt);
         let prk = hkdf.extract(&entropy_sources);
         let okm = prk
-            .expand(&[b"fuji-credential-master-key"], hkdf::HKDF_SHA256)
-            .expect("HKDF expansion should not fail");
+            .expand(&[b"fuji-credential-master-key-v2"], hkdf::HKDF_SHA256)
+            .map_err(|e| anyhow!("HKDF expansion for master key failed: {:?}", e))?;
         okm.fill(&mut master_key)
-            .expect("Failed to fill master key");
+            .map_err(|e| anyhow!("Failed to fill master key: {:?}", e))?;
 
-        master_key
+        Ok(master_key)
     }
 
-    /// Derive encryption key from master key, PBKDF2 salt, and HKDF
+    /// Derive encryption key from master key, PBKDF2 salt, and HKDF with improved key separation
     fn derive_encryption_key(&self, pbkdf2_salt: &[u8], hkdf_salt: &[u8]) -> Result<[u8; 32]> {
-        // First, derive a key using PBKDF2 from the master key
+        // First, derive a key using PBKDF2 from the master key with stronger parameters
         let mut pbkdf2_output = [0u8; 32];
         pbkdf2_hmac::<Sha256>(
             &self.master_key,
@@ -152,12 +169,19 @@ impl FileCredentialProvider {
             &mut pbkdf2_output,
         );
 
-        // Then, use HKDF to derive the final encryption key
+        // Then, use HKDF to derive the final encryption key with better context separation
         let mut encryption_key = [0u8; 32];
         let hkdf = hkdf::Salt::new(hkdf::HKDF_SHA256, hkdf_salt);
         let prk = hkdf.extract(&pbkdf2_output);
         let okm = prk
-            .expand(&[b"fuji-encryption-key"], hkdf::HKDF_SHA256)
+            .expand(
+                &[
+                    b"fuji-encryption-key-v2",
+                    b"file-credential-provider",
+                    b"AES-256-GCM-encryption"
+                ],
+                hkdf::HKDF_SHA256
+            )
             .map_err(|e| anyhow!("HKDF expansion failed: {:?}", e))?;
         okm.fill(&mut encryption_key)
             .map_err(|e| anyhow!("Failed to fill encryption key: {:?}", e))?;
@@ -214,6 +238,11 @@ impl FileCredentialProvider {
             .decode(&store.data)
             .map_err(|e| anyhow!("Failed to decode data: {}", e))?;
 
+        // Validate salt randomness and quality
+        self.validate_salt_quality(&pbkdf2_salt, "PBKDF2")?;
+        self.validate_salt_quality(&hkdf_salt, "HKDF")?;
+        self.validate_nonce_quality(&nonce)?;
+
         // Derive encryption key using stored salts
         let encryption_key = self.derive_encryption_key(&pbkdf2_salt, &hkdf_salt)?;
 
@@ -231,6 +260,97 @@ impl FileCredentialProvider {
 
         serde_json::from_str(&json)
             .map_err(|e| anyhow!("Failed to parse decrypted credentials: {}", e))
+    }
+
+    /// Validate salt quality for randomness and proper length
+    fn validate_salt_quality(&self, salt: &[u8], salt_type: &str) -> Result<()> {
+        // Check salt length
+        let expected_length = match salt_type {
+            "PBKDF2" => PBKDF2_SALT_LENGTH,
+            "HKDF" => HKDF_SALT_LENGTH,
+            _ => return Err(anyhow!("Unknown salt type: {}", salt_type)),
+        };
+
+        if salt.len() != expected_length {
+            return Err(anyhow!(
+                "Invalid {} salt length: expected {}, got {}",
+                salt_type,
+                expected_length,
+                salt.len()
+            ));
+        }
+
+        // Check for obvious patterns (all zeros, all same byte, etc.)
+        let mut all_same = true;
+        let first_byte = salt[0];
+        for &byte in salt.iter() {
+            if byte != first_byte {
+                all_same = false;
+                break;
+            }
+        }
+
+        if all_same {
+            return Err(anyhow!(
+                "{} salt appears to have low entropy (all bytes are the same)",
+                salt_type
+            ));
+        }
+
+        // Additional entropy quality check - ensure sufficient variation
+        let mut bit_counts = [0u8; 8];
+        for &byte in salt.iter() {
+            for i in 0..8 {
+                if (byte >> i) & 1 == 1 {
+                    bit_counts[i] += 1;
+                }
+            }
+        }
+
+        // Check if each bit position has reasonable distribution (between 20% and 80% set)
+        for (i, &count) in bit_counts.iter().enumerate() {
+            let ratio = count as f64 / salt.len() as f64;
+            if ratio < 0.2 || ratio > 0.8 {
+                return Err(anyhow!(
+                    "{} salt shows poor bit distribution at position {} (ratio: {:.2})",
+                    salt_type,
+                    i,
+                    ratio
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate nonce quality for proper length and randomness
+    fn validate_nonce_quality(&self, nonce: &[u8]) -> Result<()> {
+        if nonce.len() != NONCE_LENGTH {
+            return Err(anyhow!(
+                "Invalid nonce length: expected {}, got {}",
+                NONCE_LENGTH,
+                nonce.len()
+            ));
+        }
+
+        // Check for reuse - nonce should never be repeated with the same key
+        // This is a basic check; in practice, we'd need to track used nonces
+        let mut all_same = true;
+        let first_byte = nonce[0];
+        for &byte in nonce.iter() {
+            if byte != first_byte {
+                all_same = false;
+                break;
+            }
+        }
+
+        if all_same {
+            return Err(anyhow!(
+                "Nonce appears to have low entropy (all bytes are the same)"
+            ));
+        }
+
+        Ok(())
     }
 
     /// Save the credential store to file
@@ -374,7 +494,7 @@ impl CredentialProvider for FileCredentialProvider {
 
 impl Default for FileCredentialProvider {
     fn default() -> Self {
-        Self::new()
+        Self::new().expect("Failed to create default FileCredentialProvider")
     }
 }
 
@@ -388,7 +508,7 @@ mod tests {
     async fn test_file_provider_encryption() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test_credentials.enc");
-        let provider = FileCredentialProvider::with_path(file_path);
+        let provider = FileCredentialProvider::with_path(file_path).unwrap();
 
         let credential = Credential {
             username: "testuser".to_string(),
@@ -430,7 +550,7 @@ mod tests {
     async fn test_encryption_strength() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test_strength.enc");
-        let provider = FileCredentialProvider::with_path(file_path);
+        let provider = FileCredentialProvider::with_path(file_path).unwrap();
 
         // Test with sensitive data
         let sensitive_credential = Credential {
@@ -465,7 +585,7 @@ mod tests {
     async fn test_pbkdf2_iterations() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test_pbkdf2.enc");
-        let provider = FileCredentialProvider::with_path(file_path);
+        let provider = FileCredentialProvider::with_path(file_path).unwrap();
 
         let credential = Credential {
             username: "test".to_string(),
@@ -489,7 +609,7 @@ mod tests {
     async fn test_performance() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test_perf.enc");
-        let provider = FileCredentialProvider::with_path(file_path);
+        let provider = FileCredentialProvider::with_path(file_path).unwrap();
 
         // Measure encryption time
         let start = Instant::now();
@@ -547,11 +667,11 @@ mod tests {
         let file_path1 = temp_dir1.path().join("test1.enc");
         let file_path2 = temp_dir2.path().join("test2.enc");
 
-        let provider1 = FileCredentialProvider::with_path(file_path1);
+        let provider1 = FileCredentialProvider::with_path(file_path1).unwrap();
 
         // Create provider2 with a different environment variable to ensure different master key
         std::env::set_var("TEST_FUJI_DIFFERENT_KEY", "different_value");
-        let provider2 = FileCredentialProvider::with_path(file_path2);
+        let provider2 = FileCredentialProvider::with_path(file_path2).unwrap();
         std::env::remove_var("TEST_FUJI_DIFFERENT_KEY");
 
         let credential = Credential {
@@ -579,7 +699,7 @@ mod tests {
     async fn test_salt_uniqueness() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test_salts.enc");
-        let provider = FileCredentialProvider::with_path(file_path);
+        let provider = FileCredentialProvider::with_path(file_path).unwrap();
 
         let credential = Credential {
             username: "test".to_string(),

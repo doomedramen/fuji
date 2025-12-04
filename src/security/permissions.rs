@@ -152,22 +152,29 @@ impl PermissionManager {
             .map_err(|e| anyhow!("Failed to create mount point {}: {}", path.display(), e))?;
 
         // Determine final permissions
-        let (final_uid, final_gid, final_mode) = if config.inherit && path.parent().is_some() {
-            let parent = path.parent().unwrap();
-            if parent.exists() {
-                let metadata = fs::metadata(parent)?;
-                let uid = config
-                    .owner_uid
-                    .unwrap_or_else(|| Uid::from_raw(metadata.uid()));
-                let gid = config
-                    .owner_gid
-                    .unwrap_or_else(|| Gid::from_raw(metadata.gid()));
-                let mode = if config.mode == 0 {
-                    metadata.mode() & !config.umask
+        let (final_uid, final_gid, final_mode) = if config.inherit {
+            if let Some(parent) = path.parent() {
+                if parent.exists() {
+                    let metadata = fs::metadata(parent)?;
+                    let uid = config
+                        .owner_uid
+                        .unwrap_or_else(|| Uid::from_raw(metadata.uid()));
+                    let gid = config
+                        .owner_gid
+                        .unwrap_or_else(|| Gid::from_raw(metadata.gid()));
+                    let mode = if config.mode == 0 {
+                        metadata.mode() & !config.umask
+                    } else {
+                        config.mode
+                    };
+                    (uid, gid, mode)
                 } else {
-                    config.mode
-                };
-                (uid, gid, mode)
+                    (
+                        config.owner_uid.unwrap_or_else(|| Uid::current()),
+                        config.owner_gid.unwrap_or_else(|| Gid::current()),
+                        config.mode,
+                    )
+                }
             } else {
                 (
                     config.owner_uid.unwrap_or_else(|| Uid::current()),

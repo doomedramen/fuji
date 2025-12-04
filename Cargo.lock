@@ -1190,6 +1190,7 @@ dependencies = [
  "hex",
  "jsonwebtoken",
  "keyring",
+ "lazy_static",
  "libc",
  "mockall",
  "nix 0.27.1",

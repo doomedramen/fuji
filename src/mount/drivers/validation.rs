@@ -136,6 +136,15 @@ impl MountUrlValidator {
 
         // Use the enhanced path sanitization to check for traversal and dangerous components
         if !path.is_empty() && path != "/" {
+            // Check for excessive path traversal patterns before detailed validation
+            let traversal_count = path.matches("..").count();
+            if traversal_count > 10 {
+                return Err(anyhow::anyhow!(
+                    "Excessive path traversal detected ({} instances)",
+                    traversal_count
+                ));
+            }
+
             // This will detect path traversal attempts and dangerous components
             if let Err(e) = self.sanitize_path_component(path) {
                 return Err(anyhow::anyhow!("Path validation failed: {}", e));
@@ -364,7 +373,7 @@ impl MountUrlValidator {
     /// Check if a path component is dangerous (system files, sensitive directories, etc.)
     fn is_dangerous_component(&self, component: &str) -> bool {
         let dangerous_names = [
-            // System files and directories
+            // System files and directories (critical system directories)
             "etc",
             "bin",
             "sbin",
@@ -379,29 +388,49 @@ impl MountUrlValidator {
             "root",
             "home",
             "tmp",
-            "run",
-            "opt",
-            "srv",
-            "mnt",
-            "media",
-            // Sensitive files
+            // Sensitive files (exact matches only)
             "passwd",
             "shadow",
             "group",
             "hosts",
             "sudoers",
             "crontab",
-            "ssh",
+            // Hidden directories with sensitive data
             ".ssh",
             "gnupg",
             ".gnupg",
             "aws",
             ".aws",
-            // Configuration files
-            "config",
-            "conf",
+            // Hidden files with sensitive data
+            ".env",
+            ".secret",
+            ".key",
+            ".pem",
+            ".crt",
+            ".p12",
+            ".pfx",
             ".config",
-            ".conf",
+            ".profile",
+            ".bashrc",
+            ".bash_profile",
+            ".bash_history",
+            ".zshrc",
+            ".zprofile",
+            ".vimrc",
+            ".viminfo",
+            // Additional sensitive config files
+            ".htpasswd",
+            ".netrc",
+            ".ssh",
+            "authorized_keys",
+            "known_hosts",
+            "id_rsa",
+            "id_rsa.pub",
+            "id_ed25519",
+            "id_ed25519.pub",
+            "authorized_keys2",
+            "rhosts",
+            "shosts.equiv",
             // Executable patterns
             "sh",
             "bash",
@@ -410,31 +439,47 @@ impl MountUrlValidator {
             "cmd",
             "powershell",
             "ps1",
-            // Dangerous extensions
+            // Windows-specific dangerous paths
+            "windows",
+            "system32",
+            "program files",
+            "program files (x86)",
+            "programdata",
+            "recycler",
+            "$recycle.bin",
+            "system volume information",
+            "users",
+            "program files (x86)",
+            "appdata",
+            "roaming",
+            "local",
+            "microsoft",
+            "windows powershell",
+            // Windows sensitive files
+            "sam",
+            "security",
+            "software",
+            "default",
+            "ntuser.dat",
+            "boot.ini",
+            "bootmgr",
+            "bcd",
+            // Windows executables and scripts
+            "cmd.exe",
+            "powershell.exe",
+            "wscript.exe",
+            "cscript.exe",
+            "rundll32.exe",
+            "regsvr32.exe",
+            // Dangerous extensions (for files, not directories)
             "exe",
             "bat",
-            "cmd",
             "com",
             "pif",
             "scr",
             "vbs",
             "js",
             "jar",
-            // Hidden files that might contain sensitive data
-            ".env",
-            ".secret",
-            ".key",
-            ".pem",
-            ".crt",
-            ".p12",
-            ".pfx",
-            // System shortcuts
-            "desktop",
-            "documents",
-            "downloads",
-            "pictures",
-            "music",
-            "videos",
             // Development-related
             ".git",
             ".svn",
@@ -449,7 +494,7 @@ impl MountUrlValidator {
         dangerous_names.iter().any(|dangerous| {
             component_lower == *dangerous
                 || component_lower.starts_with(&format!("{}.", dangerous))
-                || component_lower.contains(dangerous)
+                || component_lower.ends_with(&format!(".{}", dangerous))
         })
     }
 

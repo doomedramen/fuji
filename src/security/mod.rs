@@ -17,6 +17,8 @@ pub mod env_provider;
 pub mod file_provider;
 pub mod keyring_provider;
 pub mod permissions;
+pub mod seccomp;
+pub mod secure_socket;
 pub mod socket;
 
 /// Credential information for network mounts
@@ -68,7 +70,13 @@ impl CredentialManager {
         providers.push(Box::new(env_provider::EnvironmentCredentialProvider::new()));
 
         // Add file provider
-        providers.push(Box::new(file_provider::FileCredentialProvider::new()));
+        match file_provider::FileCredentialProvider::new() {
+            Ok(provider) => providers.push(Box::new(provider)),
+            Err(e) => {
+                tracing::warn!("Failed to initialize file credential provider: {}", e);
+                // Continue without file provider
+            }
+        }
 
         // Add keyring provider (lowest priority, but most secure)
         providers.push(Box::new(keyring_provider::KeyringCredentialProvider::new()));
