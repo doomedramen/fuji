@@ -40,6 +40,18 @@ path = "tests/security_command_injection.rs"
 name = "daemon_error_test"
 path = "tests/unit/daemon_error_test.rs"
 
+[[test]]
+name = "security_path_traversal"
+path = "tests/security_path_traversal.rs"
+
+[[test]]
+name = "security_encryption_improvements"
+path = "tests/security_encryption_improvements.rs"
+
+[[test]]
+name = "connection_limits_test"
+path = "tests/connection_limits_test.rs"
+
 [dependencies]
 # Core dependencies
 tokio = { version = "1.35", features = ["full"] }

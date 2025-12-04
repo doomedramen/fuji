@@ -5,6 +5,7 @@
 //! escaping and validation, with seccomp filtering for system call security.
 
 use crate::security::seccomp::{SeccompProfile, SecureExecutor};
+use crate::mount::drivers::MountCommandsAllowlist;
 use anyhow::{Context, Result};
 use lazy_static::lazy_static;
 use regex;
@@ -21,9 +22,35 @@ pub struct SecureCommand {
     seccomp_profile: Option<SeccompProfile>,
 }
 
-/// Global seccomp executor for command execution
 lazy_static::lazy_static! {
+    /// Global seccomp executor for command execution
     static ref SECCOMP_EXECUTOR: Arc<Mutex<Option<SecureExecutor>>> = Arc::new(Mutex::new(None));
+
+    /// Global mount commands allowlist
+    static ref COMMAND_ALLOWLIST: Arc<Mutex<Option<MountCommandsAllowlist>>> = Arc::new(Mutex::new(None));
+}
+
+/// Initialize the global command allowlist
+pub fn initialize_command_allowlist(allowlist: MountCommandsAllowlist) {
+    let mut global_allowlist = COMMAND_ALLOWLIST.lock().unwrap();
+    *global_allowlist = Some(allowlist);
+    debug!("Global command allowlist initialized");
+}
+
+/// Get the global command allowlist
+pub fn get_command_allowlist() -> Result<MountCommandsAllowlist> {
+    let global_allowlist = COMMAND_ALLOWLIST.lock().unwrap();
+    match global_allowlist.as_ref() {
+        Some(allowlist) => Ok(allowlist.clone()),
+        None => {
+            // Initialize with default allowlist if not already done
+            drop(global_allowlist);
+            let default_allowlist = MountCommandsAllowlist::new()
+                .with_context(|| "Failed to initialize default command allowlist")?;
+            initialize_command_allowlist(default_allowlist.clone());
+            Ok(default_allowlist)
+        }
+    }
 }
 
 impl SecureCommand {
@@ -216,30 +243,12 @@ pub fn validate_safe_string(input: &str) -> Result<()> {
 }
 
 /// Validate that a command is in the allowlist
-pub fn validate_command_allowlist(command: &str) -> Result<()> {
-    let allowed_commands = vec![
-        "mount",
-        "umount",
-        "mount.nfs",
-        "mount.cifs",
-        "sshfs",
-        "smbclient",
-        "mkdir",
-        "rmdir",
-        "rm",
-        "ln",
-        "chmod",
-        "chown",
-    ];
+pub fn validate_command_allowlist(command: &str, args: &[String]) -> Result<()> {
+    let allowlist = get_command_allowlist()
+        .with_context(|| "Failed to get command allowlist")?;
 
-    if !allowed_commands.contains(&command) {
-        return Err(anyhow::anyhow!(
-            "Command '{}' is not in the allowlist",
-            command
-        ));
-    }
-
-    Ok(())
+    allowlist.validate_command(command, args)
+        .with_context(|| format!("Command validation failed for: {}", command))
 }
 
 /// Create a secure mount command with proper validation and seccomp filtering
@@ -272,25 +281,40 @@ pub fn create_secure_mount_command(
         _ => return Err(anyhow::anyhow!("Unsupported mount type: {}", mount_type)),
     };
 
-    let command = match mount_type {
-        "nfs" | "nfs4" => base_command
-            .arg("-t")
-            .arg(mount_type)
-            .arg(source)
-            .arg(target)
-            .args(options),
+    let (command_name, args) = match mount_type {
+        "nfs" | "nfs4" => {
+            let mut cmd_args = vec!["-t".to_string(), mount_type.to_string()];
+            cmd_args.push(source.to_string());
+            cmd_args.push(target.to_string());
+            cmd_args.extend(options.iter().cloned());
+            ("mount", cmd_args)
+        }
 
-        "smb" | "cifs" => base_command
-            .arg("-t")
-            .arg("cifs")
-            .arg(source)
-            .arg(target)
-            .args(options),
+        "smb" | "cifs" => {
+            let mut cmd_args = vec!["-t".to_string(), "cifs".to_string()];
+            cmd_args.push(source.to_string());
+            cmd_args.push(target.to_string());
+            cmd_args.extend(options.iter().cloned());
+            ("mount", cmd_args)
+        }
 
-        "sshfs" => base_command.arg(source).arg(target).args(options),
+        "sshfs" => {
+            let mut cmd_args = vec![source.to_string(), target.to_string()];
+            cmd_args.extend(options.iter().cloned());
+            ("sshfs", cmd_args)
+        }
 
         _ => return Err(anyhow::anyhow!("Unsupported mount type: {}", mount_type)),
     };
+
+    // Validate command against allowlist
+    validate_command_allowlist(command_name, &args)?;
+
+    // Create the command
+    let mut command = base_command;
+    for arg in args {
+        command = command.arg(arg);
+    }
 
     // Apply seccomp profile if specified
     let command = if let Some(profile) = seccomp_profile {
@@ -336,13 +360,15 @@ mod tests {
 
     #[test]
     fn test_validate_command_allowlist() {
-        assert!(validate_command_allowlist("mount").is_ok());
-        assert!(validate_command_allowlist("sshfs").is_ok());
-        assert!(validate_command_allowlist("mkdir").is_ok());
+        assert!(validate_command_allowlist("mount", &[]).is_ok());
+        assert!(validate_command_allowlist("sshfs", &[]).is_ok());
+        assert!(validate_command_allowlist("mkdir", &[]).is_ok());
 
-        assert!(validate_command_allowlist("rm -rf").is_err());
-        assert!(validate_command_allowlist("sh").is_err());
-        assert!(validate_command_allowlist("bash").is_err());
+        assert!(validate_command_allowlist("mount", &["-t".to_string(), "nfs".to_string(), "server:/export".to_string(), "/mnt/nfs".to_string()]).is_ok());
+
+        assert!(validate_command_allowlist("rm", &["-rf".to_string()]).is_err());
+        assert!(validate_command_allowlist("sh", &[]).is_err());
+        assert!(validate_command_allowlist("bash", &[]).is_err());
     }
 
     #[test]

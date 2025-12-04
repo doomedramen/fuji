@@ -43,8 +43,7 @@ fn test_health_check_result_creation() {
 
 #[tokio::test]
 async fn test_file_access_health_check_nonexistent() {
-    let platform = fuji::platform::get_platform();
-    let check = FileAccessHealthCheck::new(platform);
+    let check = FileAccessHealthCheck::new();
 
     let config = MountConfig::new(
         "nfs://example.com/share".to_string(),
@@ -63,8 +62,7 @@ async fn test_file_access_health_check_nonexistent() {
 
 #[tokio::test]
 async fn test_ping_health_check_host_extraction() {
-    let platform = fuji::platform::get_platform();
-    let check = PingHealthCheck::new(platform);
+    let check = PingHealthCheck::new();
 
     // Test NFS host extraction
     let nfs_config = MountConfig::new(
@@ -416,29 +414,25 @@ async fn test_health_check_run_check_by_name() {
 
 #[test]
 fn test_default_timeout_values() {
-    let platform = fuji::platform::get_platform();
-
-    let file_check = FileAccessHealthCheck::new(platform.clone());
+    let file_check = FileAccessHealthCheck::new();
     assert_eq!(file_check.default_timeout(), Duration::from_secs(10));
 
-    let ping_check = PingHealthCheck::new(platform.clone());
+    let ping_check = PingHealthCheck::new();
     assert_eq!(ping_check.default_timeout(), Duration::from_secs(10));
 
-    let protocol_check = ProtocolHealthCheck::new(platform);
+    let protocol_check = ProtocolHealthCheck::new();
     assert_eq!(protocol_check.default_timeout(), Duration::from_secs(30));
 }
 
 #[test]
 fn test_health_check_names() {
-    let platform = fuji::platform::get_platform();
-
-    let file_check = FileAccessHealthCheck::new(platform.clone());
+    let file_check = FileAccessHealthCheck::new();
     assert_eq!(file_check.name(), "file_access");
 
-    let ping_check = PingHealthCheck::new(platform.clone());
+    let ping_check = PingHealthCheck::new();
     assert_eq!(ping_check.name(), "ping");
 
-    let protocol_check = ProtocolHealthCheck::new(platform);
+    let protocol_check = ProtocolHealthCheck::new();
     assert_eq!(protocol_check.name(), "protocol");
 }
 

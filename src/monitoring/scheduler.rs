@@ -23,6 +23,10 @@ pub struct HealthCheckScheduler {
     last_statuses: Arc<RwLock<HashMap<String, HealthStatus>>>,
     /// Default check interval
     default_interval: String,
+    /// Cleanup interval in seconds
+    cleanup_interval: u64,
+    /// Maximum age for health status entries (in seconds)
+    max_status_age: u64,
 }
 
 /// A health check job configuration
@@ -49,6 +53,8 @@ impl HealthCheckScheduler {
             health_checks: Arc::new(RwLock::new(HashMap::new())),
             last_statuses: Arc::new(RwLock::new(HashMap::new())),
             default_interval: "*/30 * * * * *".to_string(), // Every 30 seconds
+            cleanup_interval: 300, // 5 minutes
+            max_status_age: 3600, // 1 hour
         })
     }
 
@@ -68,6 +74,10 @@ impl HealthCheckScheduler {
             .map_err(|e| anyhow!("Failed to create scheduler: {}", e))?;
 
         *scheduler = Some(new_scheduler);
+
+        // Start cleanup task
+        self.start_cleanup_task().await;
+
         info!("Health check scheduler started");
 
         Ok(())
@@ -92,6 +102,47 @@ impl HealthCheckScheduler {
 
         info!("Health check scheduler stopped");
         Ok(())
+    }
+
+    /// Start the cleanup task
+    async fn start_cleanup_task(&self) {
+        let last_statuses_weak = Arc::downgrade(&self.last_statuses);
+        let cleanup_interval = self.cleanup_interval;
+        let max_status_age = self.max_status_age;
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(cleanup_interval));
+
+            loop {
+                interval.tick().await;
+
+                if let Some(last_statuses) = last_statuses_weak.upgrade() {
+                    Self::cleanup_old_status_entries(&last_statuses, max_status_age).await;
+                } else {
+                    // Scheduler has been dropped, exit cleanup task
+                    break;
+                }
+            }
+        });
+    }
+
+    /// Clean up old status entries
+    async fn cleanup_old_status_entries(
+        last_statuses: &Arc<RwLock<HashMap<String, HealthStatus>>>,
+        max_age: u64,
+    ) {
+        let now = Utc::now();
+        let cutoff_time = now - chrono::Duration::seconds(max_age as i64);
+
+        let mut statuses = last_statuses.write().await;
+        let initial_count = statuses.len();
+
+        statuses.retain(|_, status| status.last_check > cutoff_time);
+
+        let removed_count = initial_count - statuses.len();
+        if removed_count > 0 {
+            debug!("Cleaned up {} old health status entries", removed_count);
+        }
     }
 
     /// Register health checks for a mount
@@ -192,23 +243,39 @@ impl HealthCheckScheduler {
             .as_ref()
             .ok_or_else(|| anyhow!("Scheduler is not running"))?;
 
-        // Clone the data we need for the job
-        let mount_id_clone = mount_id.to_string();
-        let health_checks_clone = self.health_checks.clone();
-        let last_statuses_clone = self.last_statuses.clone();
+        // Use weak references to avoid memory leaks
+        let mount_id_for_job = mount_id.to_string();
+        let health_checks_weak = Arc::downgrade(&self.health_checks);
+        let last_statuses_weak = Arc::downgrade(&self.last_statuses);
 
         // Create the job using the correct API
         let cron_job = Job::new_async(job.interval.as_str(), move |_uuid, _scheduler| {
-            let mount_id = mount_id_clone.clone();
-            let health_checks = health_checks_clone.clone();
-            let last_statuses = last_statuses_clone.clone();
+            let mount_id = mount_id_for_job.clone();
+            let health_checks_weak = health_checks_weak.clone();
+            let last_statuses_weak = last_statuses_weak.clone();
 
             Box::pin(async move {
-                let health_checks = health_checks.read().await;
-                let check_types = if let Some(job) = health_checks.get(&mount_id) {
-                    job.check_types.clone()
-                } else {
-                    return;
+                // Try to upgrade weak references
+                let (health_checks, last_statuses) = match (
+                    health_checks_weak.upgrade(),
+                    last_statuses_weak.upgrade(),
+                ) {
+                    (Some(hc), Some(ls)) => (hc, ls),
+                    _ => {
+                        // Scheduler has been dropped, exit
+                        return;
+                    }
+                };
+
+                // Get check types
+                let check_types = {
+                    let health_checks = health_checks.read().await;
+                    if let Some(job) = health_checks.get(&mount_id) {
+                        job.check_types.clone()
+                    } else {
+                        // Job no longer exists
+                        return;
+                    }
                 };
 
                 // Run health checks

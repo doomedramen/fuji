@@ -5,12 +5,17 @@
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::fs;
+use tokio::sync::Semaphore;
 use tracing::{debug, warn};
 
 use crate::mount::{get_mount_handler, MountType};
-use crate::platform::Platform;
+
+/// Semaphore to limit concurrent health check tasks
+static TASK_SEMAPHORE: std::sync::LazyLock<Arc<Semaphore>> =
+    std::sync::LazyLock::new(|| Arc::new(Semaphore::new(10))); // Limit to 10 concurrent tasks
 
 /// Health check trait
 #[async_trait]
@@ -45,14 +50,12 @@ pub struct HealthCheckResult {
 }
 
 /// File access health check
-pub struct FileAccessHealthCheck {
-    platform: Box<dyn Platform>,
-}
+pub struct FileAccessHealthCheck;
 
 impl FileAccessHealthCheck {
     /// Create a new file access health check
-    pub fn new(platform: Box<dyn Platform>) -> Self {
-        Self { platform }
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -63,10 +66,17 @@ impl HealthCheck for FileAccessHealthCheck {
         _mount_id: &str,
         mount_config: &crate::mount::MountConfig,
     ) -> Result<HealthCheckResult> {
+        // Acquire semaphore permit to limit concurrent tasks
+        let _permit = TASK_SEMAPHORE
+            .acquire()
+            .await
+            .map_err(|e| anyhow!("Failed to acquire task semaphore: {}", e))?;
+
         let start = std::time::Instant::now();
+        let platform = crate::platform::get_platform();
 
         // Check if mount point exists
-        if !self.platform.path_exists(&mount_config.mount_point) {
+        if !platform.path_exists(&mount_config.mount_point) {
             return Ok(HealthCheckResult {
                 passed: false,
                 message: Some("Mount point does not exist".to_string()),
@@ -121,7 +131,7 @@ impl HealthCheck for FileAccessHealthCheck {
         }
 
         // Check if mount is actually mounted
-        match self.platform.is_mounted(&mount_config.mount_point) {
+        match platform.is_mounted(&mount_config.mount_point) {
             Ok(is_mounted) => {
                 if !is_mounted {
                     return Ok(HealthCheckResult {
@@ -158,15 +168,12 @@ impl HealthCheck for FileAccessHealthCheck {
 }
 
 /// Network ping health check
-pub struct PingHealthCheck {
-    #[allow(dead_code)]
-    platform: Box<dyn Platform>,
-}
+pub struct PingHealthCheck;
 
 impl PingHealthCheck {
     /// Create a new ping health check
-    pub fn new(platform: Box<dyn Platform>) -> Self {
-        Self { platform }
+    pub fn new() -> Self {
+        Self
     }
 
     /// Extract host from mount configuration
@@ -185,22 +192,32 @@ impl HealthCheck for PingHealthCheck {
         _mount_id: &str,
         mount_config: &crate::mount::MountConfig,
     ) -> Result<HealthCheckResult> {
+        // Acquire semaphore permit to limit concurrent tasks
+        let _permit = TASK_SEMAPHORE
+            .acquire()
+            .await
+            .map_err(|e| anyhow!("Failed to acquire task semaphore: {}", e))?;
+
         let start = std::time::Instant::now();
 
         let host = self.extract_host(mount_config)?;
         let host_clone = host.clone();
 
-        // Run ping command
-        let output = tokio::task::spawn_blocking(move || {
-            std::process::Command::new("ping")
-                .arg("-c")
-                .arg("1")
-                .arg("-W")
-                .arg("5")
-                .arg(&host_clone)
-                .output()
-        })
+        // Use tokio::task::spawn_blocking with timeout and proper error handling
+        let output = tokio::time::timeout(
+            Duration::from_secs(10),
+            tokio::task::spawn_blocking(move || {
+                std::process::Command::new("ping")
+                    .arg("-c")
+                    .arg("1")
+                    .arg("-W")
+                    .arg("5")
+                    .arg(&host_clone)
+                    .output()
+            }),
+        )
         .await
+        .map_err(|_| anyhow!("Ping command timed out after 10 seconds"))?
         .map_err(|e| anyhow!("Failed to execute ping: {}", e))??;
 
         let elapsed = start.elapsed();
@@ -249,15 +266,12 @@ impl HealthCheck for PingHealthCheck {
 }
 
 /// Protocol-specific health check
-pub struct ProtocolHealthCheck {
-    #[allow(dead_code)]
-    platform: Box<dyn Platform>,
-}
+pub struct ProtocolHealthCheck;
 
 impl ProtocolHealthCheck {
     /// Create a new protocol health check
-    pub fn new(platform: Box<dyn Platform>) -> Self {
-        Self { platform }
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -268,6 +282,12 @@ impl HealthCheck for ProtocolHealthCheck {
         _mount_id: &str,
         mount_config: &crate::mount::MountConfig,
     ) -> Result<HealthCheckResult> {
+        // Acquire semaphore permit to limit concurrent tasks
+        let _permit = TASK_SEMAPHORE
+            .acquire()
+            .await
+            .map_err(|e| anyhow!("Failed to acquire task semaphore: {}", e))?;
+
         let start = std::time::Instant::now();
 
         // Get the appropriate handler for this mount type
@@ -357,21 +377,18 @@ impl HealthCheckRegistry {
         mount_config: &crate::mount::MountConfig,
         check_name: &str,
     ) -> Result<HealthCheckResult> {
-        // Create checks on demand with current platform
+        // Create checks on demand
         match check_name {
             "file_access" => {
-                let platform = crate::platform::get_platform();
-                let check = FileAccessHealthCheck::new(platform);
+                let check = FileAccessHealthCheck::new();
                 check.execute(mount_id, mount_config).await
             }
             "ping" => {
-                let platform = crate::platform::get_platform();
-                let check = PingHealthCheck::new(platform);
+                let check = PingHealthCheck::new();
                 check.execute(mount_id, mount_config).await
             }
             "protocol" => {
-                let platform = crate::platform::get_platform();
-                let check = ProtocolHealthCheck::new(platform);
+                let check = ProtocolHealthCheck::new();
                 check.execute(mount_id, mount_config).await
             }
             _ => Err(anyhow!("Unknown health check: {}", check_name)),
@@ -405,8 +422,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_access_health_check() {
-        let platform = crate::platform::get_platform();
-        let check = FileAccessHealthCheck::new(platform);
+        let check = FileAccessHealthCheck::new();
 
         // Test with non-existent mount
         let config = crate::mount::MountConfig::new(

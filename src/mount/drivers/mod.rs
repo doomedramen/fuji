@@ -2,6 +2,7 @@
 //!
 //! This module contains implementations for various network filesystem drivers.
 
+pub mod allowlist;
 pub mod nfs;
 pub mod options;
 pub mod secure_command;
@@ -10,6 +11,7 @@ pub mod sshfs;
 pub mod validation;
 
 // Re-export driver types
+pub use allowlist::{MountCommandsAllowlist, AllowlistConfig, AllowedCommand, SecurityContext};
 pub use nfs::NfsHandler;
 pub use options::{MountOptionsValidator, OptionsValidationConfig};
 pub use secure_command::{create_secure_mount_command, SecureCommand};
