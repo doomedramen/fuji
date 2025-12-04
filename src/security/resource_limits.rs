@@ -372,9 +372,14 @@ impl From<crate::config::ResourceLimitsConfig> for ResourceLimits {
 impl ResourceLimitsManager {
     /// Create a new resource limits manager
     pub fn new(limits: ResourceLimits) -> Self {
-        let mount_semaphore = Arc::new(Semaphore::new(limits.process.max_concurrent_mounts as usize));
-        let reconnection_semaphore = Arc::new(Semaphore::new(limits.process.max_concurrent_reconnections as usize));
-        let connection_semaphore = Arc::new(Semaphore::new(limits.network.max_connections as usize));
+        let mount_semaphore = Arc::new(Semaphore::new(
+            limits.process.max_concurrent_mounts as usize,
+        ));
+        let reconnection_semaphore = Arc::new(Semaphore::new(
+            limits.process.max_concurrent_reconnections as usize,
+        ));
+        let connection_semaphore =
+            Arc::new(Semaphore::new(limits.network.max_connections as usize));
 
         Self {
             limits,
@@ -421,7 +426,9 @@ impl ResourceLimitsManager {
                         &memory_usage,
                         &memory_system,
                         &memory_violations,
-                    ).await {
+                    )
+                    .await
+                    {
                         error!("Memory monitoring error: {}", e);
                     }
                 }
@@ -440,12 +447,10 @@ impl ResourceLimitsManager {
             loop {
                 interval.tick().await;
 
-                if let Err(e) = Self::monitor_cpu_usage(
-                    &cpu_limits,
-                    &cpu_usage,
-                    &cpu_system,
-                    &cpu_violations,
-                ).await {
+                if let Err(e) =
+                    Self::monitor_cpu_usage(&cpu_limits, &cpu_usage, &cpu_system, &cpu_violations)
+                        .await
+                {
                     error!("CPU monitoring error: {}", e);
                 }
             }
@@ -458,12 +463,19 @@ impl ResourceLimitsManager {
             let report_violations = violations.clone();
 
             tokio::spawn(async move {
-                let mut interval = interval(Duration::from_secs(report_limits.enforcement.report_interval_secs));
+                let mut interval = interval(Duration::from_secs(
+                    report_limits.enforcement.report_interval_secs,
+                ));
 
                 loop {
                     interval.tick().await;
 
-                    Self::generate_resource_report(&report_limits, &report_usage, &report_violations).await;
+                    Self::generate_resource_report(
+                        &report_limits,
+                        &report_usage,
+                        &report_violations,
+                    )
+                    .await;
                 }
             });
         }
@@ -478,21 +490,21 @@ impl ResourceLimitsManager {
             true => {
                 match tokio::time::timeout(
                     Duration::from_secs(self.limits.process.operation_timeout_secs),
-                    self.mount_semaphore.acquire()
-                ).await {
+                    self.mount_semaphore.acquire(),
+                )
+                .await
+                {
                     Ok(permit) => {
                         permit?.forget(); // Don't hold the permit
                         Ok(())
                     }
-                    Err(_) => Err(anyhow!("Mount operation timeout"))
+                    Err(_) => Err(anyhow!("Mount operation timeout")),
                 }
             }
-            false => {
-                match self.mount_semaphore.try_acquire() {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err(anyhow!("Too many concurrent mount operations"))
-                }
-            }
+            false => match self.mount_semaphore.try_acquire() {
+                Ok(_) => Ok(()),
+                Err(_) => Err(anyhow!("Too many concurrent mount operations")),
+            },
         }
     }
 
@@ -507,21 +519,21 @@ impl ResourceLimitsManager {
             true => {
                 match tokio::time::timeout(
                     Duration::from_secs(self.limits.process.operation_timeout_secs),
-                    self.reconnection_semaphore.acquire()
-                ).await {
+                    self.reconnection_semaphore.acquire(),
+                )
+                .await
+                {
                     Ok(permit) => {
                         permit?.forget();
                         Ok(())
                     }
-                    Err(_) => Err(anyhow!("Reconnection operation timeout"))
+                    Err(_) => Err(anyhow!("Reconnection operation timeout")),
                 }
             }
-            false => {
-                match self.reconnection_semaphore.try_acquire() {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err(anyhow!("Too many concurrent reconnection operations"))
-                }
-            }
+            false => match self.reconnection_semaphore.try_acquire() {
+                Ok(_) => Ok(()),
+                Err(_) => Err(anyhow!("Too many concurrent reconnection operations")),
+            },
         }
     }
 
@@ -536,20 +548,22 @@ impl ResourceLimitsManager {
             true => {
                 match tokio::time::timeout(
                     Duration::from_secs(self.limits.network.connection_timeout_secs),
-                    self.connection_semaphore.acquire()
-                ).await {
+                    self.connection_semaphore.acquire(),
+                )
+                .await
+                {
                     Ok(permit) => {
                         permit?.forget();
                         Ok(())
                     }
-                    Err(_) => Err(anyhow!("Connection timeout"))
+                    Err(_) => Err(anyhow!("Connection timeout")),
                 }
             }
-            false => {
-                self.connection_semaphore.try_acquire()
-                    .map(|_| ())
-                    .or_else(|_| Err(anyhow!("Too many concurrent connections")))
-            }
+            false => self
+                .connection_semaphore
+                .try_acquire()
+                .map(|_| ())
+                .or_else(|_| Err(anyhow!("Too many concurrent connections"))),
         }
     }
 
@@ -559,7 +573,11 @@ impl ResourceLimitsManager {
     }
 
     /// Check if a resource operation would exceed limits
-    pub async fn check_operation_limit(&self, resource_type: ResourceType, count: u32) -> Result<()> {
+    pub async fn check_operation_limit(
+        &self,
+        resource_type: ResourceType,
+        count: u32,
+    ) -> Result<()> {
         let max_count = match resource_type {
             ResourceType::ConcurrentOperations => self.limits.process.max_concurrent_mounts,
             ResourceType::NetworkConnections => self.limits.network.max_connections,
@@ -568,8 +586,12 @@ impl ResourceLimitsManager {
         };
 
         if count > max_count {
-            return Err(anyhow!("Operation would exceed {} limit: {} > {}",
-                format!("{:?}", resource_type), count, max_count));
+            return Err(anyhow!(
+                "Operation would exceed {} limit: {} > {}",
+                format!("{:?}", resource_type),
+                count,
+                max_count
+            ));
         }
 
         Ok(())
@@ -597,7 +619,9 @@ impl ResourceLimitsManager {
         let last_enforcement = self.last_enforcement.read().await;
 
         // Check grace period
-        if last_enforcement.elapsed() < Duration::from_secs(self.limits.enforcement.grace_period_secs) {
+        if last_enforcement.elapsed()
+            < Duration::from_secs(self.limits.enforcement.grace_period_secs)
+        {
             return Ok(true);
         }
 
@@ -606,7 +630,10 @@ impl ResourceLimitsManager {
         // Check memory limits
         if usage.memory.usage_percent > self.limits.memory.enforcement_threshold_percent as f32 {
             should_enforce = true;
-            warn!("Memory usage exceeded enforcement threshold: {:.1}%", usage.memory.usage_percent);
+            warn!(
+                "Memory usage exceeded enforcement threshold: {:.1}%",
+                usage.memory.usage_percent
+            );
         }
 
         // Check CPU limits
@@ -665,7 +692,7 @@ impl ResourceLimitsManager {
                 total_available: total_memory - used_memory,
                 usage_percent,
                 virtual_bytes: 0, // Would need process-specific info
-                rss_bytes: 0, // Would need process-specific info
+                rss_bytes: 0,     // Would need process-specific info
             };
             current_usage.timestamp = Instant::now();
         }
@@ -685,8 +712,11 @@ impl ResourceLimitsManager {
             violation_list.push(violation);
 
             if usage_percent > limits.warning_threshold_percent as f32 {
-                warn!("Memory usage high: {:.1}% ({} MB)",
-                    usage_percent, used_memory / 1024 / 1024);
+                warn!(
+                    "Memory usage high: {:.1}% ({} MB)",
+                    usage_percent,
+                    used_memory / 1024 / 1024
+                );
             }
         }
 
@@ -750,29 +780,41 @@ impl ResourceLimitsManager {
         let violation_list = violations.read().await;
 
         info!("=== Resource Usage Report ===");
-        info!("Memory: {} MB / {} MB ({:.1}%)",
+        info!(
+            "Memory: {} MB / {} MB ({:.1}%)",
             current_usage.memory.total_bytes / 1024 / 1024,
             current_usage.memory.total_available / 1024 / 1024,
-            current_usage.memory.usage_percent);
+            current_usage.memory.usage_percent
+        );
 
-        info!("CPU: {:.1}% ({} cores)",
-            current_usage.cpu.usage_percent,
-            current_usage.cpu.cpu_cores);
+        info!(
+            "CPU: {:.1}% ({} cores)",
+            current_usage.cpu.usage_percent, current_usage.cpu.cpu_cores
+        );
 
-        info!("File Descriptors: {} / {} ({:.1}%)",
+        info!(
+            "File Descriptors: {} / {} ({:.1}%)",
             current_usage.file_descriptors.current_count,
             current_usage.file_descriptors.max_allowed,
-            current_usage.file_descriptors.usage_percent);
+            current_usage.file_descriptors.usage_percent
+        );
 
         info!("Active Mounts: {}", current_usage.process.active_mounts);
-        info!("Pending Operations: {}", current_usage.process.pending_operations);
+        info!(
+            "Pending Operations: {}",
+            current_usage.process.pending_operations
+        );
 
         if !violation_list.is_empty() {
             warn!("Recent Violations: {}", violation_list.len());
             for (i, violation) in violation_list.iter().rev().take(5).enumerate() {
-                warn!("  {}. {:?}: {:.1}% (limit: {:.1}%)",
-                    i + 1, violation.resource_type,
-                    violation.usage_percent, violation.max_value);
+                warn!(
+                    "  {}. {:?}: {:.1}% (limit: {:.1}%)",
+                    i + 1,
+                    violation.resource_type,
+                    violation.usage_percent,
+                    violation.max_value
+                );
             }
         }
         info!("========================");
@@ -858,10 +900,16 @@ mod tests {
         let manager = ResourceLimitsManager::with_defaults();
 
         // Should be within limits
-        assert!(manager.check_operation_limit(ResourceType::ConcurrentOperations, 5).await.is_ok());
+        assert!(manager
+            .check_operation_limit(ResourceType::ConcurrentOperations, 5)
+            .await
+            .is_ok());
 
         // Should exceed limits
-        assert!(manager.check_operation_limit(ResourceType::ConcurrentOperations, 15).await.is_err());
+        assert!(manager
+            .check_operation_limit(ResourceType::ConcurrentOperations, 15)
+            .await
+            .is_err());
     }
 
     #[tokio::test]

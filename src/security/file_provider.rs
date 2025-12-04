@@ -21,7 +21,10 @@ use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{debug, info, warn};
 
-use super::{encryption::{create_encryptor, EncryptionAlgorithm, EncryptionConfig, EncryptedData}, Credential, CredentialProvider};
+use super::{
+    encryption::{create_encryptor, EncryptedData, EncryptionAlgorithm, EncryptionConfig},
+    Credential, CredentialProvider,
+};
 use base64::{engine::general_purpose, Engine as _};
 
 /// Number of PBKDF2 iterations - OWASP recommends at least 120,000 for PBKDF2-HMAC-SHA256
@@ -93,7 +96,10 @@ impl FileCredentialProvider {
             .unwrap_or_else(|| PathBuf::from(".config"))
             .join("fuji");
 
-        Self::with_path_and_config(config_dir.join("credentials.enc"), EncryptionConfig::security_optimized())
+        Self::with_path_and_config(
+            config_dir.join("credentials.enc"),
+            EncryptionConfig::security_optimized(),
+        )
     }
 
     /// Create a file credential provider with custom path and default encryption
@@ -102,7 +108,10 @@ impl FileCredentialProvider {
     }
 
     /// Create a file credential provider with custom path and encryption configuration
-    pub fn with_path_and_config(path: PathBuf, encryption_config: EncryptionConfig) -> Result<Self> {
+    pub fn with_path_and_config(
+        path: PathBuf,
+        encryption_config: EncryptionConfig,
+    ) -> Result<Self> {
         // Generate master key from system-specific source
         let master_key = Self::derive_master_key()?;
 
@@ -236,7 +245,7 @@ impl FileCredentialProvider {
         Ok(encryption_key)
     }
 
-      /// Load the credential store from file with backward compatibility support
+    /// Load the credential store from file with backward compatibility support
     async fn load_store(&self) -> Result<HashMap<String, Credential>> {
         if !self.file_path.exists() {
             return Ok(HashMap::new());
@@ -257,8 +266,12 @@ impl FileCredentialProvider {
         }
 
         // Try to parse as legacy format (v1/v2)
-        if let Ok(legacy_store) = serde_json::from_str::<LegacyEncryptedCredentialStore>(&contents) {
-            warn!("Loading credentials from legacy format (v{}), consider migrating", legacy_store.version);
+        if let Ok(legacy_store) = serde_json::from_str::<LegacyEncryptedCredentialStore>(&contents)
+        {
+            warn!(
+                "Loading credentials from legacy format (v{}), consider migrating",
+                legacy_store.version
+            );
             return self.load_store_legacy(&legacy_store).await;
         }
 
@@ -266,7 +279,10 @@ impl FileCredentialProvider {
     }
 
     /// Load credential store from new v3 format with multi-algorithm support
-    async fn load_store_v3(&self, store: &EncryptedCredentialStore) -> Result<HashMap<String, Credential>> {
+    async fn load_store_v3(
+        &self,
+        store: &EncryptedCredentialStore,
+    ) -> Result<HashMap<String, Credential>> {
         // Verify version
         if store.version != 3 {
             return Err(anyhow!(
@@ -302,7 +318,13 @@ impl FileCredentialProvider {
         let encryptor = create_encryptor(store.algorithm);
         let decrypted = encryptor
             .decrypt(&store.encrypted_data, &encryption_key)
-            .map_err(|e| anyhow!("Failed to decrypt credentials with {}: {}", store.algorithm.display_name(), e))?;
+            .map_err(|e| {
+                anyhow!(
+                    "Failed to decrypt credentials with {}: {}",
+                    store.algorithm.display_name(),
+                    e
+                )
+            })?;
 
         let json = String::from_utf8(decrypted)
             .map_err(|e| anyhow!("Failed to decode decrypted data: {}", e))?;
@@ -312,7 +334,10 @@ impl FileCredentialProvider {
     }
 
     /// Load credential store from legacy format using AES-256-GCM
-    async fn load_store_legacy(&self, store: &LegacyEncryptedCredentialStore) -> Result<HashMap<String, Credential>> {
+    async fn load_store_legacy(
+        &self,
+        store: &LegacyEncryptedCredentialStore,
+    ) -> Result<HashMap<String, Credential>> {
         // Verify version compatibility
         if store.version > 2 {
             return Err(anyhow!(
@@ -373,7 +398,9 @@ impl FileCredentialProvider {
 
         #[cfg(not(feature = "aes-gcm"))]
         {
-            Err(anyhow!("Legacy AES-256-GCM format not supported without aes-gcm feature"))
+            Err(anyhow!(
+                "Legacy AES-256-GCM format not supported without aes-gcm feature"
+            ))
         }
     }
 
@@ -499,7 +526,13 @@ impl FileCredentialProvider {
         let encryptor = create_encryptor(self.encryption_config.algorithm);
         let encrypted_data = encryptor
             .encrypt(json.as_bytes(), &encryption_key)
-            .map_err(|e| anyhow!("Failed to encrypt credentials with {}: {}", self.encryption_config.algorithm.display_name(), e))?;
+            .map_err(|e| {
+                anyhow!(
+                    "Failed to encrypt credentials with {}: {}",
+                    self.encryption_config.algorithm.display_name(),
+                    e
+                )
+            })?;
 
         // Create encrypted store with v3 format
         let store = EncryptedCredentialStore {
@@ -511,17 +544,33 @@ impl FileCredentialProvider {
             encrypted_data,
             metadata: {
                 let mut meta = HashMap::new();
-                meta.insert("algorithm".to_string(), self.encryption_config.algorithm.display_name().to_string());
-                meta.insert("algorithm_id".to_string(), self.encryption_config.algorithm.identifier().to_string());
+                meta.insert(
+                    "algorithm".to_string(),
+                    self.encryption_config.algorithm.display_name().to_string(),
+                );
+                meta.insert(
+                    "algorithm_id".to_string(),
+                    self.encryption_config.algorithm.identifier().to_string(),
+                );
                 meta.insert("kdf".to_string(), "PBKDF2-HMAC-SHA256".to_string());
                 meta.insert("prf".to_string(), "HKDF-SHA256".to_string());
                 meta.insert("created_at".to_string(), chrono::Utc::now().to_rfc3339());
-                meta.insert("security_level".to_string(),
-                    if self.encryption_config.pbkdf2_iterations >= 200_000 { "high".to_string() }
-                    else { "standard".to_string() });
-                meta.insert("side_channel_resistance".to_string(),
-                    if self.encryption_config.algorithm == EncryptionAlgorithm::ChaCha20Poly1305 { "high".to_string() }
-                    else { "standard".to_string() });
+                meta.insert(
+                    "security_level".to_string(),
+                    if self.encryption_config.pbkdf2_iterations >= 200_000 {
+                        "high".to_string()
+                    } else {
+                        "standard".to_string()
+                    },
+                );
+                meta.insert(
+                    "side_channel_resistance".to_string(),
+                    if self.encryption_config.algorithm == EncryptionAlgorithm::ChaCha20Poly1305 {
+                        "high".to_string()
+                    } else {
+                        "standard".to_string()
+                    },
+                );
                 meta
             },
         };
@@ -811,7 +860,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
 
         let file_path_chacha = temp_dir.path().join("test_chacha_meta.enc");
-        let provider_chacha = FileCredentialProvider::with_chacha20_poly1305(file_path_chacha).unwrap();
+        let provider_chacha =
+            FileCredentialProvider::with_chacha20_poly1305(file_path_chacha).unwrap();
 
         let file_path_aes = temp_dir.path().join("test_aes_meta.enc");
         let provider_aes = FileCredentialProvider::with_aes256_gcm(file_path_aes).unwrap();
@@ -824,8 +874,14 @@ mod tests {
         };
 
         // Store with both providers
-        provider_chacha.store_credential("test", &credential).await.unwrap();
-        provider_aes.store_credential("test", &credential).await.unwrap();
+        provider_chacha
+            .store_credential("test", &credential)
+            .await
+            .unwrap();
+        provider_aes
+            .store_credential("test", &credential)
+            .await
+            .unwrap();
 
         // Check ChaCha20-Poly1305 metadata
         let contents_chacha = std::fs::read_to_string(&provider_chacha.file_path).unwrap();
@@ -889,8 +945,14 @@ mod tests {
             decryption_time
         );
 
-        println!("AES-256-GCM Encryption time for 10 operations: {:?}", encryption_time);
-        println!("AES-256-GCM Decryption time for 10 operations: {:?}", decryption_time);
+        println!(
+            "AES-256-GCM Encryption time for 10 operations: {:?}",
+            encryption_time
+        );
+        println!(
+            "AES-256-GCM Decryption time for 10 operations: {:?}",
+            decryption_time
+        );
     }
 
     #[tokio::test]
@@ -909,7 +971,10 @@ mod tests {
         };
 
         let start = Instant::now();
-        provider_aes.store_credential("test", &credential).await.unwrap();
+        provider_aes
+            .store_credential("test", &credential)
+            .await
+            .unwrap();
         let aes_encrypt_time = start.elapsed();
 
         let start = Instant::now();
@@ -918,10 +983,14 @@ mod tests {
 
         // Test ChaCha20-Poly1305 performance
         let file_path_chacha = temp_dir.path().join("test_perf_chacha.enc");
-        let provider_chacha = FileCredentialProvider::with_chacha20_poly1305(file_path_chacha).unwrap();
+        let provider_chacha =
+            FileCredentialProvider::with_chacha20_poly1305(file_path_chacha).unwrap();
 
         let start = Instant::now();
-        provider_chacha.store_credential("test", &credential).await.unwrap();
+        provider_chacha
+            .store_credential("test", &credential)
+            .await
+            .unwrap();
         let chacha_encrypt_time = start.elapsed();
 
         let start = Instant::now();
@@ -929,8 +998,14 @@ mod tests {
         let chacha_decrypt_time = start.elapsed();
 
         println!("Performance Comparison:");
-        println!("  AES-256-GCM - Encrypt: {:?}, Decrypt: {:?}", aes_encrypt_time, aes_decrypt_time);
-        println!("  ChaCha20-Poly1305 - Encrypt: {:?}, Decrypt: {:?}", chacha_encrypt_time, chacha_decrypt_time);
+        println!(
+            "  AES-256-GCM - Encrypt: {:?}, Decrypt: {:?}",
+            aes_encrypt_time, aes_decrypt_time
+        );
+        println!(
+            "  ChaCha20-Poly1305 - Encrypt: {:?}, Decrypt: {:?}",
+            chacha_encrypt_time, chacha_decrypt_time
+        );
 
         // Both should complete within reasonable time
         assert!(aes_encrypt_time < Duration::from_secs(5));

@@ -8,7 +8,7 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit},
     ChaCha20Poly1305, Key, Nonce,
 };
-use rand::{RngCore, rngs::OsRng};
+use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
@@ -46,7 +46,7 @@ impl EncryptionAlgorithm {
     /// Get the key size in bytes
     pub fn key_size(&self) -> usize {
         match self {
-            Self::Aes256Gcm => 32, // 256 bits
+            Self::Aes256Gcm => 32,        // 256 bits
             Self::ChaCha20Poly1305 => 32, // 256 bits
         }
     }
@@ -54,7 +54,7 @@ impl EncryptionAlgorithm {
     /// Get the nonce size in bytes
     pub fn nonce_size(&self) -> usize {
         match self {
-            Self::Aes256Gcm => 12, // 96 bits
+            Self::Aes256Gcm => 12,        // 96 bits
             Self::ChaCha20Poly1305 => 12, // 96 bits
         }
     }
@@ -144,7 +144,7 @@ impl EncryptionConfig {
     pub fn performance_optimized() -> Self {
         Self {
             algorithm: EncryptionAlgorithm::Aes256Gcm, // Usually faster with hardware acceleration
-            pbkdf2_iterations: 120_000, // OWASP minimum recommendation
+            pbkdf2_iterations: 120_000,                // OWASP minimum recommendation
             parameters: {
                 let mut params = HashMap::new();
                 params.insert("security_level".to_string(), "standard".to_string());
@@ -295,7 +295,10 @@ impl Encryptor for ChaCha20Poly1305Encryptor {
         // ChaCha20-Poly1305 includes the tag in the ciphertext
         let metadata = {
             let mut meta = HashMap::new();
-            meta.insert("algorithm".to_string(), self.algorithm.identifier().to_string());
+            meta.insert(
+                "algorithm".to_string(),
+                self.algorithm.identifier().to_string(),
+            );
             meta.insert("key_derivation".to_string(), "pbkdf2-sha256".to_string());
             meta.insert("created_at".to_string(), chrono::Utc::now().to_rfc3339());
             meta
@@ -338,9 +341,7 @@ impl Encryptor for ChaCha20Poly1305Encryptor {
 /// Factory function to create appropriate encryptor
 pub fn create_encryptor(algorithm: EncryptionAlgorithm) -> Box<dyn Encryptor> {
     match algorithm {
-        EncryptionAlgorithm::ChaCha20Poly1305 => {
-            Box::new(ChaCha20Poly1305Encryptor::new())
-        }
+        EncryptionAlgorithm::ChaCha20Poly1305 => Box::new(ChaCha20Poly1305Encryptor::new()),
         EncryptionAlgorithm::Aes256Gcm => {
             // TODO: Implement AES-256-GCM encryptor
             panic!("AES-256-GCM encryptor not yet implemented");
@@ -403,12 +404,8 @@ pub fn get_security_recommendations(algorithm: EncryptionAlgorithm) -> Vec<Strin
             );
         }
         EncryptionAlgorithm::Aes256Gcm => {
-            recommendations.push(
-                "AES-256-GCM may benefit from hardware acceleration".to_string(),
-            );
-            recommendations.push(
-                "Ensure constant-time implementations are used".to_string(),
-            );
+            recommendations.push("AES-256-GCM may benefit from hardware acceleration".to_string());
+            recommendations.push("Ensure constant-time implementations are used".to_string());
         }
     }
 
@@ -420,7 +417,10 @@ pub fn get_security_recommendations(algorithm: EncryptionAlgorithm) -> Vec<Strin
 }
 
 /// Compare two encryption algorithms and return security assessment
-pub fn compare_algorithms(algo1: EncryptionAlgorithm, algo2: EncryptionAlgorithm) -> AlgorithmComparison {
+pub fn compare_algorithms(
+    algo1: EncryptionAlgorithm,
+    algo2: EncryptionAlgorithm,
+) -> AlgorithmComparison {
     AlgorithmComparison {
         algorithm1: algo1,
         algorithm2: algo2,
@@ -504,12 +504,12 @@ mod tests {
 
     #[test]
     fn test_security_validation() {
-        let config = EncryptionConfig::new(EncryptionAlgorithm::ChaCha20Poly1305)
-            .with_iterations(120_000);
+        let config =
+            EncryptionConfig::new(EncryptionAlgorithm::ChaCha20Poly1305).with_iterations(120_000);
         assert!(validate_security_params(&config).is_ok());
 
-        let bad_config = EncryptionConfig::new(EncryptionAlgorithm::ChaCha20Poly1305)
-            .with_iterations(30_000);
+        let bad_config =
+            EncryptionConfig::new(EncryptionAlgorithm::ChaCha20Poly1305).with_iterations(30_000);
         assert!(validate_security_params(&bad_config).is_err());
     }
 

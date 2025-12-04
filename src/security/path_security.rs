@@ -148,19 +148,19 @@ impl SecurityProfile {
     pub fn validation_interval(&self) -> Duration {
         match self {
             Self::Minimal => Duration::from_secs(300),  // 5 minutes
-            Self::Standard => Duration::from_secs(120),  // 2 minutes
-            Self::High => Duration::from_secs(60),     // 1 minute
-            Self::Maximum => Duration::from_secs(30),    // 30 seconds
+            Self::Standard => Duration::from_secs(120), // 2 minutes
+            Self::High => Duration::from_secs(60),      // 1 minute
+            Self::Maximum => Duration::from_secs(30),   // 30 seconds
         }
     }
 
     /// Get maximum mount age before requiring re-validation
     pub fn max_mount_age(&self) -> Duration {
         match self {
-            Self::Minimal => Duration::from_secs(86400),    // 24 hours
-            Self::Standard => Duration::from_secs(43200),   // 12 hours
-            Self::High => Duration::from_secs(21600),      // 6 hours
-            Self::Maximum => Duration::from_secs(10800),    // 3 hours
+            Self::Minimal => Duration::from_secs(86400),  // 24 hours
+            Self::Standard => Duration::from_secs(43200), // 12 hours
+            Self::High => Duration::from_secs(21600),     // 6 hours
+            Self::Maximum => Duration::from_secs(10800),  // 3 hours
         }
     }
 }
@@ -231,7 +231,9 @@ impl PathSecurityValidator {
         allowed_paths: Vec<PathBuf>,
     ) -> Result<()> {
         // Validate mount point before registration
-        self.validate_mount_point(&mount_point).await.context("Mount point validation failed")?;
+        self.validate_mount_point(&mount_point)
+            .await
+            .context("Mount point validation failed")?;
 
         // Calculate initial integrity hash
         let integrity_hash = self.calculate_mount_integrity_hash(&mount_point).await?;
@@ -252,18 +254,29 @@ impl PathSecurityValidator {
             mounts.insert(mount_id.clone(), config);
         }
 
-        info!("Registered mount for security monitoring: {}", mount_point.display());
+        info!(
+            "Registered mount for security monitoring: {}",
+            mount_point.display()
+        );
 
         // Log the registration event
         self.log_security_event(PathSecurityEvent::PathValidation {
             path: mount_point.to_string_lossy().to_string(),
             operation: "mount_registration".to_string(),
-            result: ValidationResult { is_safe: true, warning_message: None, security_events: vec![], status: ValidationStatus::Valid },
+            result: ValidationResult {
+                is_safe: true,
+                warning_message: None,
+                security_events: vec![],
+                status: ValidationStatus::Valid,
+            },
             timestamp: Utc::now(),
             context: {
                 let mut ctx = HashMap::new();
                 ctx.insert("mount_id".to_string(), mount_id);
-                ctx.insert("security_profile".to_string(), format!("{:?}", self.security_profile));
+                ctx.insert(
+                    "security_profile".to_string(),
+                    format!("{:?}", self.security_profile),
+                );
                 ctx
             },
         });
@@ -322,9 +335,7 @@ impl PathSecurityValidator {
                 if !abs_path.starts_with(&mount_config.mount_point) {
                     return Ok(ValidationResult {
                         is_safe: false,
-                        warning_message: Some(
-                            "Path escapes mount boundaries".to_string(),
-                        ),
+                        warning_message: Some("Path escapes mount boundaries".to_string()),
                         security_events: vec![],
                         status: ValidationStatus::Blocked("Security violation".to_string()),
                     });
@@ -341,23 +352,32 @@ impl PathSecurityValidator {
                     }
                     if !allowed {
                         return Ok(ValidationResult {
-                        is_safe: false,
-                        warning_message: Some(
-                            "Path not in allowed paths for this mount".to_string(),
-                        ),
-                        security_events: vec![],
-                        status: ValidationStatus::Blocked("Security violation".to_string()),
-                    });
+                            is_safe: false,
+                            warning_message: Some(
+                                "Path not in allowed paths for this mount".to_string(),
+                            ),
+                            security_events: vec![],
+                            status: ValidationStatus::Blocked("Security violation".to_string()),
+                        });
                     }
                 }
 
                 // Perform symlink depth validation
-                if let Err(e) = self.validate_symlink_depth(&abs_path, mount_config.security_profile.max_symlink_depth()).await {
+                if let Err(e) = self
+                    .validate_symlink_depth(
+                        &abs_path,
+                        mount_config.security_profile.max_symlink_depth(),
+                    )
+                    .await
+                {
                     return Ok(ValidationResult {
                         is_safe: false,
                         warning_message: Some(format!("Symlink validation failed: {}", e)),
                         security_events: vec![],
-                        status: ValidationStatus::Blocked(format!("Symlink validation failed: {}", e)),
+                        status: ValidationStatus::Blocked(format!(
+                            "Symlink validation failed: {}",
+                            e
+                        )),
                     });
                 }
             }
@@ -391,25 +411,45 @@ impl PathSecurityValidator {
     pub async fn validate_mount_point(&self, mount_point: &Path) -> Result<ValidationResult> {
         // Check if mount point exists and is a directory
         if !mount_point.exists() {
-            return Err(anyhow!("Mount point does not exist: {}", mount_point.display()));
+            return Err(anyhow!(
+                "Mount point does not exist: {}",
+                mount_point.display()
+            ));
         }
 
         if !mount_point.is_dir() {
-            return Err(anyhow!("Mount point is not a directory: {}", mount_point.display()));
+            return Err(anyhow!(
+                "Mount point is not a directory: {}",
+                mount_point.display()
+            ));
         }
 
         // Check for dangerous mount locations
         let dangerous_locations = vec![
-            "/bin", "/sbin", "/usr/bin", "/usr/sbin", "/etc", "/boot", "/sys", "/proc", "/dev",
+            "/bin",
+            "/sbin",
+            "/usr/bin",
+            "/usr/sbin",
+            "/etc",
+            "/boot",
+            "/sys",
+            "/proc",
+            "/dev",
         ];
 
         for location in dangerous_locations {
             if mount_point.starts_with(location) {
                 return Ok(ValidationResult {
                     is_safe: false,
-                    warning_message: Some(format!("Mount point in dangerous location: {}", location)),
+                    warning_message: Some(format!(
+                        "Mount point in dangerous location: {}",
+                        location
+                    )),
                     security_events: vec![],
-                    status: ValidationStatus::Blocked(format!("Mount point in dangerous location: {}", location)),
+                    status: ValidationStatus::Blocked(format!(
+                        "Mount point in dangerous location: {}",
+                        location
+                    )),
                 });
             }
         }
@@ -429,7 +469,11 @@ impl PathSecurityValidator {
     }
 
     /// Check mount integrity for a specific mount
-    pub async fn check_mount_integrity(&self, mount_id: &str, mount_point: &Path) -> Result<IntegrityStatus> {
+    pub async fn check_mount_integrity(
+        &self,
+        mount_id: &str,
+        mount_point: &Path,
+    ) -> Result<IntegrityStatus> {
         // Check if mount point exists
         if !mount_point.exists() {
             return Ok(IntegrityStatus::Failed);
@@ -445,7 +489,8 @@ impl PathSecurityValidator {
                         .unwrap_or_default();
 
                     // If modified recently, requires verification
-                    if time_diff.as_secs() < 300 { // 5 minutes
+                    if time_diff.as_secs() < 300 {
+                        // 5 minutes
                         return Ok(IntegrityStatus::RequiresVerification);
                     }
                 }
@@ -472,7 +517,9 @@ impl PathSecurityValidator {
     fn is_path_blocked(&self, path: &Path) -> bool {
         let blocked_paths = self.blocked_paths.read().unwrap();
         let path_str = path.to_string_lossy();
-        blocked_paths.iter().any(|blocked| path_str.starts_with(blocked))
+        blocked_paths
+            .iter()
+            .any(|blocked| path_str.starts_with(blocked))
     }
 
     /// Block a path for security reasons
@@ -490,7 +537,11 @@ impl PathSecurityValidator {
         // In a real implementation, this could calculate checksums of important files
         let metadata = fs::metadata(mount_point).await?;
         let modified = metadata.modified()?;
-        let hash = format!("{}-{}", mount_point.display(), modified.duration_since(UNIX_EPOCH)?.as_secs());
+        let hash = format!(
+            "{}-{}",
+            mount_point.display(),
+            modified.duration_since(UNIX_EPOCH)?.as_secs()
+        );
         Ok(Some(hash))
     }
 
@@ -518,8 +569,9 @@ impl PathSecurityValidator {
                             if target.is_absolute() {
                                 current_path = target;
                             } else {
-                                let parent = current_path.parent().unwrap_or_else(|| Path::new("/"));
-                    current_path = parent.join(target);
+                                let parent =
+                                    current_path.parent().unwrap_or_else(|| Path::new("/"));
+                                current_path = parent.join(target);
                             }
                         }
                         Err(e) => {
@@ -553,7 +605,10 @@ impl PathSecurityValidator {
 
         for pattern in sensitive_patterns {
             if path.to_string_lossy().starts_with(pattern) {
-                return Err(anyhow!("Write access denied to sensitive path: {}", pattern));
+                return Err(anyhow!(
+                    "Write access denied to sensitive path: {}",
+                    pattern
+                ));
             }
         }
 
@@ -574,7 +629,10 @@ impl PathSecurityValidator {
     }
 
     /// Validate mount integrity
-    async fn validate_mount_integrity(&self, config: &MountSecurityConfig) -> Result<IntegrityStatus> {
+    async fn validate_mount_integrity(
+        &self,
+        config: &MountSecurityConfig,
+    ) -> Result<IntegrityStatus> {
         // Check if mount point still exists
         if !config.mount_point.exists() {
             return Ok(IntegrityStatus::Failed);
@@ -587,7 +645,9 @@ impl PathSecurityValidator {
         }
 
         // Calculate current integrity hash
-        let current_hash = self.calculate_mount_integrity_hash(&config.mount_point).await?;
+        let current_hash = self
+            .calculate_mount_integrity_hash(&config.mount_point)
+            .await?;
 
         // Compare with stored hash
         match (config.integrity_hash.as_ref(), current_hash.as_ref()) {
@@ -634,7 +694,11 @@ impl PathSecurityValidator {
             let file_name = entry.file_name().to_string_lossy().to_string();
             for pattern in &suspicious_patterns {
                 if file_name.contains(pattern) {
-                    warn!("Suspicious file detected in mount {}: {}", mount_point.display(), file_name);
+                    warn!(
+                        "Suspicious file detected in mount {}: {}",
+                        mount_point.display(),
+                        file_name
+                    );
                 }
             }
         }
@@ -654,34 +718,44 @@ impl PathSecurityValidator {
         events.push(event.clone());
 
         match &event {
-            PathSecurityEvent::PathValidation { result, path, .. } => {
-                match &result.status {
-                    ValidationStatus::Blocked(reason) => {
-                        warn!("Path blocked: {} - {}", path, reason);
-                    }
-                    ValidationStatus::Failed(reason) => {
-                        error!("Path validation failed: {} - {}", path, reason);
-                    }
-                    _ => {
-                        debug!("Path validated: {}", path);
-                    }
+            PathSecurityEvent::PathValidation { result, path, .. } => match &result.status {
+                ValidationStatus::Blocked(reason) => {
+                    warn!("Path blocked: {} - {}", path, reason);
                 }
-            }
-            PathSecurityEvent::MountIntegrityCheck { integrity_status, mount_point, .. } => {
-                match integrity_status {
-                    IntegrityStatus::Intact => {
-                        debug!("Mount integrity check passed: {}", mount_point);
-                    }
-                    status => {
-                        warn!("Mount integrity issue detected: {} - {:?}", mount_point, status);
-                    }
+                ValidationStatus::Failed(reason) => {
+                    error!("Path validation failed: {} - {}", path, reason);
                 }
-            }
-            PathSecurityEvent::SymlinkAttack { blocked, suspicious_path, .. } => {
+                _ => {
+                    debug!("Path validated: {}", path);
+                }
+            },
+            PathSecurityEvent::MountIntegrityCheck {
+                integrity_status,
+                mount_point,
+                ..
+            } => match integrity_status {
+                IntegrityStatus::Intact => {
+                    debug!("Mount integrity check passed: {}", mount_point);
+                }
+                status => {
+                    warn!(
+                        "Mount integrity issue detected: {} - {:?}",
+                        mount_point, status
+                    );
+                }
+            },
+            PathSecurityEvent::SymlinkAttack {
+                blocked,
+                suspicious_path,
+                ..
+            } => {
                 if *blocked {
                     warn!("Symlink attack blocked: {}", suspicious_path);
                 } else {
-                    error!("Symlink attack detected but not blocked: {}", suspicious_path);
+                    error!(
+                        "Symlink attack detected but not blocked: {}",
+                        suspicious_path
+                    );
                 }
             }
             _ => {
@@ -740,7 +814,10 @@ impl PathSecurityValidator {
         stats.insert("failed_validations".to_string(), failed_validations);
 
         let blocked_paths = self.blocked_paths.read().unwrap();
-        stats.insert("total_blocked_paths".to_string(), blocked_paths.len() as u64);
+        stats.insert(
+            "total_blocked_paths".to_string(),
+            blocked_paths.len() as u64,
+        );
 
         let mounts = self.mounts.read().unwrap();
         stats.insert("monitored_mounts".to_string(), mounts.len() as u64);
@@ -756,7 +833,10 @@ impl PathSecurityValidator {
 
         let mut report = String::new();
         report.push_str("# Fuji Path Security Report\n\n");
-        report.push_str(&format!("Generated at: {}\n\n", Utc::now().format("%Y-%m-%d %H:%M:%S UTC")));
+        report.push_str(&format!(
+            "Generated at: {}\n\n",
+            Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+        ));
 
         // Statistics section
         report.push_str("## Statistics\n\n");
@@ -783,11 +863,18 @@ impl PathSecurityValidator {
         } else {
             for event in recent_events.iter().rev() {
                 match event {
-                    PathSecurityEvent::PathValidation { path, result, timestamp, .. } => {
+                    PathSecurityEvent::PathValidation {
+                        path,
+                        result,
+                        timestamp,
+                        ..
+                    } => {
                         let status_str = match &result.status {
                             ValidationStatus::Valid => "✅ Valid".to_string(),
                             ValidationStatus::Blocked(reason) => format!("🚫 Blocked: {}", reason),
-                            ValidationStatus::RequiresVerification => "⚠️  Requires Verification".to_string(),
+                            ValidationStatus::RequiresVerification => {
+                                "⚠️  Requires Verification".to_string()
+                            }
                             ValidationStatus::Failed(reason) => format!("❌ Failed: {}", reason),
                         };
                         report.push_str(&format!(
@@ -797,11 +884,21 @@ impl PathSecurityValidator {
                             status_str
                         ));
                     }
-                    PathSecurityEvent::SymlinkAttack { suspicious_path, attack_type, timestamp, blocked, .. } => {
+                    PathSecurityEvent::SymlinkAttack {
+                        suspicious_path,
+                        attack_type,
+                        timestamp,
+                        blocked,
+                        ..
+                    } => {
                         report.push_str(&format!(
                             "- [{}] {}: {} - {:?} {}\n",
                             timestamp.format("%H:%M:%S"),
-                            if *blocked { "🚫 Blocked" } else { "⚠️  Detected" },
+                            if *blocked {
+                                "🚫 Blocked"
+                            } else {
+                                "⚠️  Detected"
+                            },
                             suspicious_path,
                             attack_type,
                             if *blocked { "" } else { "(not blocked)" }
@@ -809,7 +906,11 @@ impl PathSecurityValidator {
                     }
                     _ => {
                         let timestamp = Utc::now();
-                        report.push_str(&format!("- [{}] {:?}\n", timestamp.format("%H:%M:%S"), event));
+                        report.push_str(&format!(
+                            "- [{}] {:?}\n",
+                            timestamp.format("%H:%M:%S"),
+                            event
+                        ));
                     }
                 }
             }
@@ -826,13 +927,21 @@ impl PathSecurityValidator {
         };
 
         if let Some(config) = mount_config {
-            info!("Unregistered mount from security monitoring: {}", config.mount_point.display());
+            info!(
+                "Unregistered mount from security monitoring: {}",
+                config.mount_point.display()
+            );
 
             // Log the unregistration event
             self.log_security_event(PathSecurityEvent::PathValidation {
                 path: config.mount_point.to_string_lossy().to_string(),
                 operation: "mount_unregistration".to_string(),
-                result: ValidationResult { is_safe: true, warning_message: None, security_events: vec![], status: ValidationStatus::Valid },
+                result: ValidationResult {
+                    is_safe: true,
+                    warning_message: None,
+                    security_events: vec![],
+                    status: ValidationStatus::Valid,
+                },
                 timestamp: Utc::now(),
                 context: {
                     let mut ctx = HashMap::new();
@@ -876,12 +985,14 @@ mod tests {
         fs::create_dir(&mount_point).await?;
 
         let mount_id = "test-mount-1".to_string();
-        validator.register_mount(
-            mount_id.clone(),
-            mount_point.clone(),
-            "nfs://server.example.com/export".to_string(),
-            vec![mount_point.clone()],
-        ).await?;
+        validator
+            .register_mount(
+                mount_id.clone(),
+                mount_point.clone(),
+                "nfs://server.example.com/export".to_string(),
+                vec![mount_point.clone()],
+            )
+            .await?;
 
         // Check that mount was registered
         let config = validator.get_mount_config(&mount_id);
@@ -906,7 +1017,9 @@ mod tests {
 
         // Test dangerous system file path
         let dangerous_path = PathBuf::from("/etc/passwd");
-        let result = validator.validate_path(&dangerous_path, "read", None).await?;
+        let result = validator
+            .validate_path(&dangerous_path, "read", None)
+            .await?;
         assert!(!result.is_safe && result.warning_message.is_some());
 
         Ok(())
@@ -918,14 +1031,18 @@ mod tests {
         let blocked_path = "/tmp/suspicious";
 
         // Initially should not be blocked
-        let result = validator.validate_path(Path::new(blocked_path), "read", None).await?;
+        let result = validator
+            .validate_path(Path::new(blocked_path), "read", None)
+            .await?;
         assert!(result.is_safe && result.status == ValidationStatus::Valid);
 
         // Block the path
         validator.block_path(blocked_path);
 
         // Now should be blocked
-        let result = validator.validate_path(Path::new(blocked_path), "read", None).await?;
+        let result = validator
+            .validate_path(Path::new(blocked_path), "read", None)
+            .await?;
         assert!(!result.is_safe && result.warning_message.is_some());
 
         Ok(())
@@ -964,7 +1081,12 @@ mod tests {
         validator.log_security_event(PathSecurityEvent::PathValidation {
             path: test_path.to_string_lossy().to_string(),
             operation: "test".to_string(),
-            result: ValidationResult { is_safe: true, warning_message: None, security_events: vec![], status: ValidationStatus::Valid },
+            result: ValidationResult {
+                is_safe: true,
+                warning_message: None,
+                security_events: vec![],
+                status: ValidationStatus::Valid,
+            },
             timestamp: Utc::now(),
             context: HashMap::new(),
         });
@@ -973,11 +1095,11 @@ mod tests {
             path: "/etc/passwd".to_string(),
             operation: "test".to_string(),
             result: ValidationResult {
-                    is_safe: false,
-                    warning_message: Some("System file".to_string()),
-                    security_events: vec![],
-                    status: ValidationStatus::Blocked("Access violation".to_string()),
-                },
+                is_safe: false,
+                warning_message: Some("System file".to_string()),
+                security_events: vec![],
+                status: ValidationStatus::Blocked("Access violation".to_string()),
+            },
             timestamp: Utc::now(),
             context: HashMap::new(),
         });
@@ -1003,12 +1125,14 @@ mod tests {
         fs::create_dir(&mount_point).await?;
 
         let mount_id = "test-mount-report".to_string();
-        validator.register_mount(
-            mount_id,
-            mount_point.clone(),
-            "nfs://server.example.com/export".to_string(),
-            vec![],
-        ).await?;
+        validator
+            .register_mount(
+                mount_id,
+                mount_point.clone(),
+                "nfs://server.example.com/export".to_string(),
+                vec![],
+            )
+            .await?;
 
         // Generate some events
         validator.log_security_event(PathSecurityEvent::MountIntegrityCheck {
