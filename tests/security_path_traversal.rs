@@ -30,7 +30,11 @@ fn test_nfs_path_traversal_protection() {
             "URL should be rejected: {}",
             url
         );
-        assert!(handler.parse_url(url).is_err(), "Parse should fail: {}", url);
+        assert!(
+            handler.parse_url(url).is_err(),
+            "Parse should fail: {}",
+            url
+        );
     }
 }
 
@@ -58,7 +62,11 @@ fn test_smb_path_traversal_protection() {
             "URL should be rejected: {}",
             url
         );
-        assert!(handler.parse_url(url).is_err(), "Parse should fail: {}", url);
+        assert!(
+            handler.parse_url(url).is_err(),
+            "Parse should fail: {}",
+            url
+        );
     }
 }
 
@@ -86,7 +94,11 @@ fn test_sshfs_path_traversal_protection() {
             "URL should be rejected: {}",
             url
         );
-        assert!(handler.parse_url(url).is_err(), "Parse should fail: {}", url);
+        assert!(
+            handler.parse_url(url).is_err(),
+            "Parse should fail: {}",
+            url
+        );
     }
 }
 
@@ -129,9 +141,9 @@ fn test_encoded_path_traversal_attempts() {
 
     // These should be rejected - URL encoded path traversal attempts
     let encoded_attacks = vec![
-        "nfs://evil.com/%2e%2e%2f%2e%2e%2fetc%2fpasswd",  // ../../../etc/passwd
-        "nfs://server.com/..%2f..%2f..%2fetc%2fshadow", // /../../etc/shadow
-        "nfs://host.com/data%2f..%2f..%2froot%2fssh", // /data/../../root/ssh
+        "nfs://evil.com/%2e%2e%2f%2e%2e%2fetc%2fpasswd", // ../../../etc/passwd
+        "nfs://server.com/..%2f..%2f..%2fetc%2fshadow",  // /../../etc/shadow
+        "nfs://host.com/data%2f..%2f..%2froot%2fssh",    // /data/../../root/ssh
         "nfs://example.com/share%2F..%2F..%2F..%2Fbin%2Fsh", // /share/../../bin/sh
     ];
 
@@ -151,9 +163,9 @@ fn test_unicode_and_special_char_attacks() {
 
     // These should be rejected - Unicode and special character attacks
     let special_attacks = vec![
-        "nfs://server.com/..\u{0000}/etc/passwd", // Null byte
-        "nfs://evil.com/..../..//etc/passwd",     // Obfuscated traversal
-        "nfs://hacker.com/..//etc/passwd",       // Double slash with traversal
+        "nfs://server.com/..\u{0000}/etc/passwd",  // Null byte
+        "nfs://evil.com/..../..//etc/passwd",      // Obfuscated traversal
+        "nfs://hacker.com/..//etc/passwd",         // Double slash with traversal
         "nfs://bad.com/path/../../../etc/passwd/", // Trailing slash
         "nfs://attacker.com/..\\../..\\..\\windows\\system32\\cmd.exe", // Windows style
     ];
@@ -199,20 +211,40 @@ fn test_mount_point_generation_safety() {
                 if let Err(ref e) = result {
                     println!("✓ Correctly failed with error: {}", e);
                 }
-                assert!(result.is_err(), "Mount point generation should fail for malicious URL: {}", url);
+                assert!(
+                    result.is_err(),
+                    "Mount point generation should fail for malicious URL: {}",
+                    url
+                );
             }
             "should succeed" => {
                 if let Err(ref e) = result {
                     println!("✗ Unexpectedly failed with error: {}", e);
                 }
-                assert!(result.is_ok(), "Mount point generation should succeed for valid URL: {}", url);
+                assert!(
+                    result.is_ok(),
+                    "Mount point generation should succeed for valid URL: {}",
+                    url
+                );
                 if let Ok(mount_point) = result {
                     let mount_str = mount_point.to_string_lossy();
                     println!("✓ Generated mount point: {}", mount_str);
                     // Ensure no path traversal in generated mount point
-                    assert!(!mount_str.contains(".."), "Mount point should not contain '..': {}", mount_str);
-                    assert!(!mount_str.contains("/etc/"), "Mount point should not contain /etc/: {}", mount_str);
-                    assert!(!mount_str.contains("/bin/"), "Mount point should not contain /bin/: {}", mount_str);
+                    assert!(
+                        !mount_str.contains(".."),
+                        "Mount point should not contain '..': {}",
+                        mount_str
+                    );
+                    assert!(
+                        !mount_str.contains("/etc/"),
+                        "Mount point should not contain /etc/: {}",
+                        mount_str
+                    );
+                    assert!(
+                        !mount_str.contains("/bin/"),
+                        "Mount point should not contain /bin/: {}",
+                        mount_str
+                    );
                 }
             }
             _ => unreachable!(),

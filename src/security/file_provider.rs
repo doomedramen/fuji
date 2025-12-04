@@ -178,9 +178,9 @@ impl FileCredentialProvider {
                 &[
                     b"fuji-encryption-key-v2",
                     b"file-credential-provider",
-                    b"AES-256-GCM-encryption"
+                    b"AES-256-GCM-encryption",
                 ],
-                hkdf::HKDF_SHA256
+                hkdf::HKDF_SHA256,
             )
             .map_err(|e| anyhow!("HKDF expansion failed: {:?}", e))?;
         okm.fill(&mut encryption_key)

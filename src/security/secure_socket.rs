@@ -8,8 +8,8 @@ use crate::security::seccomp::{SeccompProfile, SecureExecutor};
 use anyhow::{anyhow, Result};
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::Path;
-use tokio::net::{UnixListener as TokioUnixListener, UnixStream as TokioUnixStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{UnixListener as TokioUnixListener, UnixStream as TokioUnixStream};
 use tracing::{debug, info, warn};
 
 /// Secure Unix socket server with seccomp filtering
@@ -29,7 +29,8 @@ impl SecureSocketServer {
 
         // Remove existing socket file if it exists
         if path.exists() {
-            tokio::fs::remove_file(path).await
+            tokio::fs::remove_file(path)
+                .await
                 .map_err(|e| anyhow!("Failed to remove existing socket {:?}: {}", path, e))?;
         }
 
@@ -49,7 +50,10 @@ impl SecureSocketServer {
             let mut executor = SecureExecutor::new(profile)?;
             executor.initialize()?;
             server.executor = Some(executor);
-            info!("Initialized seccomp filter for socket server: {:?}", profile);
+            info!(
+                "Initialized seccomp filter for socket server: {:?}",
+                profile
+            );
         }
 
         Ok(server)
@@ -57,7 +61,10 @@ impl SecureSocketServer {
 
     /// Accept a new connection with security validation
     pub async fn accept(&mut self) -> Result<SecureSocketConnection> {
-        let (stream, addr) = self.listener.accept().await
+        let (stream, addr) = self
+            .listener
+            .accept()
+            .await
             .map_err(|e| anyhow!("Failed to accept socket connection: {}", e))?;
 
         debug!("Accepted connection from {:?}", addr);
@@ -74,7 +81,8 @@ impl SecureSocketServer {
     /// Validate the connection for security
     async fn validate_connection(&self, stream: &TokioUnixStream) -> Result<()> {
         // Check if the socket is from a trusted source
-        let peer_addr = stream.peer_addr()
+        let peer_addr = stream
+            .peer_addr()
             .map_err(|e| anyhow!("Failed to get peer address: {}", e))?;
 
         // For Unix sockets, we can check the path
@@ -94,13 +102,22 @@ impl SecureSocketServer {
     /// Validate that a socket path is safe
     fn validate_socket_path(&self, path: &Path) -> Result<()> {
         // Check for path traversal attempts
-        if path.components().any(|c| c == std::path::Component::ParentDir) {
-            return Err(anyhow!("Socket path contains parent directory reference: {:?}", path));
+        if path
+            .components()
+            .any(|c| c == std::path::Component::ParentDir)
+        {
+            return Err(anyhow!(
+                "Socket path contains parent directory reference: {:?}",
+                path
+            ));
         }
 
         // Check for absolute paths (should be relative to /tmp or /var/run)
         if path.is_absolute() && !path.starts_with("/tmp/") && !path.starts_with("/var/run/") {
-            return Err(anyhow!("Socket path is not in allowed directory: {:?}", path));
+            return Err(anyhow!(
+                "Socket path is not in allowed directory: {:?}",
+                path
+            ));
         }
 
         // Check path length
@@ -113,7 +130,8 @@ impl SecureSocketServer {
 
     /// Get the local socket address
     pub fn local_addr(&self) -> Result<tokio::net::unix::SocketAddr> {
-        self.listener.local_addr()
+        self.listener
+            .local_addr()
             .map_err(|e| anyhow!("Failed to get local address: {}", e))
     }
 }
@@ -134,7 +152,9 @@ impl SecureSocketConnection {
             executor.execute_in_sandbox(|| Ok(()))?;
         }
 
-        self.stream.write_all(data).await
+        self.stream
+            .write_all(data)
+            .await
             .map_err(|e| anyhow!("Failed to send data: {}", e))?;
         Ok(())
     }
@@ -148,7 +168,10 @@ impl SecureSocketConnection {
             executor.execute_in_sandbox(|| Ok(()))?;
         }
 
-        let n = self.stream.read(buf).await
+        let n = self
+            .stream
+            .read(buf)
+            .await
             .map_err(|e| anyhow!("Failed to receive data: {}", e))?;
         Ok(n)
     }
@@ -159,11 +182,15 @@ impl SecureSocketConnection {
         let len = data.len() as u32;
 
         // Send length prefix
-        self.stream.write_u32(len).await
+        self.stream
+            .write_u32(len)
+            .await
             .map_err(|e| anyhow!("Failed to send message length: {}", e))?;
 
         // Send message data
-        self.stream.write_all(data).await
+        self.stream
+            .write_all(data)
+            .await
             .map_err(|e| anyhow!("Failed to send message data: {}", e))?;
 
         debug!("Sent message: {} bytes", len);
@@ -173,21 +200,27 @@ impl SecureSocketConnection {
     /// Receive a string message
     pub async fn receive_message(&mut self) -> Result<String> {
         // Read length prefix
-        let len = self.stream.read_u32().await
+        let len = self
+            .stream
+            .read_u32()
+            .await
             .map_err(|e| anyhow!("Failed to read message length: {}", e))?;
 
         // Validate length
-        if len > 1024 * 1024 { // 1MB limit
+        if len > 1024 * 1024 {
+            // 1MB limit
             return Err(anyhow!("Message too large: {} bytes", len));
         }
 
         // Read message data
         let mut buf = vec![0u8; len as usize];
-        self.stream.read_exact(&mut buf).await
+        self.stream
+            .read_exact(&mut buf)
+            .await
             .map_err(|e| anyhow!("Failed to read message data: {}", e))?;
 
-        let message = String::from_utf8(buf)
-            .map_err(|e| anyhow!("Invalid UTF-8 in message: {}", e))?;
+        let message =
+            String::from_utf8(buf).map_err(|e| anyhow!("Invalid UTF-8 in message: {}", e))?;
 
         debug!("Received message: {} bytes", len);
         Ok(message)
@@ -225,13 +258,15 @@ impl SecureSocketConnection {
 
     /// Get peer address
     pub fn peer_addr(&self) -> Result<tokio::net::unix::SocketAddr> {
-        self.stream.peer_addr()
+        self.stream
+            .peer_addr()
             .map_err(|e| anyhow!("Failed to get peer address: {}", e))
     }
 
     /// Get local address
     pub fn local_addr(&self) -> Result<tokio::net::unix::SocketAddr> {
-        self.stream.local_addr()
+        self.stream
+            .local_addr()
             .map_err(|e| anyhow!("Failed to get local address: {}", e))
     }
 
@@ -272,7 +307,8 @@ impl SecureSocketFactory {
         // Validate socket path
         Self::validate_socket_path(path)?;
 
-        let stream = TokioUnixStream::connect(path).await
+        let stream = TokioUnixStream::connect(path)
+            .await
             .map_err(|e| anyhow!("Failed to connect to socket {:?}: {}", path, e))?;
 
         let executor = if let Some(profile) = seccomp_profile {
@@ -285,23 +321,32 @@ impl SecureSocketFactory {
 
         debug!("Connected to secure socket: {:?}", path);
 
-        Ok(SecureSocketConnection {
-            stream,
-            executor,
-        })
+        Ok(SecureSocketConnection { stream, executor })
     }
 
     /// Validate a socket path for security
     fn validate_socket_path(path: &Path) -> Result<()> {
         // Check for path traversal
-        if path.components().any(|c| c == std::path::Component::ParentDir) {
-            return Err(anyhow!("Socket path contains parent directory reference: {:?}", path));
+        if path
+            .components()
+            .any(|c| c == std::path::Component::ParentDir)
+        {
+            return Err(anyhow!(
+                "Socket path contains parent directory reference: {:?}",
+                path
+            ));
         }
 
         // Check for absolute paths
         if path.is_absolute() {
-            if !path.starts_with("/tmp/") && !path.starts_with("/var/run/") && !path.starts_with("/var/tmp/") {
-                return Err(anyhow!("Absolute socket path must be in /tmp, /var/run, or /var/tmp: {:?}", path));
+            if !path.starts_with("/tmp/")
+                && !path.starts_with("/var/run/")
+                && !path.starts_with("/var/tmp/")
+            {
+                return Err(anyhow!(
+                    "Absolute socket path must be in /tmp, /var/run, or /var/tmp: {:?}",
+                    path
+                ));
             }
         }
 
@@ -313,7 +358,10 @@ impl SecureSocketFactory {
         // Check for unsafe characters
         let path_str = path.to_string_lossy();
         if path_str.contains('\0') || path_str.contains('\n') || path_str.contains('\r') {
-            return Err(anyhow!("Socket path contains unsafe characters: {:?}", path));
+            return Err(anyhow!(
+                "Socket path contains unsafe characters: {:?}",
+                path
+            ));
         }
 
         Ok(())
@@ -333,8 +381,8 @@ impl SocketSecurityValidator {
             return Err(anyhow!("Socket does not exist: {:?}", path));
         }
 
-        let metadata = fs::metadata(path)
-            .map_err(|e| anyhow!("Failed to get socket metadata: {}", e))?;
+        let metadata =
+            fs::metadata(path).map_err(|e| anyhow!("Failed to get socket metadata: {}", e))?;
 
         let permissions = metadata.permissions();
         let mode = permissions.mode();
@@ -351,7 +399,10 @@ impl SocketSecurityValidator {
 
         // Allow owner read/write
         if user_perms & 0o600 != 0o600 {
-            return Err(anyhow!("Socket has insufficient owner permissions: {:?}", path));
+            return Err(anyhow!(
+                "Socket has insufficient owner permissions: {:?}",
+                path
+            ));
         }
 
         // Group and others can have read/write, but not execute
@@ -361,7 +412,10 @@ impl SocketSecurityValidator {
 
         // Warn if group or others have write permissions
         if (group_perms & 0o002 != 0) || (other_perms & 0o002 != 0) {
-            warn!("Socket has write permissions for group or others: {:?}", path);
+            warn!(
+                "Socket has write permissions for group or others: {:?}",
+                path
+            );
         }
 
         Ok(())
@@ -369,11 +423,11 @@ impl SocketSecurityValidator {
 
     /// Check if socket is owned by root or current user
     pub fn validate_socket_ownership(path: &Path) -> Result<()> {
-        use std::fs;
         use nix::unistd::getuid;
+        use std::fs;
 
-        let metadata = fs::metadata(path)
-            .map_err(|e| anyhow!("Failed to get socket metadata: {}", e))?;
+        let metadata =
+            fs::metadata(path).map_err(|e| anyhow!("Failed to get socket metadata: {}", e))?;
 
         let uid = metadata.uid();
         let current_uid = getuid();

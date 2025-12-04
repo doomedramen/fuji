@@ -30,7 +30,10 @@ async fn test_encryption_with_random_hkdf_salt() {
     };
 
     // Store credential with first provider
-    provider1.store_credential("test-mount", &credential).await.unwrap();
+    provider1
+        .store_credential("test-mount", &credential)
+        .await
+        .unwrap();
 
     // Should be able to retrieve with second provider (same master key)
     let retrieved = provider2.get_credential("test-mount").await.unwrap();
@@ -53,7 +56,10 @@ async fn test_salt_quality_validation() {
         metadata: Default::default(),
     };
 
-    provider.store_credential("test-mount", &credential).await.unwrap();
+    provider
+        .store_credential("test-mount", &credential)
+        .await
+        .unwrap();
 
     // Read the encrypted file
     let contents = fs::read_to_string(&file_path).await.unwrap();
@@ -66,12 +72,16 @@ async fn test_salt_quality_validation() {
     // Should be proper base64 (divisible by 4, valid chars)
     assert!(pbkdf2_salt.len() % 4 == 0);
     assert!(hkdf_salt.len() % 4 == 0);
-    assert!(pbkdf2_salt.chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '='));
-    assert!(hkdf_salt.chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '='));
+    assert!(pbkdf2_salt
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '='));
+    assert!(hkdf_salt
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '='));
 
     // Should be reasonable length for 32-byte salts when base64 encoded
     assert_eq!(pbkdf2_salt.len(), 44); // 32 bytes = 44 base64 chars
-    assert_eq!(hkdf_salt.len(), 44);   // 32 bytes = 44 base64 chars
+    assert_eq!(hkdf_salt.len(), 44); // 32 bytes = 44 base64 chars
 }
 
 #[tokio::test]
@@ -93,8 +103,14 @@ async fn test_improved_key_separation() {
     };
 
     // Store same credential in both files
-    provider1.store_credential("test-mount", &credential).await.unwrap();
-    provider2.store_credential("test-mount", &credential).await.unwrap();
+    provider1
+        .store_credential("test-mount", &credential)
+        .await
+        .unwrap();
+    provider2
+        .store_credential("test-mount", &credential)
+        .await
+        .unwrap();
 
     // Read both encrypted files
     let contents1 = fs::read_to_string(&file_path1).await.unwrap();
@@ -108,7 +124,10 @@ async fn test_improved_key_separation() {
     let encrypted1 = store1["data"].as_str().unwrap();
     let encrypted2 = store2["data"].as_str().unwrap();
 
-    assert_ne!(encrypted1, encrypted2, "Encrypted data should be different due to random salts/nonces");
+    assert_ne!(
+        encrypted1, encrypted2,
+        "Encrypted data should be different due to random salts/nonces"
+    );
 
     // But salts should also be different (random generation)
     let salt1 = store1["pbkdf2_salt"].as_str().unwrap();
@@ -134,7 +153,10 @@ async fn test_stronger_encryption_context() {
         metadata: Default::default(),
     };
 
-    provider.store_credential("test-mount", &credential).await.unwrap();
+    provider
+        .store_credential("test-mount", &credential)
+        .await
+        .unwrap();
 
     // Read and verify the encrypted store contains proper metadata
     let contents = fs::read_to_string(&file_path).await.unwrap();
@@ -173,16 +195,25 @@ async fn test_credential_manager_encryption_integration() {
     };
 
     // Store and retrieve through credential manager
-    credential_manager.store_credential("manager-test-mount", &credential).await.unwrap();
+    credential_manager
+        .store_credential("manager-test-mount", &credential)
+        .await
+        .unwrap();
 
-    let retrieved = credential_manager.get_credential("manager-test-mount").await.unwrap();
+    let retrieved = credential_manager
+        .get_credential("manager-test-mount")
+        .await
+        .unwrap();
     assert!(retrieved.is_some());
 
     let retrieved_credential = retrieved.unwrap();
     assert_eq!(retrieved_credential.username, "manager-test");
     assert_eq!(retrieved_credential.password, "manager-pass");
     assert_eq!(retrieved_credential.domain, Some("TESTDOMAIN".to_string()));
-    assert_eq!(retrieved_credential.metadata.get("test"), Some(&"value".to_string()));
+    assert_eq!(
+        retrieved_credential.metadata.get("test"),
+        Some(&"value".to_string())
+    );
 
     // Verify credential file was created with encryption
     let cred_file = config_dir.join("fuji").join("credentials.enc");

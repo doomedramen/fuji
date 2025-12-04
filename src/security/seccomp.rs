@@ -50,7 +50,10 @@ impl SeccompProfile {
 
     /// Check if profile allows file system operations
     pub fn allows_filesystem(&self) -> bool {
-        matches!(self, Self::FileSystem | Self::Mount | Self::Daemon | Self::Test)
+        matches!(
+            self,
+            Self::FileSystem | Self::Mount | Self::Daemon | Self::Test
+        )
     }
 
     /// Check if profile allows mount operations
@@ -141,17 +144,13 @@ impl SyscallFilter {
                 "/opt".to_string(),
                 "/srv".to_string(),
             ],
-            SeccompProfile::Test => vec![
-                "/".to_string(),
-            ],
+            SeccompProfile::Test => vec!["/".to_string()],
         };
 
         let allowed_commands = match profile {
-            SeccompProfile::Minimal => vec![
-                "echo".to_string(),
-                "cat".to_string(),
-                "wc".to_string(),
-            ],
+            SeccompProfile::Minimal => {
+                vec!["echo".to_string(), "cat".to_string(), "wc".to_string()]
+            }
             SeccompProfile::Network => vec![
                 "ssh".to_string(),
                 "sshfs".to_string(),
@@ -221,7 +220,10 @@ impl SyscallFilter {
             return Ok(());
         }
 
-        info!("Initializing syscall filter with profile: {:?}", self.profile);
+        info!(
+            "Initializing syscall filter with profile: {:?}",
+            self.profile
+        );
 
         // In a real implementation, this would set up seccomp filters
         // For now, we just mark as initialized and perform validation
@@ -278,7 +280,10 @@ impl SyscallFilter {
     pub fn validate_fd_access(&self, fd: RawFd, operation: &str) -> Result<()> {
         // In a real implementation, this would check fd against allowed operations
         // For now, we just log the validation attempt
-        debug!("Validating fd {} operation '{}' in {:?} profile", fd, operation, self.profile);
+        debug!(
+            "Validating fd {} operation '{}' in {:?} profile",
+            fd, operation, self.profile
+        );
         Ok(())
     }
 
@@ -355,22 +360,66 @@ impl SecureExecutor {
         match self.profile() {
             SeccompProfile::Minimal => {
                 if !["read", "write", "socket_read", "socket_write"].contains(&operation) {
-                    return Err(anyhow!("Operation '{}' not allowed in Minimal profile", operation));
+                    return Err(anyhow!(
+                        "Operation '{}' not allowed in Minimal profile",
+                        operation
+                    ));
                 }
             }
             SeccompProfile::Network => {
-                if !["read", "write", "socket_read", "socket_write", "connect", "bind", "listen"].contains(&operation) {
-                    return Err(anyhow!("Operation '{}' not allowed in Network profile", operation));
+                if ![
+                    "read",
+                    "write",
+                    "socket_read",
+                    "socket_write",
+                    "connect",
+                    "bind",
+                    "listen",
+                ]
+                .contains(&operation)
+                {
+                    return Err(anyhow!(
+                        "Operation '{}' not allowed in Network profile",
+                        operation
+                    ));
                 }
             }
             SeccompProfile::FileSystem => {
-                if !["read", "write", "socket_read", "socket_write", "open", "close", "stat"].contains(&operation) {
-                    return Err(anyhow!("Operation '{}' not allowed in FileSystem profile", operation));
+                if ![
+                    "read",
+                    "write",
+                    "socket_read",
+                    "socket_write",
+                    "open",
+                    "close",
+                    "stat",
+                ]
+                .contains(&operation)
+                {
+                    return Err(anyhow!(
+                        "Operation '{}' not allowed in FileSystem profile",
+                        operation
+                    ));
                 }
             }
             SeccompProfile::Mount => {
-                if !["read", "write", "socket_read", "socket_write", "open", "close", "stat", "mount", "umount"].contains(&operation) {
-                    return Err(anyhow!("Operation '{}' not allowed in Mount profile", operation));
+                if ![
+                    "read",
+                    "write",
+                    "socket_read",
+                    "socket_write",
+                    "open",
+                    "close",
+                    "stat",
+                    "mount",
+                    "umount",
+                ]
+                .contains(&operation)
+                {
+                    return Err(anyhow!(
+                        "Operation '{}' not allowed in Mount profile",
+                        operation
+                    ));
                 }
             }
             SeccompProfile::Daemon => {
@@ -381,7 +430,11 @@ impl SecureExecutor {
             }
         }
 
-        debug!("Validated operation '{}' in {:?} profile", operation, self.profile());
+        debug!(
+            "Validated operation '{}' in {:?} profile",
+            operation,
+            self.profile()
+        );
         Ok(())
     }
 }
@@ -402,19 +455,28 @@ impl GlobalSeccompManager {
     }
 
     /// Initialize seccomp for a specific operation
-    pub fn initialize_operation(&mut self, operation: &str, profile: Option<SeccompProfile>) -> Result<()> {
+    pub fn initialize_operation(
+        &mut self,
+        operation: &str,
+        profile: Option<SeccompProfile>,
+    ) -> Result<()> {
         let profile = profile.unwrap_or(self.default_profile);
         let mut filter = SyscallFilter::new(profile);
         filter.initialize()?;
         self.filters.insert(operation.to_string(), filter);
 
-        info!("Initialized seccomp for operation: {} with profile: {:?}", operation, profile);
+        info!(
+            "Initialized seccomp for operation: {} with profile: {:?}",
+            operation, profile
+        );
         Ok(())
     }
 
     /// Check if an operation is initialized
     pub fn is_operation_initialized(&self, operation: &str) -> bool {
-        self.filters.get(operation).map_or(false, |f| f.is_initialized())
+        self.filters
+            .get(operation)
+            .map_or(false, |f| f.is_initialized())
     }
 
     /// Get profile for an operation
@@ -486,7 +548,10 @@ mod tests {
         let result = manager.initialize_operation("test", Some(SeccompProfile::Test));
         assert!(result.is_ok());
 
-        assert_eq!(manager.operation_profile("test"), Some(SeccompProfile::Test));
+        assert_eq!(
+            manager.operation_profile("test"),
+            Some(SeccompProfile::Test)
+        );
     }
 
     #[test]

@@ -4,14 +4,14 @@
 //! preventing command injection vulnerabilities through proper argument
 //! escaping and validation, with seccomp filtering for system call security.
 
-use anyhow::{Context, Result};
 use crate::security::seccomp::{SeccompProfile, SecureExecutor};
+use anyhow::{Context, Result};
+use lazy_static::lazy_static;
+use regex;
 use shlex;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, trace};
-use regex;
-use lazy_static::lazy_static;
 
 /// Builder for secure command execution
 #[derive(Debug, Clone)]
@@ -287,10 +287,7 @@ pub fn create_secure_mount_command(
             .arg(target)
             .args(options),
 
-        "sshfs" => base_command
-            .arg(source)
-            .arg(target)
-            .args(options),
+        "sshfs" => base_command.arg(source).arg(target).args(options),
 
         _ => return Err(anyhow::anyhow!("Unsupported mount type: {}", mount_type)),
     };
