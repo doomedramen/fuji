@@ -12,15 +12,17 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-pub mod auth;
 pub mod audit_logging;
 pub mod audit_monitoring;
 pub mod audit_monitoring_simple;
+pub mod auth;
 pub mod credential_backup;
 pub mod encryption;
 pub mod env_provider;
 pub mod file_provider;
 pub mod hardware_credential_provider;
+pub mod intrusion_detection;
+pub mod integrity;
 pub mod key_derivation;
 pub mod keyring_provider;
 pub mod path_security;

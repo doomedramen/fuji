@@ -73,6 +73,14 @@ name = "security_process_isolation_test"
 path = "tests/security_process_isolation_test.rs"
 
 [[test]]
+name = "security_intrusion_detection_test"
+path = "tests/security_intrusion_detection_test.rs"
+
+[[test]]
+name = "security_integrity_test"
+path = "tests/security_integrity_test.rs"
+
+[[test]]
 name = "mount_drivers_test"
 path = "tests/unit/mount_drivers_test.rs"
 
@@ -107,11 +115,11 @@ sha2 = "0.10"
 rand = "0.8"
 jsonwebtoken = "9.0"
 ring = "0.17.8"
+hex = "0.4"
 
 # Process isolation dependencies
 nix = "0.27"
 libc = "0.2"
-hex = "0.4"
 uuid = { version = "1.6", features = ["v4", "serde"] }
 hostname = "0.3"
 csv = "1.3"
@@ -119,7 +127,7 @@ csv = "1.3"
 
 # Platform-specific dependencies
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.27", features = ["mount", "process", "signal", "fs", "socket", "user"] }
+nix = { version = "0.27", features = ["mount", "process", "signal", "fs", "socket", "user", "mman"] }
 libc = "0.2"
 
 # Additional dependencies
