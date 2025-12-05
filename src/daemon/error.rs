@@ -116,6 +116,7 @@ pub enum DaemonError {
 /// Result type alias for daemon operations
 pub type DaemonResult<T> = Result<T, DaemonError>;
 
+#[allow(dead_code)]
 impl DaemonError {
     /// Create a new mount error
     pub fn mount_error<S: Into<String>>(message: S) -> Self {

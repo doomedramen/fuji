@@ -471,7 +471,7 @@ async fn handle_mount_request(
                         mount_id,
                         mount_point: mp,
                         integrity_status,
-                        timestamp,
+                        timestamp: _timestamp,
                         violations,
                     } => {
                         warn!(
@@ -487,7 +487,7 @@ async fn handle_mount_request(
                         mount_point: mp,
                         suspicious_path,
                         attack_type,
-                        timestamp,
+                        timestamp: _timestamp,
                         blocked,
                     } => {
                         warn!(

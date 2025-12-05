@@ -72,6 +72,7 @@ pub struct Sequence {
     pub parallel_groups: Vec<Vec<String>>,
 }
 
+#[allow(dead_code)]
 impl DependencyGraph {
     /// Create a new dependency graph
     pub fn new() -> Self {

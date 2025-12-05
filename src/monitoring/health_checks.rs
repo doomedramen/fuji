@@ -54,6 +54,7 @@ pub struct FileAccessHealthCheck;
 
 impl FileAccessHealthCheck {
     /// Create a new file access health check
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self
     }
@@ -177,7 +178,7 @@ impl PingHealthCheck {
     }
 
     /// Extract host from mount configuration
-    fn extract_host(&self, mount_config: &crate::mount::MountConfig) -> Result<String> {
+    pub fn extract_host(&self, mount_config: &crate::mount::MountConfig) -> Result<String> {
         match &mount_config.mount_type {
             MountType::NFS { host, .. } => Ok(host.clone()),
             MountType::SMB { host, .. } => Ok(host.clone()),
@@ -270,6 +271,7 @@ pub struct ProtocolHealthCheck;
 
 impl ProtocolHealthCheck {
     /// Create a new protocol health check
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self
     }

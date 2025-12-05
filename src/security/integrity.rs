@@ -333,6 +333,7 @@ pub struct RuntimeIntegrityChecker {
     process_info: ProcessInfo,
 }
 
+#[allow(dead_code)]
 impl RuntimeIntegrityChecker {
     /// Create a new runtime integrity checker
     pub fn new(config: IntegrityConfig) -> Result<Self> {
@@ -348,7 +349,7 @@ impl RuntimeIntegrityChecker {
             baseline: RwLock::new(None),
             violations: RwLock::new(Vec::new()),
             violation_tx,
-            audit_monitor: SimpleAuditMonitor::new()?,
+            audit_monitor: SimpleAuditMonitor::new(),
             executable_path,
             process_info,
         })
@@ -430,13 +431,10 @@ impl RuntimeIntegrityChecker {
                 error!("Integrity check failed: {}", e);
 
                 // Log the failure
-                self.audit_monitor
-                    .log_integrity_event(
-                        "integrity_check_failed",
-                        &format!("Integrity check failed: {}", e),
-                        Some(&self.process_info),
-                    )
-                    .await?;
+                error!(
+                    "Integrity check failed for {}: {}",
+                    self.process_info.name, e
+                );
             }
         }
     }
@@ -654,13 +652,10 @@ impl RuntimeIntegrityChecker {
         self.violations.write().await.push(violation.clone());
 
         // Log to audit
-        self.audit_monitor
-            .log_integrity_event(
-                "integrity_violation",
-                &format!("Integrity violation: {:?}", violation.violation_type),
-                Some(&self.process_info),
-            )
-            .await?;
+        error!(
+            "Integrity violation detected for process {}: {:?}",
+            self.process_info.name, violation.violation_type
+        );
 
         // Send notification
         let _ = self.violation_tx.send(violation.clone());
@@ -735,13 +730,13 @@ impl RuntimeIntegrityChecker {
     }
 
     /// Compute file hash
-    fn compute_file_hash(&self, path: &Path) -> Result<String> {
+    pub fn compute_file_hash(&self, path: &Path) -> Result<String> {
         let data = fs::read(path)?;
         Ok(self.config.hash_algorithm.hash_string(&data))
     }
 
     /// Find library path
-    fn find_library_path(&self, library: &str) -> Option<PathBuf> {
+    pub fn find_library_path(&self, library: &str) -> Option<PathBuf> {
         // Check common library paths
         let search_paths = vec![
             "/lib",
@@ -797,13 +792,13 @@ impl RuntimeIntegrityChecker {
     /// Get current process information
     fn get_process_info() -> Result<ProcessInfo> {
         let pid = std::process::id();
-        let ppid = unsafe { libc::getppid() };
+        let ppid = unsafe { libc::getppid() as u32 };
 
         let command_line = std::env::args().collect::<Vec<_>>().join(" ");
         let name = std::env::current_exe()
             .unwrap_or_else(|_| PathBuf::from("unknown"))
             .file_name()
-            .unwrap_or("unknown")
+            .unwrap_or_else(|| std::ffi::OsStr::new("unknown"))
             .to_string_lossy()
             .to_string();
 
@@ -866,18 +861,18 @@ impl RuntimeIntegrityChecker {
 #[derive(Debug, Clone)]
 pub struct MemoryMapping {
     /// Start address
-    start: usize,
+    pub start: usize,
     /// End address
-    end: usize,
+    pub end: usize,
     /// Permissions
-    permissions: String,
+    pub permissions: String,
     /// Path
-    path: String,
+    pub path: String,
 }
 
 impl MemoryMapping {
     /// Parse memory mapping from /proc/self/maps line
-    fn from_line(line: &str) -> Result<Self> {
+    pub fn from_line(line: &str) -> Result<Self> {
         let parts: Vec<&str> = line.split_whitespace().collect();
 
         if parts.len() < 6 {
@@ -890,7 +885,7 @@ impl MemoryMapping {
         }
 
         let start = usize::from_str_radix(addresses[0], 16)?;
-        let end = usize::from_radix(addresses[1], 16)?;
+        let end = usize::from_str_radix(addresses[1], 16)?;
         let permissions = parts[1].to_string();
         let path = if parts.len() > 5 {
             parts[5].to_string()

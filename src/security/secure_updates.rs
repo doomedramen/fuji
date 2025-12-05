@@ -19,9 +19,63 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tracing::{error, info, instrument, warn};
 
+use crate::security::audit_logging::{
+    AuditEvent, AuditEventType, AuditSeverity, AuditOutcome, AuditSource, AuditSourceType
+};
+
+/// Helper function to create audit events
+fn create_audit_event(event_type_name: &str, description: &str, outcome: AuditOutcome) -> AuditEvent {
+    let event_type = match event_type_name {
+        "trusted_key_added" | "trusted_key_removed" => AuditEventType::ConfigurationChange,
+        "update_started" | "update_completed" | "update_failed" => AuditEventType::SystemEvent,
+        "signature_verified" | "signature_invalid" => AuditEventType::SecurityViolation,
+        "update_package_created" => AuditEventType::ConfigurationChange,
+        "update_downloaded" => AuditEventType::DataAccess,
+        "update_verified" => AuditEventType::SystemEvent,
+        "update_installed" => AuditEventType::ConfigurationChange,
+        "update_cancelled" => AuditEventType::SystemEvent,
+        "cleanup_completed" => AuditEventType::SystemEvent,
+        "update_rollback_initiated" | "update_rolled_back" => AuditEventType::SystemEvent,
+        "integrity_check_completed" => AuditEventType::SystemEvent,
+        _ => AuditEventType::SystemEvent,
+    };
+
+    let severity = match outcome {
+        AuditOutcome::Success => AuditSeverity::Low,
+        AuditOutcome::Failure => AuditSeverity::Medium,
+        AuditOutcome::Error => AuditSeverity::High,
+        AuditOutcome::Partial => AuditSeverity::Medium,
+        AuditOutcome::Timeout => AuditSeverity::High,
+        AuditOutcome::Blocked => AuditSeverity::High,
+    };
+
+    AuditEvent {
+        id: format!("sec_update_{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)),
+        timestamp: Utc::now(),
+        event_type,
+        severity,
+        source: AuditSource {
+            identifier: "secure_updates".to_string(),
+            source_type: AuditSourceType::Process,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        outcome,
+        description: description.to_string(),
+        details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: String::new(),
+    }
+}
+
 use crate::security::audit_logging::AuditLogger;
-use crate::security::encryption::{self, EncryptionAlgorithm};
-use crate::security::integrity::{self, HashAlgorithm, IntegrityConfig, IntegrityResponseConfig, RuntimeIntegrityChecker};
+use crate::security::integrity::{
+    HashAlgorithm, IntegrityConfig, IntegrityResponseConfig, RuntimeIntegrityChecker,
+};
 use crate::security::key_derivation::KeyDerivationManager;
 
 /// Update package metadata
@@ -56,7 +110,7 @@ pub struct UpdateMetadata {
 }
 
 /// Update package type
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum UpdatePackageType {
     /// Full system update
     FullSystem,
@@ -76,7 +130,7 @@ pub enum UpdatePackageType {
 }
 
 /// Security level for updates
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SecurityLevel {
     /// Critical security update
     Critical,
@@ -106,7 +160,7 @@ pub struct DigitalSignature {
 }
 
 /// Signature algorithm
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum SignatureAlgorithm {
     /// Edwards-curve Digital Signature Algorithm
     Ed25519,
@@ -119,7 +173,7 @@ pub enum SignatureAlgorithm {
 }
 
 /// Update classification
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum UpdateClassification {
     /// Official release
     Official,
@@ -134,7 +188,7 @@ pub enum UpdateClassification {
 }
 
 /// Update status
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum UpdateStatus {
     /// Update is pending
     Pending,
@@ -246,7 +300,7 @@ pub struct SecureUpdateManager {
     /// Audit logger
     audit_logger: AuditLogger,
     /// Active updates
-    active_updates: RwLock<HashMap<String, UpdatePackage>>,
+    pub active_updates: RwLock<HashMap<String, UpdatePackage>>,
     /// Update history
     update_history: RwLock<Vec<UpdatePackage>>,
     /// Rollback history
@@ -295,7 +349,7 @@ impl Default for SecureUpdateConfig {
             staging_directory: PathBuf::from("/var/lib/fuji/updates/staging"),
             backup_directory: PathBuf::from("/var/lib/fuji/updates/backup"),
             max_concurrent_downloads: 3,
-            download_timeout_seconds: 300, // 5 minutes
+            download_timeout_seconds: 300,     // 5 minutes
             verification_timeout_seconds: 120, // 2 minutes
             enable_auto_rollback: true,
             enable_signature_verification: true,
@@ -312,13 +366,14 @@ impl Default for SecureUpdateConfig {
     }
 }
 
+#[allow(dead_code)]
 impl SecureUpdateManager {
     /// Create a new secure update manager
     pub async fn new(config: SecureUpdateConfig) -> Result<Self> {
         // Initialize key manager
-        let key_manager = Arc::new(Mutex::new(
-            KeyDerivationManager::new(crate::security::key_derivation::KeyDerivationFunction::Argon2id)
-        ));
+        let key_manager = Arc::new(Mutex::new(KeyDerivationManager::new(
+            crate::security::key_derivation::KeyDerivationFunction::Argon2id,
+        )));
 
         // Initialize integrity checker
         let integrity_config = IntegrityConfig {
@@ -328,7 +383,10 @@ impl SecureUpdateManager {
             enable_control_flow_integrity: false,
             check_interval: 300,
             alert_threshold: 3,
-            monitored_paths: vec![config.update_directory.clone(), config.staging_directory.clone()],
+            monitored_paths: vec![
+                config.update_directory.clone(),
+                config.staging_directory.clone(),
+            ],
             critical_libraries: vec![],
             hash_algorithm: HashAlgorithm::Sha256,
             response_config: IntegrityResponseConfig {
@@ -372,10 +430,14 @@ impl SecureUpdateManager {
         let mut trusted_keys = self.trusted_keys.write().await;
 
         // Load default trusted keys (in production, these would come from secure storage)
-        trusted_keys.insert("ed25519-main".to_string(),
-            "ed25519_public_key_placeholder".to_string());
-        trusted_keys.insert("rsa-main".to_string(),
-            "rsa_public_key_placeholder".to_string());
+        trusted_keys.insert(
+            "ed25519-main".to_string(),
+            "ed25519_public_key_placeholder".to_string(),
+        );
+        trusted_keys.insert(
+            "rsa-main".to_string(),
+            "rsa_public_key_placeholder".to_string(),
+        );
 
         info!("Loaded {} trusted keys", trusted_keys.len());
         Ok(())
@@ -387,10 +449,8 @@ impl SecureUpdateManager {
         let mut trusted_keys = self.trusted_keys.write().await;
         trusted_keys.insert(key_id.clone(), public_key);
 
-        self.audit_logger.log_event(
-            "trusted_key_added",
-            &format!("Added trusted key: {}", key_id),
-        ).await?;
+        let event = create_audit_event("trusted_key_added", &format!("Added trusted key: {}", key_id), AuditOutcome::Success);
+        self.audit_logger.log_event(event).await?;
 
         info!("Added trusted key: {}", key_id);
         Ok(())
@@ -400,14 +460,12 @@ impl SecureUpdateManager {
     #[instrument(skip(self))]
     pub async fn remove_trusted_key(&self, _key_id: &str) -> Result<()> {
         let mut trusted_keys = self.trusted_keys.write().await;
-        trusted_keys.remove(key_id);
+        trusted_keys.remove(_key_id);
 
-        self.audit_logger.log_event(
-            "trusted_key_removed",
-            &format!("Removed trusted key: {}", key_id),
-        ).await?;
+        let event = create_audit_event("trusted_key_removed", &format!("Removed trusted key: {}", _key_id), AuditOutcome::Success);
+        self.audit_logger.log_event(event).await?;
 
-        info!("Removed trusted key: {}", key_id);
+        info!("Removed trusted key: {}", _key_id);
         Ok(())
     }
 
@@ -457,10 +515,12 @@ impl SecureUpdateManager {
         let mut active_updates = self.active_updates.write().await;
         active_updates.insert(package_id.clone(), update_package);
 
-        self.audit_logger.log_event(
+        let event = create_audit_event(
             "update_package_created",
             &format!("Created update package: {}", package_id),
-        ).await?;
+            AuditOutcome::Success,
+        );
+        self.audit_logger.log_event(event).await?;
 
         info!("Created update package: {}", package_id);
         Ok(package_id)
@@ -470,26 +530,36 @@ impl SecureUpdateManager {
     #[instrument(skip(self))]
     pub async fn download_update(&self, package_id: &str, download_url: &str) -> Result<PathBuf> {
         let mut active_updates = self.active_updates.write().await;
-        let update_package = active_updates.get_mut(package_id)
+        let update_package = active_updates
+            .get_mut(package_id)
             .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?;
 
         // Update status and start download stage
         update_package.status = UpdateStatus::Downloading;
-        if let Some(stage) = update_package.stages.iter_mut()
-            .find(|s| s.stage_id == "download") {
+        if let Some(stage) = update_package
+            .stages
+            .iter_mut()
+            .find(|s| s.stage_id == "download")
+        {
             stage.status = UpdateStatus::Downloading;
             stage.start_time = Some(Utc::now());
             stage.progress = 0;
         }
 
-        let local_path = self.config.staging_directory.join(format!("{}.pkg", package_id));
+        let local_path = self
+            .config
+            .staging_directory
+            .join(format!("{}.pkg", package_id));
 
         // Download the file
         self.download_file(download_url, &local_path).await?;
 
         // Update download stage
-        if let Some(stage) = update_package.stages.iter_mut()
-            .find(|s| s.stage_id == "download") {
+        if let Some(stage) = update_package
+            .stages
+            .iter_mut()
+            .find(|s| s.stage_id == "download")
+        {
             stage.status = UpdateStatus::Completed;
             stage.completion_time = Some(Utc::now());
             stage.progress = 100;
@@ -498,12 +568,20 @@ impl SecureUpdateManager {
         update_package.local_path = Some(local_path.clone());
         update_package.updated_at = Utc::now();
 
-        self.audit_logger.log_event(
+        let event = create_audit_event(
             "update_downloaded",
-            &format!("Downloaded update package: {} from {}", package_id, download_url),
-        ).await?;
+            &format!(
+                "Downloaded update package: {} from {}",
+                package_id, download_url
+            ),
+            AuditOutcome::Success,
+        );
+        self.audit_logger.log_event(event).await?;
 
-        info!("Downloaded update package: {} to {:?}", package_id, local_path);
+        info!(
+            "Downloaded update package: {} to {:?}",
+            package_id, local_path
+        );
         Ok(local_path)
     }
 
@@ -539,57 +617,98 @@ impl SecureUpdateManager {
             verified_at: Utc::now(),
         };
 
-        let active_updates = self.active_updates.read().await;
-        let update_package = active_updates.get(package_id)
-            .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?;
+        let local_path = {
+            let active_updates = self.active_updates.read().await;
+            let update_package = active_updates
+                .get(package_id)
+                .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?;
 
-        let local_path = update_package.local_path.as_ref()
-            .ok_or_else(|| anyhow!("Update package not downloaded"))?;
+            update_package
+                .local_path
+                .as_ref()
+                .ok_or_else(|| anyhow!("Update package not downloaded"))?
+                .clone()
+        };
 
         // Update status
-        drop(active_updates);
-        self.update_stage_status(package_id, "verify", UpdateStatus::Verifying).await?;
+        self.update_stage_status(package_id, "verify", UpdateStatus::Verifying)
+            .await?;
 
         // Perform integrity verification
         if self.config.enable_integrity_verification {
-            match self.verify_package_integrity(local_path, &update_package.metadata).await {
+            let update_package = {
+                let active_updates = self.active_updates.read().await;
+                active_updates
+                    .get(package_id)
+                    .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?
+                    .clone()
+            };
+            match self
+                .verify_package_integrity(local_path.as_path(), &update_package.metadata)
+                .await
+            {
                 Ok(_) => {
                     result.integrity_verified = true;
                     info!("Package integrity verified for: {}", package_id);
                 }
                 Err(e) => {
-                    result.errors.push(format!("Integrity verification failed: {}", e));
+                    result
+                        .errors
+                        .push(format!("Integrity verification failed: {}", e));
                     error!("Integrity verification failed for {}: {}", package_id, e);
                 }
             }
         } else {
             result.integrity_verified = true;
-            result.warnings.push("Integrity verification disabled".to_string());
+            result
+                .warnings
+                .push("Integrity verification disabled".to_string());
         }
 
         // Perform signature verification
         if self.config.enable_signature_verification {
-            match self.verify_package_signatures(&update_package.metadata).await {
+            let update_package = {
+                let active_updates = self.active_updates.read().await;
+                active_updates
+                    .get(package_id)
+                    .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?
+                    .clone()
+            };
+            match self
+                .verify_package_signatures(&update_package.metadata)
+                .await
+            {
                 Ok(_) => {
                     result.signatures_verified = true;
                     info!("Package signatures verified for: {}", package_id);
                 }
                 Err(e) => {
-                    result.errors.push(format!("Signature verification failed: {}", e));
+                    result
+                        .errors
+                        .push(format!("Signature verification failed: {}", e));
                     error!("Signature verification failed for {}: {}", package_id, e);
                 }
             }
         } else {
             result.signatures_verified = true;
-            result.warnings.push("Signature verification disabled".to_string());
+            result
+                .warnings
+                .push("Signature verification disabled".to_string());
         }
 
         // Check dependencies
+        let update_package = {
+            let active_updates = self.active_updates.read().await;
+            active_updates
+                .get(package_id)
+                .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?
+                .clone()
+        };
         result.dependencies_satisfied = self.check_dependencies(&update_package.metadata).await?;
 
         // Perform security checks
         if self.config.enable_security_scanning {
-            match self.perform_security_checks(local_path).await {
+            match self.perform_security_checks(local_path.as_path()).await {
                 Ok(_) => {
                     result.security_checks_passed = true;
                     info!("Security checks passed for: {}", package_id);
@@ -601,7 +720,9 @@ impl SecureUpdateManager {
             }
         } else {
             result.security_checks_passed = true;
-            result.warnings.push("Security scanning disabled".to_string());
+            result
+                .warnings
+                .push("Security scanning disabled".to_string());
         }
 
         // Overall validity
@@ -620,29 +741,41 @@ impl SecureUpdateManager {
             }
         };
 
-        self.update_stage_status(package_id, "verify", status).await?;
+        self.update_stage_status(package_id, "verify", status)
+            .await?;
 
-        self.audit_logger.log_event(
+        let event = create_audit_event(
             "update_verified",
-            &format!("Update package verification completed: {} - Valid: {}",
-                package_id, result.is_valid),
-        ).await?;
+            &format!(
+                "Update package verification completed: {} - Valid: {}",
+                package_id, result.is_valid
+            ),
+            if result.is_valid { AuditOutcome::Success } else { AuditOutcome::Failure },
+        );
+        self.audit_logger.log_event(event).await?;
 
         Ok(result)
     }
 
     /// Verify package integrity
-    async fn verify_package_integrity(&self, package_path: &Path, metadata: &UpdateMetadata) -> Result<()> {
+    async fn verify_package_integrity(
+        &self,
+        package_path: &Path,
+        metadata: &UpdateMetadata,
+    ) -> Result<()> {
         let file_content = fs::read(package_path)?;
         // Use SHA-256 for integrity verification
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let calculated_hash = hex::encode(Sha256::digest(&file_content));
 
         // Check against metadata checksums
         if let Some(expected_hash) = metadata.checksums.get("sha256") {
             if calculated_hash != *expected_hash {
-                return Err(anyhow!("Checksum mismatch: expected {}, got {}",
-                    expected_hash, calculated_hash));
+                return Err(anyhow!(
+                    "Checksum mismatch: expected {}, got {}",
+                    expected_hash,
+                    calculated_hash
+                ));
             }
         } else {
             return Err(anyhow!("No SHA256 checksum found in metadata"));
@@ -710,7 +843,8 @@ impl SecureUpdateManager {
 
         // Check file size
         let metadata = fs::metadata(package_path)?;
-        if metadata.len() > 100_000_000 { // 100MB limit
+        if metadata.len() > 100_000_000 {
+            // 100MB limit
             return Err(anyhow!("Package too large: {} bytes", metadata.len()));
         }
 
@@ -718,11 +852,19 @@ impl SecureUpdateManager {
     }
 
     /// Update stage status
-    async fn update_stage_status(&self, package_id: &str, stage_id: &str, status: UpdateStatus) -> Result<()> {
+    async fn update_stage_status(
+        &self,
+        package_id: &str,
+        stage_id: &str,
+        status: UpdateStatus,
+    ) -> Result<()> {
         let mut active_updates = self.active_updates.write().await;
         if let Some(update_package) = active_updates.get_mut(package_id) {
-            if let Some(stage) = update_package.stages.iter_mut()
-                .find(|s| s.stage_id == stage_id) {
+            if let Some(stage) = update_package
+                .stages
+                .iter_mut()
+                .find(|s| s.stage_id == stage_id)
+            {
                 stage.status = status.clone();
                 match status {
                     UpdateStatus::Completed => {
@@ -743,40 +885,51 @@ impl SecureUpdateManager {
     /// Install verified update
     #[instrument(skip(self))]
     pub async fn install_update(&self, package_id: &str) -> Result<()> {
-        let mut active_updates = self.active_updates.write().await;
-        let update_package = active_updates.get_mut(package_id)
-            .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?;
+        let local_path = {
+            let mut active_updates = self.active_updates.write().await;
+            let update_package = active_updates
+                .get_mut(package_id)
+                .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?;
 
-        let local_path = update_package.local_path.as_ref()
-            .ok_or_else(|| anyhow!("Update package not downloaded"))?;
+            let local_path = update_package
+                .local_path
+                .as_ref()
+                .ok_or_else(|| anyhow!("Update package not downloaded"))?
+                .clone();
 
-        // Update status and start install stage
-        update_package.status = UpdateStatus::Installing;
-        if let Some(stage) = update_package.stages.iter_mut()
-            .find(|s| s.stage_id == "install") {
-            stage.status = UpdateStatus::Installing;
-            stage.start_time = Some(Utc::now());
-            stage.progress = 0;
-        }
+            // Update status and start install stage
+            update_package.status = UpdateStatus::Installing;
+            if let Some(stage) = update_package
+                .stages
+                .iter_mut()
+                .find(|s| s.stage_id == "install")
+            {
+                stage.status = UpdateStatus::Installing;
+                stage.start_time = Some(Utc::now());
+                stage.progress = 0;
+            }
+
+            local_path
+        };
 
         // Create backup before installation
-        let backup_info = self.create_backup(package_id).await?;
+        let _backup_info = self.create_backup(package_id).await?;
         info!("Created backup before installing update: {}", package_id);
-
-        // Perform installation
-        drop(active_updates);
-        match self.perform_installation(package_id, local_path).await {
+        match self.perform_installation(package_id, local_path.as_path()).await {
             Ok(_) => {
                 // Update installation stage
-                self.update_stage_status(package_id, "install", UpdateStatus::Completed).await?;
+                self.update_stage_status(package_id, "install", UpdateStatus::Completed)
+                    .await?;
 
                 // Move to history
                 self.move_to_history(package_id).await?;
 
-                self.audit_logger.log_event(
+                let event = create_audit_event(
                     "update_installed",
                     &format!("Successfully installed update package: {}", package_id),
-                ).await?;
+                    AuditOutcome::Success,
+                );
+                self.audit_logger.log_event(event).await?;
 
                 info!("Successfully installed update package: {}", package_id);
                 Ok(())
@@ -787,18 +940,24 @@ impl SecureUpdateManager {
                 // Rollback if enabled
                 if self.config.enable_auto_rollback {
                     warn!("Auto-rollback enabled, rolling back update: {}", package_id);
-                    if let Err(rollback_err) = self.rollback_update(package_id, "Installation failed").await {
+                    if let Err(rollback_err) = self
+                        .rollback_update(package_id, "Installation failed")
+                        .await
+                    {
                         error!("Rollback also failed: {}", rollback_err);
                     }
                 }
 
                 // Update installation stage
-                self.update_stage_status(package_id, "install",
+                self.update_stage_status(
+                    package_id,
+                    "install",
                     UpdateStatus::Failed {
                         error_code: "INSTALLATION_FAILED".to_string(),
                         error_message: e.to_string(),
-                    }
-                ).await?;
+                    },
+                )
+                .await?;
 
                 Err(e)
             }
@@ -807,13 +966,18 @@ impl SecureUpdateManager {
 
     /// Create backup before installation
     async fn create_backup(&self, package_id: &str) -> Result<PathBuf> {
-        let backup_path = self.config.backup_directory.join(format!("backup_{}", package_id));
+        let backup_path = self
+            .config
+            .backup_directory
+            .join(format!("backup_{}", package_id));
         fs::create_dir_all(&backup_path)?;
 
         // In a real implementation, this would backup relevant files
         // For now, create a marker file
-        fs::write(backup_path.join("backup_info.txt"),
-            format!("Backup created for update: {}", package_id))?;
+        fs::write(
+            backup_path.join("backup_info.txt"),
+            format!("Backup created for update: {}", package_id),
+        )?;
 
         info!("Created backup at: {:?}", backup_path);
         Ok(backup_path)
@@ -821,7 +985,10 @@ impl SecureUpdateManager {
 
     /// Perform the actual installation
     async fn perform_installation(&self, package_id: &str, package_path: &Path) -> Result<()> {
-        info!("Installing update package: {} from {:?}", package_id, package_path);
+        info!(
+            "Installing update package: {} from {:?}",
+            package_id, package_path
+        );
 
         // In a real implementation, this would:
         // 1. Extract the package
@@ -833,23 +1000,34 @@ impl SecureUpdateManager {
         // Simulate installation progress
         for i in 0..10 {
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-            self.update_stage_progress(package_id, "install", (i + 1) * 10).await?;
+            self.update_stage_progress(package_id, "install", (i + 1) * 10)
+                .await?;
             info!("Installation progress: {}%", (i + 1) * 10);
         }
 
         // Simulate successful installation
-        fs::write("/tmp/fuji_update_marker",
-            format!("Update {} installed at {}", package_id, Utc::now()))?;
+        fs::write(
+            "/tmp/fuji_update_marker",
+            format!("Update {} installed at {}", package_id, Utc::now()),
+        )?;
 
         Ok(())
     }
 
     /// Update stage progress
-    async fn update_stage_progress(&self, package_id: &str, stage_id: &str, progress: u8) -> Result<()> {
+    async fn update_stage_progress(
+        &self,
+        package_id: &str,
+        stage_id: &str,
+        progress: u8,
+    ) -> Result<()> {
         let mut active_updates = self.active_updates.write().await;
         if let Some(update_package) = active_updates.get_mut(package_id) {
-            if let Some(stage) = update_package.stages.iter_mut()
-                .find(|s| s.stage_id == stage_id) {
+            if let Some(stage) = update_package
+                .stages
+                .iter_mut()
+                .find(|s| s.stage_id == stage_id)
+            {
                 stage.progress = progress.min(100);
             }
         }
@@ -879,7 +1057,7 @@ impl SecureUpdateManager {
     pub async fn rollback_update(&self, package_id: &str, reason: &str) -> Result<()> {
         info!("Rolling back update: {} - Reason: {}", package_id, reason);
 
-        let rollback_info = RollbackInfo {
+        let mut rollback_info = RollbackInfo {
             rollback_id: format!("rollback_{}", package_id),
             original_update_id: package_id.to_string(),
             reason: reason.to_string(),
@@ -910,10 +1088,12 @@ impl SecureUpdateManager {
             rollback_history.remove(0);
         }
 
-        self.audit_logger.log_event(
+        let event = create_audit_event(
             "update_rolled_back",
             &format!("Update rolled back: {} - Reason: {}", package_id, reason),
-        ).await?;
+            AuditOutcome::Success,
+        );
+        self.audit_logger.log_event(event).await?;
 
         info!("Successfully rolled back update: {}", package_id);
         Ok(())
@@ -944,7 +1124,10 @@ impl SecureUpdateManager {
 
         if let Some(update_package) = active_updates.get(package_id) {
             Ok(Some(update_package.status.clone()))
-        } else if let Some(update_package) = update_history.iter().find(|u| u.metadata.package_id == package_id) {
+        } else if let Some(update_package) = update_history
+            .iter()
+            .find(|u| u.metadata.package_id == package_id)
+        {
             Ok(Some(update_package.status.clone()))
         } else {
             Ok(None)
@@ -964,7 +1147,10 @@ impl SecureUpdateManager {
 
             // Update all pending stages to cancelled
             for stage in &mut update_package.stages {
-                if matches!(stage.status, UpdateStatus::Pending | UpdateStatus::Downloading | UpdateStatus::Verifying) {
+                if matches!(
+                    stage.status,
+                    UpdateStatus::Pending | UpdateStatus::Downloading | UpdateStatus::Verifying
+                ) {
                     stage.status = UpdateStatus::Failed {
                         error_code: "CANCELLED".to_string(),
                         error_message: "Update was cancelled".to_string(),
@@ -980,10 +1166,12 @@ impl SecureUpdateManager {
                 }
             }
 
-            self.audit_logger.log_event(
+            let event = create_audit_event(
                 "update_cancelled",
                 &format!("Update cancelled: {}", package_id),
-            ).await?;
+                AuditOutcome::Success,
+            );
+            self.audit_logger.log_event(event).await?;
 
             info!("Cancelled update: {}", package_id);
         }
@@ -1036,10 +1224,12 @@ impl SecureUpdateManager {
             }
         }
 
-        self.audit_logger.log_event(
+        let event = create_audit_event(
             "cleanup_completed",
             &format!("Cleaned up {} old update files", cleaned_count),
-        ).await?;
+            AuditOutcome::Success,
+        );
+        self.audit_logger.log_event(event).await?;
 
         info!("Cleanup completed. Removed {} old files.", cleaned_count);
         Ok(cleaned_count)
@@ -1050,6 +1240,7 @@ impl SecureUpdateManager {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+    use crate::security::integrity;
 
     #[tokio::test]
     async fn test_secure_update_manager_creation() -> Result<()> {
@@ -1082,6 +1273,7 @@ mod tests {
         let metadata = UpdateMetadata {
             package_id: "test-update-001".to_string(),
             version: "1.0.0".to_string(),
+            previous_version: None,
             description: "Test update package".to_string(),
             package_type: UpdatePackageType::SecurityPatch,
             security_level: SecurityLevel::High,
@@ -1117,10 +1309,9 @@ mod tests {
         let manager = SecureUpdateManager::new(config).await?;
 
         // Add trusted key
-        manager.add_trusted_key(
-            "test-key".to_string(),
-            "test-public-key".to_string()
-        ).await?;
+        manager
+            .add_trusted_key("test-key".to_string(), "test-public-key".to_string())
+            .await?;
 
         // Remove trusted key
         manager.remove_trusted_key("test-key").await?;
@@ -1144,12 +1335,15 @@ mod tests {
 
         // Create update with checksum
         let mut checksums = HashMap::new();
-        checksums.insert("sha256".to_string(),
-            hex::encode(integrity::hash_data(b"test content")));
+        checksums.insert(
+            "sha256".to_string(),
+            hex::encode(integrity::hash_data(b"test content")),
+        );
 
         let metadata = UpdateMetadata {
             package_id: "test-update-002".to_string(),
             version: "1.0.0".to_string(),
+            previous_version: None,
             description: "Test update package".to_string(),
             package_type: UpdatePackageType::SecurityPatch,
             security_level: SecurityLevel::High,
@@ -1200,7 +1394,9 @@ mod tests {
         fs::write("/tmp/fuji_update_marker", "test")?;
 
         // Perform rollback
-        manager.rollback_update("test-update-003", "Test rollback").await?;
+        manager
+            .rollback_update("test-update-003", "Test rollback")
+            .await?;
 
         // Verify marker is removed
         assert!(!fs::metadata("/tmp/fuji_update_marker").is_ok());
@@ -1231,10 +1427,11 @@ mod tests {
         fs::write(old_backup.join("test.txt"), "test")?;
 
         // Set old modification time
-        let old_time = std::time::SystemTime::now() - std::time::Duration::from_secs(31 * 24 * 60 * 60);
+        let old_time =
+            std::time::SystemTime::now() - std::time::Duration::from_secs(31 * 24 * 60 * 60);
         filetime::set_file_mtime(
             temp_dir.path().join("backup").join("old-backup"),
-            filetime::FileTime::from_system_time(old_time)
+            filetime::FileTime::from_system_time(old_time),
         )?;
 
         // Run cleanup

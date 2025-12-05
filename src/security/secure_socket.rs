@@ -145,6 +145,7 @@ pub struct SocketSecurityContext {
     encryptor: ChaCha20Poly1305Encryptor,
 }
 
+#[allow(dead_code)]
 impl SocketSecurityContext {
     /// Create a new security context
     pub fn new(config: SocketSecurityConfig) -> Result<Self> {
@@ -549,6 +550,7 @@ pub struct SecureSocketConnection {
     sender_id: String,
 }
 
+#[allow(dead_code)]
 impl SecureSocketConnection {
     /// Send data with security validation
     pub async fn send(&mut self, data: &[u8]) -> Result<()> {

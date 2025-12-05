@@ -159,6 +159,7 @@ impl Default for GlobalConfig {
     }
 }
 
+#[allow(dead_code)]
 impl Config {
     /// Load configuration from various possible locations
     pub async fn load(platform: &dyn Platform) -> Result<Self> {

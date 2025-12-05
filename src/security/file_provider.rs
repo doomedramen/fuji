@@ -20,12 +20,12 @@ use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{debug, info, warn};
 
-use serde::{Deserialize, Serialize};
 use super::{
     encryption::{create_encryptor, EncryptedData, EncryptionAlgorithm, EncryptionConfig},
     Credential, CredentialProvider,
 };
 use base64::{engine::general_purpose, Engine as _};
+use serde::{Deserialize, Serialize};
 
 /// Number of PBKDF2 iterations - OWASP recommends at least 120,000 for PBKDF2-HMAC-SHA256
 const PBKDF2_ITERATIONS: u32 = 120_000;
@@ -379,6 +379,7 @@ impl FileCredentialProvider {
         // Decrypt using legacy AES-256-GCM
         {
             use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
+            use aes_gcm::aead::{Aead};
 
             let cipher = Aes256Gcm::new_from_slice(&encryption_key)
                 .map_err(|e| anyhow!("Failed to create legacy cipher: {}", e))?;
@@ -392,7 +393,7 @@ impl FileCredentialProvider {
                 .map_err(|e| anyhow!("Failed to decode decrypted data: {}", e))?;
 
             serde_json::from_str(&json)
-                .map_err(|e| anyhow!("Failed to parse decrypted credentials: {}", e))
+                .map_err(|e| anyhow!("Failed to parse decrypted credentials: {}", e))?
         }
 
         {

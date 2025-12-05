@@ -4,22 +4,18 @@
 //! and advanced cryptographic operations for secure credential management.
 
 use anyhow::{anyhow, Result};
-use chacha20poly1305::{
-    aead::{Aead, KeyInit},
-    ChaCha20Poly1305, Key, Nonce,
-};
-use serde::{Deserialize, Serialize};
+use chacha20poly1305::ChaCha20Poly1305;
 use pbkdf2::pbkdf2_hmac;
 use rand::{rngs::OsRng, RngCore};
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{RwLock, Semaphore};
-use tracing::{debug, error, info, warn};
+use tracing::{info};
 
-use crate::security::encryption::{EncryptedData, EncryptionAlgorithm};
 
 /// Hardware-backed credential provider
 pub struct HardwareCredentialProvider {
@@ -131,7 +127,7 @@ pub struct KeyDerivationParams {
 #[async_trait::async_trait]
 pub trait HSMBACKEND: Send + Sync {
     /// Store a key in the HSM
-    async fn store_key(&self, ____key_id: &str, _key____data: &[u8]) -> Result<()>;
+    async fn store_key(&self, ____key_id: &str, _key_data: &[u8]) -> Result<()>;
 
     /// Retrieve a key from the HSM
     async fn get_key(&self, ____key_id: &str) -> Result<Option<Vec<u8>>>;
@@ -140,7 +136,7 @@ pub trait HSMBACKEND: Send + Sync {
     async fn delete_key(&self, ____key_id: &str) -> Result<()>;
 
     /// Rotate a key in the HSM
-    async fn rotate_key(&self, ____key_id: &str, new__key____data: &[u8]) -> Result<()>;
+    async fn rotate_key(&self, ____key_id: &str, new_key_data: &[u8]) -> Result<()>;
 
     /// List all keys in the HSM
     async fn list_keys(&self) -> Result<Vec<String>>;
@@ -188,6 +184,7 @@ struct ChaCha20Poly1305Encryptor {
     cipher: ChaCha20Poly1305,
 }
 
+#[allow(dead_code)]
 impl HardwareCredentialProvider {
     /// Create a new hardware-backed credential provider
     pub fn new(hsm_backend: Arc<dyn HSMBACKEND>) -> Self {
@@ -254,7 +251,7 @@ impl HardwareCredentialProvider {
         // Try cache first
         {
             let cache = self.key_cache.read().await;
-            if let Some(cached_key) = cache.get(&key_id) {
+            if let Some(_cached_key) = cache.get(&key_id) {
                 // Update access statistics
                 drop(cache);
                 self.update_key_access_stats(&key_id).await;
@@ -348,7 +345,7 @@ impl HardwareCredentialProvider {
     /// Create enhanced credential with security metadata
     async fn create_enhanced_credential(
         &self,
-        mount_id: &str,
+        _mount_id: &str,
         credential: &crate::security::Credential,
     ) -> Result<EnhancedCredential> {
         let kdf_params = KeyDerivationParams {
@@ -425,7 +422,7 @@ impl HardwareCredentialProvider {
         pbkdf2_hmac::<Sha256>(
             &key_material,
             &credential.security_metadata.kdf_params.salt,
-            credential.security_metadata.kdf_params.iterations as usize,
+            credential.security_metadata.kdf_params.iterations,
             &mut derived_key,
         );
 
@@ -433,7 +430,7 @@ impl HardwareCredentialProvider {
     }
 
     /// Decrypt credential using key data
-    fn decrypt_credential(&self, _key____data: &[u8]) -> Result<EnhancedCredential> {
+    fn decrypt_credential(&self, _key_data: &[u8]) -> Result<EnhancedCredential> {
         // Implementation would decrypt credential from encrypted storage
         // For now, this is a placeholder that would contain the actual decryption logic
         Err(anyhow!("Credential decryption not fully implemented"))
@@ -442,7 +439,7 @@ impl HardwareCredentialProvider {
     /// Update key access statistics
     async fn update_key_access_stats(&self, ____key_id: &str) {
         let mut cache = self.key_cache.write().await;
-        if let Some(cached_key) = cache.get_mut(key_id) {
+        if let Some(cached_key) = cache.get_mut(____key_id) {
             cached_key.last_accessed = SystemTime::now();
             cached_key.access_count += 1;
         }
@@ -476,7 +473,7 @@ impl Default for SecurityPolicy {
 
 #[async_trait::async_trait]
 impl HSMBACKEND for SoftwareHSM {
-    async fn store_key(&self, ____key_id: &str, _key____data: &[u8]) -> Result<()> {
+    async fn store_key(&self, ____key_id: &str, _key_data: &[u8]) -> Result<()> {
         // Implementation for software HSM key storage
         Err(anyhow!("Software HSM implementation not completed"))
     }
@@ -491,7 +488,7 @@ impl HSMBACKEND for SoftwareHSM {
         Ok(())
     }
 
-    async fn rotate_key(&self, ____key_id: &str, new__key____data: &[u8]) -> Result<()> {
+    async fn rotate_key(&self, ____key_id: &str, _new_key_data: &[u8]) -> Result<()> {
         // Implementation for software HSM key rotation
         Ok(())
     }
@@ -529,11 +526,12 @@ impl HSMBACKEND for SoftwareHSM {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::security::{Credential, CredentialManager};
+    use crate::security::Credential;
+    use chacha20poly1305::{Key, KeyInit};
 
     #[test]
     fn test_security_policy_validation() {
-        let policy = SecurityPolicy::default();
+        let _policy = SecurityPolicy::default();
 
         // Valid password
         assert!(HardwareCredentialProvider::new(Arc::new(SoftwareHSM {

@@ -12,7 +12,7 @@ use tokio::sync::{mpsc, RwLock};
 use tracing::{error, info, warn};
 
 use crate::security::audit_logging::{
-    AuditEvent, AuditEventType, AuditOutcome, AuditSeverity, AuditSource,
+    AuditEvent, AuditEventType, AuditOutcome, AuditSeverity,
 };
 
 /// Real-time audit monitor for security event analysis
@@ -174,6 +174,7 @@ pub struct MonitoringStatistics {
     pub last_update: Option<DateTime<Utc>>,
 }
 
+#[allow(dead_code)]
 impl AuditMonitor {
     /// Create new audit monitor
     pub fn new(config: AuditMonitoringConfig) -> Self {
@@ -305,7 +306,7 @@ impl AuditMonitor {
         let config = self.config.clone();
 
         tokio::spawn(async move {
-            let mut event_count = 0;
+            let mut _event_count = 0;
             let mut last_minute_count = 0;
             let mut last_minute_time = Utc::now();
 
@@ -369,7 +370,7 @@ impl AuditMonitor {
                         let mut alert_count = 0;
                         for alert in alerts {
                             // Check cooldown
-                            if Self::should_send_alert(&alert, &active_alerts, &config).await {
+                            if should_send_alert(&alert, &active_alerts, &config).await {
                                 // Add to active alerts
                                 {
                                     let mut alerts_map = active_alerts.write().await;
@@ -404,7 +405,6 @@ impl AuditMonitor {
 
     /// Check if alert should be sent (cooldown and duplicate checks)
     async fn should_send_alert(
-        &self,
         alert: &SecurityAlert,
         active_alerts: &Arc<RwLock<HashMap<String, SecurityAlert>>>,
         config: &AuditMonitoringConfig,
@@ -424,6 +424,28 @@ impl AuditMonitor {
 
         true
     }
+}
+
+/// Standalone function to check if an alert should be sent
+async fn should_send_alert(
+    alert: &SecurityAlert,
+    active_alerts: &Arc<RwLock<HashMap<String, SecurityAlert>>>,
+    config: &AuditMonitoringConfig,
+) -> bool {
+    let alerts = active_alerts.read().await;
+
+    // Check for similar active alerts
+    for existing_alert in alerts.values() {
+        if existing_alert.alert_type == alert.alert_type
+            && existing_alert.status == AlertStatus::Active
+            && (alert.timestamp - existing_alert.timestamp).num_seconds()
+                < config.alert_cooldown as i64
+        {
+            return false; // Suppress duplicate alert
+        }
+    }
+
+    true
 }
 
 /// Brute force attack detector
@@ -813,6 +835,17 @@ impl PolicyViolationDetector {
             config: config.clone(),
         }
     }
+
+    /// Check if an IP address represents an unusual location
+    fn is_unusual_location(&self, ip: &str) -> bool {
+        // Simple heuristic: consider non-private IPs as potentially unusual
+        // In a real implementation, this would check against known locations
+        !ip.starts_with("192.168.") &&
+        !ip.starts_with("10.") &&
+        !ip.starts_with("172.16.") &&
+        !ip.starts_with("127.") &&
+        ip != "localhost"
+    }
 }
 
 impl PatternDetector for PolicyViolationDetector {
@@ -973,7 +1006,7 @@ impl AlertHandler for SystemResponseHandler {
                 // - Require re-authentication
                 // - Log additional context
             }
-            AlertType::SecurityViolation => {
+            AlertType::PolicyViolation => {
                 warn!("Initiating response to security violation");
                 // In a real implementation, this might:
                 // - Trigger additional logging

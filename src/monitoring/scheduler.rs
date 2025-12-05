@@ -45,6 +45,7 @@ struct HealthCheckJob {
     last_run: Option<DateTime<Utc>>,
 }
 
+#[allow(dead_code)]
 impl HealthCheckScheduler {
     /// Create a new health check scheduler
     pub fn new() -> Result<Self> {

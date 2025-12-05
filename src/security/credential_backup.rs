@@ -5,16 +5,20 @@
 //! remote backup services, and recovery key generation.
 
 use anyhow::{anyhow, Result};
-use base64;
+use base64::{Engine as _, engine::general_purpose};
+use rand::RngCore;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 use tokio::fs;
 use tokio::sync::RwLock;
-use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 
+// Import encryption types and credential types
+use super::encryption::{create_encryptor, EncryptedData, EncryptionAlgorithm};
+use super::hardware_credential_provider::EnhancedCredential;
 
 /// Backup strategy for credential storage
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,6 +116,7 @@ pub struct CredentialBackupManager {
     compression_enabled: bool,
 }
 
+#[allow(dead_code)]
 impl CredentialBackupManager {
     /// Create a new backup manager with default strategy
     pub fn new(default_strategy: BackupStrategy) -> Self {
@@ -333,7 +338,7 @@ impl CredentialBackupManager {
         // Store recovery key
         {
             let mut recovery_key_store = self.recovery_keys.write().await;
-            recovery_key_store.insert(key_id, recovery_key.clone());
+            recovery_key_store.insert(key_id.clone(), recovery_key.clone());
         }
 
         info!(
@@ -489,7 +494,7 @@ impl CredentialBackupManager {
         let encrypted: EncryptedData = serde_json::from_slice(data)?;
         let encryptor = create_encryptor(self.encryption_algorithm);
         let key = self.get_backup_encryption_key(strategy).await?;
-        encryptor.decrypt(&encrypted, &key)
+        encryptor.decrypt(&encrypted, &key).map_err(|e| e.into())
     }
 
     async fn get_backup_encryption_key(&self, strategy: &BackupStrategy) -> Result<Vec<u8>> {
@@ -550,7 +555,7 @@ impl CredentialBackupManager {
         drop(metadata_store);
 
         // Clean up old backups per strategy
-        for (strategy_key, backups) in backups_by_strategy {
+        for (_strategy_key, backups) in backups_by_strategy {
             if backups.len() > self.max_backup_versions as usize {
                 // Sort by creation time (oldest first)
                 let mut sorted_backups = backups;
@@ -590,8 +595,8 @@ impl CredentialBackupManager {
         Ok(fs::read(&backup_path).await?)
     }
 
-    async fn delete_local_encrypted_backup(&self, path: &PathBuf, backup_id: &str) -> Result<()> {
-        let backup_path = path.join(format!("{}.backup", backup_id));
+    async fn delete_local_encrypted_backup(&self, path: &PathBuf, _backup_id: &str) -> Result<()> {
+        let backup_path = path.join(format!("{}.backup", _backup_id));
         fs::remove_file(&backup_path).await?;
         Ok(())
     }
@@ -600,7 +605,7 @@ impl CredentialBackupManager {
         &self,
         _endpoint: &str,
         _auth_token: &str,
-        backup_id: &str,
+        _backup_id: &str,
         data: &[u8],
     ) -> Result<u64> {
         warn!("Remote backup storage not implemented");
@@ -611,7 +616,7 @@ impl CredentialBackupManager {
         &self,
         _endpoint: &str,
         _auth_token: &str,
-        backup_id: &str,
+        _backup_id: &str,
     ) -> Result<Vec<u8>> {
         Err(anyhow!("Remote backup retrieval not implemented"))
     }
@@ -620,7 +625,7 @@ impl CredentialBackupManager {
         &self,
         _endpoint: &str,
         _auth_token: &str,
-        backup_id: &str,
+        _backup_id: &str,
     ) -> Result<()> {
         warn!("Remote backup deletion not implemented");
         Ok(())
@@ -631,7 +636,7 @@ impl CredentialBackupManager {
         _provider: &str,
         _bucket: &str,
         _credentials: &str,
-        backup_id: &str,
+        _backup_id: &str,
         data: &[u8],
     ) -> Result<u64> {
         warn!("Cloud backup storage not implemented");
@@ -643,7 +648,7 @@ impl CredentialBackupManager {
         _provider: &str,
         _bucket: &str,
         _credentials: &str,
-        backup_id: &str,
+        _backup_id: &str,
     ) -> Result<Vec<u8>> {
         Err(anyhow!("Cloud backup retrieval not implemented"))
     }
@@ -653,7 +658,7 @@ impl CredentialBackupManager {
         _provider: &str,
         _bucket: &str,
         _credentials: &str,
-        backup_id: &str,
+        _backup_id: &str,
     ) -> Result<()> {
         warn!("Cloud backup deletion not implemented");
         Ok(())
@@ -663,7 +668,7 @@ impl CredentialBackupManager {
         &self,
         __key_id: &str,
         _encrypted_shares: &[String],
-        backup_id: &str,
+        _backup_id: &str,
         data: &[u8],
     ) -> Result<u64> {
         warn!("Recovery key backup storage not implemented");
@@ -674,7 +679,7 @@ impl CredentialBackupManager {
         &self,
         __key_id: &str,
         _encrypted_shares: &[String],
-        backup_id: &str,
+        _backup_id: &str,
     ) -> Result<Vec<u8>> {
         Err(anyhow!("Recovery key backup retrieval not implemented"))
     }
@@ -683,7 +688,7 @@ impl CredentialBackupManager {
         &self,
         __key_id: &str,
         _encrypted_shares: &[String],
-        backup_id: &str,
+        _backup_id: &str,
     ) -> Result<()> {
         warn!("Recovery key backup deletion not implemented");
         Ok(())
@@ -752,12 +757,12 @@ impl CredentialBackupManager {
 
     async fn encrypt_recovery_key(&self, key: &[u8]) -> Result<String> {
         // Simple base64 encoding for now - should be properly encrypted
-        Ok(base64::encode(key))
+        Ok(general_purpose::STANDARD.encode(key))
     }
 
     async fn decrypt_recovery_key(&self, encrypted_key: &str) -> Result<Vec<u8>> {
         // Simple base64 decoding for now - should be properly decrypted
-        base64::decode(encrypted_key).map_err(|e| anyhow!("Failed to decode recovery key: {}", e))
+        general_purpose::STANDARD.decode(encrypted_key).map_err(|e| anyhow!("Failed to decode recovery key: {}", e))
     }
 }
 

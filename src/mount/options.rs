@@ -76,6 +76,7 @@ pub struct MountOptionParser {
     boolean_options: HashSet<String>,
 }
 
+#[allow(dead_code)]
 impl MountOptionParser {
     /// Create a new mount option parser
     pub fn new() -> Self {

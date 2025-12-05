@@ -51,6 +51,7 @@ pub struct PersistedMountState {
     pub health_check_summary: Option<String>,
 }
 
+#[allow(dead_code)]
 impl PersistenceManager {
     /// Create a new persistence manager
     pub fn new() -> Result<Self> {

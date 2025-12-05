@@ -155,6 +155,7 @@ pub struct RetryResult<T> {
     pub last_error: Option<String>,
 }
 
+#[allow(dead_code)]
 impl RetryHandler {
     /// Create a new retry handler
     pub fn new() -> Self {

@@ -17,6 +17,7 @@ pub struct MountPointValidator {
     permission_manager: PermissionManager,
 }
 
+#[allow(dead_code)]
 impl MountPointValidator {
     /// Create a new mount point validator
     pub fn new(platform: Box<dyn Platform>) -> Self {

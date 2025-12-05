@@ -9,11 +9,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tokio::process::Command as TokioCommand;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
-// Use standard library types for cross-platform compatibility
+// Use libc types for cross-platform compatibility
 #[cfg(unix)]
-use std::os::unix::raw::{gid_t, uid_t};
+use libc::{gid_t, uid_t};
 
 // Conditional compilation for namespace support
 #[cfg(target_os = "linux")]
@@ -93,7 +93,7 @@ pub struct ProcessIsolator {
 }
 
 /// Information about an isolated process
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IsolatedProcess {
     /// Process ID
     pub pid: u32,

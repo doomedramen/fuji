@@ -12,6 +12,7 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -39,7 +40,7 @@ pub struct ConfigSecurityManager {
     /// Configuration history
     history: RwLock<Vec<ConfigHistoryEntry>>,
     /// Access control list
-    acl: RwLock<AccessControlList>,
+    pub acl: RwLock<AccessControlList>,
     /// Encrypted configuration cache
     encrypted_cache: RwLock<HashMap<String, EncryptedConfig>>,
 }
@@ -94,8 +95,8 @@ impl Default for ConfigSecurityConfig {
             enable_validation: true,
             strict_validation: false,
             enable_audit_logging: true,
-            file_permissions: 0o600,  // rw-------
-            dir_permissions: 0o700,   // rwx------
+            file_permissions: 0o600,         // rw-------
+            dir_permissions: 0o700,          // rwx------
             max_file_size: 10 * 1024 * 1024, // 10MB
             allowed_extensions,
             lock_timeout: 300, // 5 minutes
@@ -399,15 +400,16 @@ pub enum BackupReason {
     Emergency,
 }
 
+#[allow(dead_code)]
 impl ConfigSecurityManager {
     /// Create a new configuration security manager
     pub async fn new(config: ConfigSecurityConfig) -> Result<Self> {
-        let key_manager = Arc::new(Mutex::new(
-            KeyDerivationManager::new(crate::security::key_derivation::KeyDerivationFunction::Argon2id)
-        ));
+        let key_manager = Arc::new(Mutex::new(KeyDerivationManager::new(
+            crate::security::key_derivation::KeyDerivationFunction::Argon2id,
+        )));
 
         let path_validator = PathSecurityValidator::new(SecurityProfile::Standard);
-        let audit_monitor = SimpleAuditMonitor::new()?;
+        let audit_monitor = SimpleAuditMonitor::new();
 
         Ok(Self {
             config,
@@ -427,7 +429,7 @@ impl ConfigSecurityManager {
 
     /// Load configuration with security checks
     #[instrument(skip(self, user_id))]
-    pub async fn load_config<P: AsRef<Path>>(
+    pub async fn load_config<P: AsRef<Path> + std::fmt::Debug>(
         &self,
         path: P,
         user_id: &str,
@@ -436,19 +438,30 @@ impl ConfigSecurityManager {
         let path = path.as_ref();
 
         // Validate path
-        self.path_validator.validate_path(path).await?;
+        self.path_validator.validate_path(path, user_id, None).await?;
 
         // Check read permissions
-        if !self.check_permissions(user_id, Permissions { read: true, ..Default::default() }).await? {
-            return Err(anyhow!("Access denied: insufficient permissions to read configuration"));
+        if !self
+            .check_permissions(
+                user_id,
+                Permissions {
+                    read: true,
+                    ..Default::default()
+                },
+            )
+            .await?
+        {
+            return Err(anyhow!(
+                "Access denied: insufficient permissions to read configuration"
+            ));
         }
 
         // Log access attempt
-        self.audit_monitor.log_config_event(
-            "config_access_attempt",
-            &format!("User {} attempting to read config: {}", user_id, path.display()),
-            Some(user_id),
-        ).await?;
+        info!(
+            "Config access attempt: user {} reading config {}",
+            user_id,
+            path.display()
+        );
 
         // Check file size
         let metadata = fs::metadata(path)?;
@@ -467,7 +480,8 @@ impl ConfigSecurityManager {
                 ConfigData {
                     content: String::from_utf8(data)?,
                     metadata: ConfigMetadata {
-                        name: path.file_name()
+                        name: path
+                            .file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or("unknown")
                             .to_string(),
@@ -486,7 +500,8 @@ impl ConfigSecurityManager {
             ConfigData {
                 content: String::from_utf8(data)?,
                 metadata: ConfigMetadata {
-                    name: path.file_name()
+                    name: path
+                        .file_name()
                         .and_then(|n| n.to_str())
                         .unwrap_or("unknown")
                         .to_string(),
@@ -506,16 +521,15 @@ impl ConfigSecurityManager {
         if self.config.enable_validation {
             let validation_result = self.validate_config(&config_data).await?;
             if !validation_result.valid && self.config.strict_validation {
-                return Err(anyhow!("Configuration validation failed: {:?}", validation_result.errors));
+                return Err(anyhow!(
+                    "Configuration validation failed: {:?}",
+                    validation_result.errors
+                ));
             }
         }
 
         // Log successful load
-        self.audit_monitor.log_config_event(
-            "config_loaded",
-            &format!("Successfully loaded config: {}", path.display()),
-            Some(user_id),
-        ).await?;
+        info!("Config loaded: {} by user {}", path.display(), user_id);
 
         // Add to history
         self.add_history_entry(
@@ -524,14 +538,15 @@ impl ConfigSecurityManager {
             user_id,
             &config_data,
             ConfigOperationResult::Success,
-        ).await?;
+        )
+        .await?;
 
         Ok(config_data)
     }
 
     /// Save configuration with security checks
     #[instrument(skip(self, user_id, config_data))]
-    pub async fn save_config<P: AsRef<Path>>(
+    pub async fn save_config<P: AsRef<Path> + std::fmt::Debug>(
         &self,
         path: P,
         config_data: &ConfigData,
@@ -541,11 +556,22 @@ impl ConfigSecurityManager {
         let path = path.as_ref();
 
         // Validate path
-        self.path_validator.validate_path(path).await?;
+        self.path_validator.validate_path(path, user_id, None).await?;
 
         // Check write permissions
-        if !self.check_permissions(user_id, Permissions { write: true, ..Default::default() }).await? {
-            return Err(anyhow!("Access denied: insufficient permissions to write configuration"));
+        if !self
+            .check_permissions(
+                user_id,
+                Permissions {
+                    write: true,
+                    ..Default::default()
+                },
+            )
+            .await?
+        {
+            return Err(anyhow!(
+                "Access denied: insufficient permissions to write configuration"
+            ));
         }
 
         // Create backup if enabled
@@ -562,10 +588,15 @@ impl ConfigSecurityManager {
                 if self.config.enable_rollback {
                     if let Some(ref backup) = backup_info {
                         self.restore_from_backup(&backup.backup_path, path).await?;
-                        return Err(anyhow!("Configuration validation failed, rolled back to previous version"));
+                        return Err(anyhow!(
+                            "Configuration validation failed, rolled back to previous version"
+                        ));
                     }
                 }
-                return Err(anyhow!("Configuration validation failed: {:?}", validation_result.errors));
+                return Err(anyhow!(
+                    "Configuration validation failed: {:?}",
+                    validation_result.errors
+                ));
             }
         }
 
@@ -604,11 +635,7 @@ impl ConfigSecurityManager {
         }
 
         // Log successful save
-        self.audit_monitor.log_config_event(
-            "config_saved",
-            &format!("Successfully saved config: {}", path.display()),
-            Some(user_id),
-        ).await?;
+        info!("Config saved: {} by user {}", path.display(), user_id);
 
         // Add to history
         self.add_history_entry(
@@ -617,7 +644,8 @@ impl ConfigSecurityManager {
             user_id,
             config_data,
             ConfigOperationResult::Success,
-        ).await?;
+        )
+        .await?;
 
         Ok(())
     }
@@ -633,8 +661,19 @@ impl ConfigSecurityManager {
     ) -> Result<String> {
         // Check admin permissions for admin locks
         if lock_type == LockType::Admin {
-            if !self.check_permissions(user_id, Permissions { admin: true, ..Default::default() }).await? {
-                return Err(anyhow!("Access denied: admin privileges required for admin lock"));
+            if !self
+                .check_permissions(
+                    user_id,
+                    Permissions {
+                        admin: true,
+                        ..Default::default()
+                    },
+                )
+                .await?
+            {
+                return Err(anyhow!(
+                    "Access denied: admin privileges required for admin lock"
+                ));
             }
         }
 
@@ -645,10 +684,14 @@ impl ConfigSecurityManager {
         for existing_lock in locks.values() {
             if existing_lock.resource == resource {
                 match (existing_lock.lock_type, lock_type) {
-                    (LockType::Write, LockType::Write) |
-                    (LockType::Write, LockType::Admin) |
-                    (LockType::Admin, _) => {
-                        return Err(anyhow!("Resource is locked by {}: {}", existing_lock.user, existing_lock.reason));
+                    (LockType::Write, LockType::Write)
+                    | (LockType::Write, LockType::Admin)
+                    | (LockType::Admin, _) => {
+                        return Err(anyhow!(
+                            "Resource is locked by {}: {}",
+                            existing_lock.user,
+                            existing_lock.reason
+                        ));
                     }
                     _ => {}
                 }
@@ -668,11 +711,7 @@ impl ConfigSecurityManager {
         locks.insert(resource.to_string(), lock);
 
         // Log lock acquisition
-        self.audit_monitor.log_config_event(
-            "config_lock_acquired",
-            &format!("Lock acquired on {} by {}: {}", resource, user_id, reason),
-            Some(user_id),
-        ).await?;
+        info!("Config lock acquired on {} by user {}: {}", resource, user_id, reason);
 
         Ok(lock_id)
     }
@@ -687,11 +726,7 @@ impl ConfigSecurityManager {
                 locks.remove(resource);
 
                 // Log lock release
-                self.audit_monitor.log_config_event(
-                    "config_lock_released",
-                    &format!("Lock released on {} by {}", resource, user_id),
-                    Some(user_id),
-                ).await?;
+                info!("Config lock released on {} by user {}", resource, user_id);
 
                 Ok(())
             } else {
@@ -704,7 +739,10 @@ impl ConfigSecurityManager {
 
     /// Validate configuration
     #[instrument(skip(self))]
-    pub async fn validate_config(&self, config_data: &ConfigData) -> Result<ConfigValidationResult> {
+    pub async fn validate_config(
+        &self,
+        config_data: &ConfigData,
+    ) -> Result<ConfigValidationResult> {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
         let mut score = 100u8;
@@ -737,7 +775,8 @@ impl ConfigSecurityManager {
                     }
                 }
                 "json" => {
-                    if let Err(e) = serde_json::from_str::<serde_json::Value>(&config_data.content) {
+                    if let Err(e) = serde_json::from_str::<serde_json::Value>(&config_data.content)
+                    {
                         errors.push(ValidationError {
                             code: "INVALID_JSON".to_string(),
                             message: format!("Invalid JSON format: {}", e),
@@ -749,7 +788,8 @@ impl ConfigSecurityManager {
                     }
                 }
                 "yaml" | "yml" => {
-                    if let Err(e) = serde_yaml::from_str::<serde_yaml::Value>(&config_data.content) {
+                    if let Err(e) = serde_yaml::from_str::<serde_yaml::Value>(&config_data.content)
+                    {
                         errors.push(ValidationError {
                             code: "INVALID_YAML".to_string(),
                             message: format!("Invalid YAML format: {}", e),
@@ -806,12 +846,17 @@ impl ConfigSecurityManager {
 
     /// Create configuration backup
     #[instrument(skip(self))]
-    async fn create_backup(&self, config_path: &Path, reason: BackupReason) -> Result<ConfigBackup> {
+    pub async fn create_backup(
+        &self,
+        config_path: &Path,
+        reason: BackupReason,
+    ) -> Result<ConfigBackup> {
         let timestamp = Utc::now();
         let backup_id = uuid::Uuid::new_v4().to_string();
 
         // Create backup directory if needed
-        let backup_dir = config_path.parent()
+        let backup_dir = config_path
+            .parent()
             .unwrap_or_else(|| Path::new("."))
             .join(".fuji_backups");
         fs::create_dir_all(&backup_dir)?;
@@ -819,7 +864,8 @@ impl ConfigSecurityManager {
         // Generate backup filename
         let filename = format!(
             "{}_{}.backup",
-            config_path.file_name()
+            config_path
+                .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("config"),
             timestamp.format("%Y%m%d_%H%M%S")
@@ -831,7 +877,9 @@ impl ConfigSecurityManager {
 
         // Calculate checksum
         let data = fs::read(&backup_path)?;
-        let checksum = self.config.encryption_algorithm.hash_string(&data);
+        let mut hasher = Sha256::new();
+        hasher.update(&data);
+        let checksum = format!("{:x}", hasher.finalize());
 
         Ok(ConfigBackup {
             id: backup_id,
@@ -848,52 +896,60 @@ impl ConfigSecurityManager {
 
     /// Restore from backup
     #[instrument(skip(self))]
-    async fn restore_from_backup(&self, backup_path: &Path, target_path: &Path) -> Result<()> {
+    pub async fn restore_from_backup(&self, backup_path: &Path, target_path: &Path) -> Result<()> {
         // Verify backup integrity
         let data = fs::read(backup_path)?;
-        let checksum = self.config.encryption_algorithm.hash_string(&data);
+        let mut hasher = Sha256::new();
+        hasher.update(&data);
+        let _checksum = format!("{:x}", hasher.finalize());
 
         fs::copy(backup_path, target_path)?;
-        info!("Restored configuration from backup: {}", backup_path.display());
+        info!(
+            "Restored configuration from backup: {}",
+            backup_path.display()
+        );
 
         Ok(())
     }
 
     /// Encrypt configuration data
-    async fn encrypt_config(&self, config_data: &ConfigData, key: Option<&str>) -> Result<Vec<u8>> {
-        let key_manager = self.key_manager.lock().await;
-        let (derived_key, salt) = key_manager.derive_key_with_salt(
-            key.unwrap_or("default_config_key").as_bytes()
-        )?;
+    pub async fn encrypt_config(&self, config_data: &ConfigData, key: Option<&str>) -> Result<Vec<u8>> {
+        let mut key_manager = self.key_manager.lock().await;
+        let (derived_key, _salt) =
+            key_manager.derive_key_with_salt(key.unwrap_or("default_config_key").as_bytes())?;
 
-        let encryptor = encryption::create_encryptor(self.config.encryption_algorithm, &derived_key)?;
+        let encryptor = encryption::create_encryptor(self.config.encryption_algorithm);
         let plaintext = serde_json::to_vec(config_data)?;
-        let encrypted = encryptor.encrypt(&plaintext, &salt)?;
+        let encrypted = encryptor.encrypt(&plaintext, &derived_key)?;
 
+        // Serialize EncryptedData and prepend magic header
+        let encrypted_bytes = serde_json::to_vec(&encrypted)?;
         let mut result = b"FUJI_ENC".to_vec();
-        result.extend_from_slice(&encrypted);
+        result.extend_from_slice(&encrypted_bytes);
         Ok(result)
     }
 
     /// Decrypt configuration data
-    async fn decrypt_config(&self, data: &[u8], key: Option<&str>) -> Result<ConfigData> {
+    pub async fn decrypt_config(&self, data: &[u8], key: Option<&str>) -> Result<ConfigData> {
         if !data.starts_with(b"FUJI_ENC") {
             return Err(anyhow!("Invalid encrypted configuration format"));
         }
 
-        let key_manager = self.key_manager.lock().await;
-        let (derived_key, salt) = key_manager.derive_key_with_salt(
-            key.unwrap_or("default_config_key").as_bytes()
-        )?;
+        // Deserialize EncryptedData from bytes after magic header
+        let encrypted_data: encryption::EncryptedData = serde_json::from_slice(&data[8..])?;
 
-        let encryptor = encryption::create_encryptor(self.config.encryption_algorithm, &derived_key)?;
-        let decrypted = encryptor.decrypt(&data[9..], &salt)?;
+        let mut key_manager = self.key_manager.lock().await;
+        let (derived_key, _salt) =
+            key_manager.derive_key_with_salt(key.unwrap_or("default_config_key").as_bytes())?;
+
+        let encryptor = encryption::create_encryptor(self.config.encryption_algorithm);
+        let decrypted = encryptor.decrypt(&encrypted_data, &derived_key)?;
 
         Ok(serde_json::from_slice(&decrypted)?)
     }
 
     /// Check user permissions
-    async fn check_permissions(&self, user_id: &str, required: Permissions) -> Result<bool> {
+    pub async fn check_permissions(&self, user_id: &str, required: Permissions) -> Result<bool> {
         let acl = self.acl.read().await;
 
         // Check user permissions
@@ -914,17 +970,17 @@ impl ConfigSecurityManager {
 
     /// Check if permissions satisfy requirements
     fn has_permissions(&self, available: &Permissions, required: Permissions) -> bool {
-        required.read <= available.read &&
-        required.write <= available.write &&
-        required.delete <= available.delete &&
-        required.admin <= available.admin &&
-        required.validate <= available.validate &&
-        required.backup <= available.backup &&
-        required.restore <= available.restore
+        required.read <= available.read
+            && required.write <= available.write
+            && required.delete <= available.delete
+            && required.admin <= available.admin
+            && required.validate <= available.validate
+            && required.backup <= available.backup
+            && required.restore <= available.restore
     }
 
     /// Add history entry
-    async fn add_history_entry(
+    pub async fn add_history_entry(
         &self,
         config_path: &Path,
         operation: ConfigOperation,
@@ -941,12 +997,20 @@ impl ConfigSecurityManager {
             user: user_id.to_string(),
             timestamp: Utc::now(),
             version: history.len() as u64 + 1,
-            checksum: self.config.encryption_algorithm.hash_string(config_data.content.as_bytes()),
+            checksum: {
+                use sha2::{Sha256, Digest};
+                let mut hasher = Sha256::new();
+                hasher.update(&config_data.content.as_bytes());
+                format!("{:x}", hasher.finalize())
+            },
             previous_checksum: history.last().map(|e| e.checksum.clone()),
             result,
             metadata: HashMap::from([
                 ("config_name".to_string(), config_data.metadata.name.clone()),
-                ("config_version".to_string(), config_data.metadata.version.clone()),
+                (
+                    "config_version".to_string(),
+                    config_data.metadata.version.clone(),
+                ),
             ]),
         };
 
@@ -965,7 +1029,8 @@ impl ConfigSecurityManager {
         let history = self.history.read().await;
 
         if let Some(path) = config_path {
-            Ok(history.iter()
+            Ok(history
+                .iter()
                 .filter(|e| e.config_path == path)
                 .cloned()
                 .collect())
@@ -983,12 +1048,24 @@ impl ConfigSecurityManager {
         target_version: Option<u64>,
     ) -> Result<()> {
         // Check restore permissions
-        if !self.check_permissions(user_id, Permissions { restore: true, ..Default::default() }).await? {
-            return Err(anyhow!("Access denied: insufficient permissions to restore configuration"));
+        if !self
+            .check_permissions(
+                user_id,
+                Permissions {
+                    restore: true,
+                    ..Default::default()
+                },
+            )
+            .await?
+        {
+            return Err(anyhow!(
+                "Access denied: insufficient permissions to restore configuration"
+            ));
         }
 
         let history = self.history.read().await;
-        let entries: Vec<_> = history.iter()
+        let entries: Vec<_> = history
+            .iter()
             .filter(|e| e.config_path == config_path)
             .collect();
 
@@ -998,12 +1075,14 @@ impl ConfigSecurityManager {
 
         // Find target version
         let target_entry = if let Some(version) = target_version {
-            entries.iter()
+            entries
+                .iter()
                 .find(|e| e.version == version)
                 .ok_or_else(|| anyhow!("Version {} not found in history", version))?
         } else {
             // Get previous version
-            entries.iter()
+            entries
+                .iter()
                 .rev()
                 .nth(1)
                 .ok_or_else(|| anyhow!("No previous version available for rollback"))?
@@ -1011,19 +1090,22 @@ impl ConfigSecurityManager {
 
         // Create backup before rollback
         if self.config.enable_backup && config_path.exists() {
-            self.create_backup(config_path, BackupReason::Emergency).await?;
+            self.create_backup(config_path, BackupReason::Emergency)
+                .await?;
         }
 
         // Restore from backup or history
         // Note: In a real implementation, we would store the actual configuration data
         // For now, we'll just log the rollback attempt
-        self.audit_monitor.log_config_event(
-            "config_rollback",
-            &format!("Rollback initiated to version {} by {}", target_entry.version, user_id),
-            Some(user_id),
-        ).await?;
+        info!(
+            "Config rollback initiated to version {} by user {}",
+            target_entry.version, user_id
+        );
 
-        info!("Configuration rollback to version {} completed", target_entry.version);
+        info!(
+            "Configuration rollback to version {} completed",
+            target_entry.version
+        );
         Ok(())
     }
 
@@ -1069,7 +1151,8 @@ impl ConfigSecurityManager {
         let locks = self.locks.read().await;
         let now = Utc::now();
 
-        Ok(locks.values()
+        Ok(locks
+            .values()
             .filter(|lock| lock.expires_at > now)
             .cloned()
             .collect())
@@ -1082,7 +1165,8 @@ impl ConfigSecurityManager {
         let acl = self.acl.read().await;
 
         Ok(ConfigStats {
-            total_configs: history.iter()
+            total_configs: history
+                .iter()
                 .map(|e| e.config_path.clone())
                 .collect::<HashSet<_>>()
                 .len(),
@@ -1124,8 +1208,8 @@ pub struct ConfigStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::NamedTempFile;
     use std::io::Write;
+    use tempfile::NamedTempFile;
 
     #[tokio::test]
     async fn test_config_security_config_default() {
@@ -1171,7 +1255,8 @@ log_level = "info"
 
 [database]
 url = "postgresql://localhost/fuji"
-max_connections = 10"#.to_string(),
+max_connections = 10"#
+                .to_string(),
             metadata: ConfigMetadata {
                 name: "test.toml".to_string(),
                 version: "1.0".to_string(),
@@ -1239,23 +1324,38 @@ max_connections = 10"#.to_string(),
         manager.add_user(admin_user).await?;
 
         // Test admin permissions
-        let has_admin = manager.check_permissions("admin", Permissions {
-            admin: true,
-            ..Default::default()
-        }).await?;
+        let has_admin = manager
+            .check_permissions(
+                "admin",
+                Permissions {
+                    admin: true,
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert!(has_admin);
 
         // Test non-existent user (should use default permissions)
-        let has_read = manager.check_permissions("nonexistent", Permissions {
-            read: true,
-            ..Default::default()
-        }).await?;
+        let has_read = manager
+            .check_permissions(
+                "nonexistent",
+                Permissions {
+                    read: true,
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert!(has_read);
 
-        let has_admin = manager.check_permissions("nonexistent", Permissions {
-            admin: true,
-            ..Default::default()
-        }).await?;
+        let has_admin = manager
+            .check_permissions(
+                "nonexistent",
+                Permissions {
+                    admin: true,
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert!(!has_admin);
 
         Ok(())
@@ -1280,12 +1380,14 @@ max_connections = 10"#.to_string(),
         manager.add_user(admin_user).await?;
 
         // Acquire write lock
-        let lock_id = manager.acquire_lock(
-            "test_config",
-            "admin",
-            LockType::Write,
-            "Testing lock functionality"
-        ).await?;
+        let lock_id = manager
+            .acquire_lock(
+                "test_config",
+                "admin",
+                LockType::Write,
+                "Testing lock functionality",
+            )
+            .await?;
         assert!(!lock_id.is_empty());
 
         // Check that lock exists
@@ -1296,7 +1398,9 @@ max_connections = 10"#.to_string(),
         assert_eq!(active_locks[0].lock_type, LockType::Write);
 
         // Release lock
-        manager.release_lock("test_config", "admin", &lock_id).await?;
+        manager
+            .release_lock("test_config", "admin", &lock_id)
+            .await?;
 
         // Verify lock is released
         let active_locks = manager.get_active_locks().await?;
@@ -1341,13 +1445,15 @@ max_connections = 10"#.to_string(),
 
         // Simulate adding history entries
         let config_path = PathBuf::from("/test/config");
-        manager.add_history_entry(
-            &config_path,
-            ConfigOperation::Create,
-            "testuser",
-            &config_data,
-            ConfigOperationResult::Success,
-        ).await?;
+        manager
+            .add_history_entry(
+                &config_path,
+                ConfigOperation::Create,
+                "testuser",
+                &config_data,
+                ConfigOperationResult::Success,
+            )
+            .await?;
 
         // Get history
         let history = manager.get_history(Some(&config_path)).await?;
@@ -1368,7 +1474,9 @@ max_connections = 10"#.to_string(),
         let manager = ConfigSecurityManager::new(config).await?;
 
         let original_config = ConfigData {
-            content: "secret_password = 'hunter2'\ndatabase_url = 'postgres://user:pass@localhost/db'".to_string(),
+            content:
+                "secret_password = 'hunter2'\ndatabase_url = 'postgres://user:pass@localhost/db'"
+                    .to_string(),
             metadata: ConfigMetadata {
                 name: "secrets.toml".to_string(),
                 version: "1.0".to_string(),
@@ -1383,16 +1491,26 @@ max_connections = 10"#.to_string(),
         };
 
         // Encrypt configuration
-        let encrypted_data = manager.encrypt_config(&original_config, Some("test_key")).await?;
+        let encrypted_data = manager
+            .encrypt_config(&original_config, Some("test_key"))
+            .await?;
         assert!(encrypted_data.starts_with(b"FUJI_ENC"));
 
         // Decrypt configuration
-        let decrypted_config = manager.decrypt_config(&encrypted_data, Some("test_key")).await?;
+        let decrypted_config = manager
+            .decrypt_config(&encrypted_data, Some("test_key"))
+            .await?;
 
         // Verify decryption
         assert_eq!(decrypted_config.content, original_config.content);
-        assert_eq!(decrypted_config.metadata.name, original_config.metadata.name);
-        assert_eq!(decrypted_config.metadata.version, original_config.metadata.version);
+        assert_eq!(
+            decrypted_config.metadata.name,
+            original_config.metadata.name
+        );
+        assert_eq!(
+            decrypted_config.metadata.version,
+            original_config.metadata.version
+        );
 
         Ok(())
     }
@@ -1407,7 +1525,9 @@ max_connections = 10"#.to_string(),
         writeln!(temp_file, "[test]\nvalue = \"backup_test\"")?;
 
         // Create backup
-        let backup = manager.create_backup(temp_file.path(), BackupReason::Manual).await?;
+        let backup = manager
+            .create_backup(temp_file.path(), BackupReason::Manual)
+            .await?;
 
         assert!(!backup.id.is_empty());
         assert_eq!(backup.original_path, temp_file.path());
@@ -1479,12 +1599,14 @@ max_connections = 10"#.to_string(),
         manager.add_user(admin_user).await?;
 
         // Acquire lock
-        let lock_id = manager.acquire_lock(
-            "test_config",
-            "admin",
-            LockType::Write,
-            "Testing lock expiration"
-        ).await?;
+        let _lock_id = manager
+            .acquire_lock(
+                "test_config",
+                "admin",
+                LockType::Write,
+                "Testing lock expiration",
+            )
+            .await?;
 
         // Verify lock exists
         let active_locks = manager.get_active_locks().await?;
@@ -1580,13 +1702,15 @@ max_connections = 10"#.to_string(),
         };
 
         // Add history entries
-        manager.add_history_entry(
-            &config_path,
-            ConfigOperation::Create,
-            "admin",
-            &config_data,
-            ConfigOperationResult::Success,
-        ).await?;
+        manager
+            .add_history_entry(
+                &config_path,
+                ConfigOperation::Create,
+                "admin",
+                &config_data,
+                ConfigOperationResult::Success,
+            )
+            .await?;
 
         let updated_config = ConfigData {
             content: "version = \"2.0\"".to_string(),
@@ -1603,13 +1727,15 @@ max_connections = 10"#.to_string(),
             },
         };
 
-        manager.add_history_entry(
-            &config_path,
-            ConfigOperation::Update,
-            "admin",
-            &updated_config,
-            ConfigOperationResult::Success,
-        ).await?;
+        manager
+            .add_history_entry(
+                &config_path,
+                ConfigOperation::Update,
+                "admin",
+                &updated_config,
+                ConfigOperationResult::Success,
+            )
+            .await?;
 
         // Attempt rollback to version 1
         manager.rollback(&config_path, "admin", Some(1)).await?;

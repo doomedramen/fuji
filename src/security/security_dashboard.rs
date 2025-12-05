@@ -5,14 +5,14 @@
 //! monitoring, credential management, and secure updates.
 
 use anyhow::Result;
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use tokio::sync::{RwLock, Mutex};
+use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
-use crate::security::audit_logging::{AuditEvent, AuditEventType, AuditOutcome, AuditSeverity};
+use crate::security::audit_logging::{AuditEvent, AuditEventType, AuditOutcome, AuditSeverity, AuditSourceType};
 use crate::security::integrity::RuntimeIntegrityChecker;
 use crate::security::secure_updates::SecureUpdateManager;
 
@@ -395,11 +395,7 @@ impl Default for DashboardConfig {
             max_snapshots: 10080, // 7 days of minute snapshots
             enable_alerts: true,
             alert_retention_hours: 168, // 7 days
-            export_formats: vec![
-                ExportFormat::Json,
-                ExportFormat::Html,
-                ExportFormat::Pdf,
-            ],
+            export_formats: vec![ExportFormat::Json, ExportFormat::Html, ExportFormat::Pdf],
         }
     }
 }
@@ -416,6 +412,7 @@ impl Default for AlertThresholds {
     }
 }
 
+#[allow(dead_code)]
 impl SecurityDashboard {
     /// Create a new security dashboard
     pub fn new(config: DashboardConfig) -> Self {
@@ -441,7 +438,7 @@ impl SecurityDashboard {
         // Initialize component status tracking
         let mut component_status = self.component_status.write().await;
 
-        if let Some(ref checker) = integrity_checker {
+        if let Some(ref _checker) = integrity_checker {
             component_status.insert(
                 "integrity_monitoring".to_string(),
                 ComponentStatus {
@@ -455,7 +452,7 @@ impl SecurityDashboard {
             );
         }
 
-        if let Some(ref manager) = update_manager {
+        if let Some(ref _manager) = update_manager {
             component_status.insert(
                 "secure_updates".to_string(),
                 ComponentStatus {
@@ -484,9 +481,8 @@ impl SecurityDashboard {
         let update_interval = self.config.update_interval;
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                std::time::Duration::from_secs(update_interval)
-            );
+            let mut interval =
+                tokio::time::interval(std::time::Duration::from_secs(update_interval));
 
             loop {
                 interval.tick().await;
@@ -497,19 +493,14 @@ impl SecurityDashboard {
                 }
 
                 // Check for alert conditions
-                if let Err(e) = Self::check_alert_conditions(
-                    &metrics,
-                    &alert_thresholds,
-                ).await {
+                if let Err(e) = Self::check_alert_conditions(&metrics, &alert_thresholds).await {
                     error!("Failed to check alert conditions: {}", e);
                 }
 
                 // Create historical snapshot
-                if let Err(e) = Self::create_snapshot(
-                    &metrics,
-                    &component_status,
-                    &historical_data,
-                ).await {
+                if let Err(e) =
+                    Self::create_snapshot(&metrics, &component_status, &historical_data).await
+                {
                     error!("Failed to create security snapshot: {}", e);
                 }
 
@@ -546,7 +537,18 @@ impl SecurityDashboard {
     async fn enrich_event(&self, event: AuditEvent) -> Result<SecurityEvent> {
         let severity_score = self.calculate_severity_score(&event);
         let category = self.categorize_event(&event);
-        let risk_assessment = self.assess_risk(&event);
+        // Calculate risk assessment based on audit event properties
+        let risk_assessment = if event.severity == AuditSeverity::Critical {
+            RiskLevel::Critical
+        } else if event.severity == AuditSeverity::High {
+            RiskLevel::High
+        } else if event.severity == AuditSeverity::Medium {
+            RiskLevel::Medium
+        } else if event.outcome == AuditOutcome::Failure || event.outcome == AuditOutcome::Error {
+            RiskLevel::Medium
+        } else {
+            RiskLevel::Low
+        };
         let related_entities = self.extract_related_entities(&event);
         let mitigation_actions = self.suggest_mitigations(&event);
 
@@ -564,7 +566,6 @@ impl SecurityDashboard {
     /// Calculate severity score for an event
     fn calculate_severity_score(&self, event: &AuditEvent) -> u8 {
         let base_score = match event.severity {
-            AuditSeverity::Info => 10,
             AuditSeverity::Low => 25,
             AuditSeverity::Medium => 50,
             AuditSeverity::High => 75,
@@ -577,6 +578,8 @@ impl SecurityDashboard {
             AuditOutcome::Failure => (base_score as f32 * 1.2) as u8,
             AuditOutcome::Partial => (base_score as f32 * 1.1) as u8,
             AuditOutcome::Blocked => (base_score as f32 * 0.8) as u8,
+            AuditOutcome::Error => (base_score as f32 * 1.3) as u8,
+            AuditOutcome::Timeout => (base_score as f32 * 1.4) as u8,
         };
 
         adjusted_score.min(100)
@@ -585,36 +588,30 @@ impl SecurityDashboard {
     /// Categorize an event
     fn categorize_event(&self, event: &AuditEvent) -> EventCategory {
         match event.event_type {
-            AuditEventType::Authentication
-            | AuditEventType::UserLogin
-            | AuditEventType::UserLogout => EventCategory::Authentication,
+            AuditEventType::Authentication => EventCategory::Authentication,
+            AuditEventType::Authorization => EventCategory::Authorization,
 
-            AuditEventType::AccessControl
-            | AuditEventType::PermissionChange
-            | AuditEventType::PrivilegeEscalation => EventCategory::Authorization,
+            AuditEventType::SecurityViolation => EventCategory::Integrity,
 
-            AuditEventType::IntegrityViolation
-            | AuditEventType::TamperingDetection
-            | AuditEventType::CodeModification => EventCategory::Integrity,
+            AuditEventType::ConfigurationChange => {
+                EventCategory::Configuration
+            }
 
-            AuditEventType::IntrusionAttempt
-            | AuditEventType::MalwareDetection
-            | AuditEventType::AnomalousActivity => EventCategory::IntrusionDetection,
+            AuditEventType::SystemEvent => {
+                EventCategory::Update
+            }
 
-            AuditEventType::ConfigurationChange
-            | AuditEventType::SystemModification => EventCategory::Configuration,
+            AuditEventType::NetworkEvent => {
+                EventCategory::Network
+            }
 
-            AuditEventType::SoftwareUpdate
-            | AuditEventType::PatchManagement => EventCategory::Update,
+            AuditEventType::DataAccess => {
+                EventCategory::DataProtection
+            }
 
-            AuditEventType::NetworkConnection
-            | AuditEventType::DataTransfer => EventCategory::Network,
-
-            AuditEventType::DataAccess
-            | AuditEventType::DataModification => EventCategory::DataProtection,
-
-            AuditEventType::ProcessExecution
-            | AuditEventType::ProcessTermination => EventCategory::ProcessIsolation,
+            AuditEventType::ProcessManagement => {
+                EventCategory::ProcessIsolation
+            }
 
             _ => EventCategory::Other,
         }
@@ -639,24 +636,38 @@ impl SecurityDashboard {
     fn extract_related_entities(&self, event: &AuditEvent) -> Vec<String> {
         let mut entities = Vec::new();
 
-        // Extract user information
-        if let Some(user) = &event.user_id {
-            entities.push(format!("user:{}", user));
+        // Extract user information from source or details
+        if event.source.source_type == AuditSourceType::User {
+            entities.push(format!("user:{}", event.source.identifier));
+        } else if let Some(user) = event.details.get("user_id") {
+            if let Some(user_str) = user.as_str() {
+                entities.push(format!("user:{}", user_str));
+            }
         }
 
-        // Extract resource information
-        if let Some(resource) = &event.resource {
-            entities.push(format!("resource:{}", resource));
+        // Extract resource information from details
+        if let Some(resource) = event.details.get("resource") {
+            if let Some(resource_str) = resource.as_str() {
+                entities.push(format!("resource:{}", resource_str));
+            }
+        } else if let Some(resource_name) = event.details.get("resource_name") {
+            if let Some(resource_str) = resource_name.as_str() {
+                entities.push(format!("resource:{}", resource_str));
+            }
         }
 
         // Extract IP addresses
-        if let Some(source) = &event.source_address {
-            entities.push(format!("ip:{}", source));
+        // Extract IP address from network context
+        if let Some(network) = &event.network_context {
+            entities.push(format!("ip:{}", network.source_ip));
+            if let Some(dest_ip) = &network.destination_ip {
+                entities.push(format!("dest_ip:{}", dest_ip));
+            }
         }
 
-        // Extract process information
-        if let Some(process) = &event.process_id {
-            entities.push(format!("process:{}", process));
+        // Extract process information from session context
+        if let Some(session) = &event.session_context {
+            entities.push(format!("session:{}", session.session_id));
         }
 
         entities
@@ -672,20 +683,24 @@ impl SecurityDashboard {
                 actions.push("Consider temporary account lockout".to_string());
                 actions.push("Review authentication logs".to_string());
             }
-            (AuditEventType::IntrusionAttempt, AuditOutcome::Failure) => {
+            (AuditEventType::SecurityViolation, AuditOutcome::Failure) => {
                 actions.push("Block source IP address".to_string());
                 actions.push("Increase monitoring frequency".to_string());
                 actions.push("Review security controls".to_string());
             }
-            (AuditEventType::IntegrityViolation, _) => {
-                actions.push("Isolate affected system".to_string());
-                actions.push("Perform forensic analysis".to_string());
-                actions.push("Restore from backup".to_string());
-            }
-            (AuditEventType::PrivilegeEscalation, _) => {
-                actions.push("Revoke elevated privileges".to_string());
-                actions.push("Audit user activities".to_string());
-                actions.push("Review access controls".to_string());
+            (AuditEventType::SecurityViolation, outcome) => {
+                match outcome {
+                    AuditOutcome::Success => {
+                        actions.push("Revoke elevated privileges".to_string());
+                        actions.push("Audit user activities".to_string());
+                        actions.push("Review access controls".to_string());
+                    }
+                    _ => {
+                        actions.push("Isolate affected system".to_string());
+                        actions.push("Perform forensic analysis".to_string());
+                        actions.push("Restore from backup".to_string());
+                    }
+                }
             }
             _ => {}
         }
@@ -700,17 +715,20 @@ impl SecurityDashboard {
         metrics.total_events += 1;
 
         // Update event type counts
-        *metrics.events_by_type
+        *metrics
+            .events_by_type
             .entry(event.event_type.clone())
             .or_insert(0) += 1;
 
         // Update severity counts
-        *metrics.events_by_severity
+        *metrics
+            .events_by_severity
             .entry(event.severity.clone())
             .or_insert(0) += 1;
 
         // Update outcome counts
-        *metrics.events_by_outcome
+        *metrics
+            .events_by_outcome
             .entry(event.outcome.clone())
             .or_insert(0) += 1;
 
@@ -727,14 +745,12 @@ impl SecurityDashboard {
                     _ => {}
                 }
             }
-            AuditEventType::IntrusionAttempt => {
+            AuditEventType::SecurityViolation => {
                 metrics.intrusion_metrics.total_anomalies += 1;
+                metrics.integrity_metrics.violations_detected += 1;
                 if event.severity == AuditSeverity::Critical {
                     metrics.intrusion_metrics.critical_anomalies += 1;
                 }
-            }
-            AuditEventType::IntegrityViolation => {
-                metrics.integrity_metrics.violations_detected += 1;
             }
             _ => {}
         }
@@ -747,9 +763,13 @@ impl SecurityDashboard {
     /// Check for event-based alerts
     async fn check_event_alerts(&self, event: &AuditEvent) -> Result<()> {
         // Check for repeated authentication failures
-        if event.event_type == AuditEventType::Authentication && event.outcome == AuditOutcome::Failure {
+        if event.event_type == AuditEventType::Authentication
+            && event.outcome == AuditOutcome::Failure
+        {
             let metrics = self.metrics.read().await;
-            if metrics.auth_metrics.failures_last_hour >= self.alert_thresholds.failed_auth_threshold {
+            if metrics.auth_metrics.failures_last_hour
+                >= self.alert_thresholds.failed_auth_threshold
+            {
                 self.create_alert(
                     "High Authentication Failure Rate".to_string(),
                     format!(
@@ -759,19 +779,23 @@ impl SecurityDashboard {
                     AlertSeverity::High,
                     AlertCategory::SecurityIncident,
                     "Authentication".to_string(),
-                ).await?;
+                )
+                .await?;
             }
         }
 
         // Check for critical integrity violations
-        if event.event_type == AuditEventType::IntegrityViolation && event.severity == AuditSeverity::Critical {
+        if event.event_type == AuditEventType::SecurityViolation
+            && event.severity == AuditSeverity::Critical
+        {
             self.create_alert(
                 "Critical Integrity Violation".to_string(),
                 "Critical system integrity violation detected".to_string(),
                 AlertSeverity::Critical,
                 AlertCategory::SecurityIncident,
                 "IntegrityMonitoring".to_string(),
-            ).await?;
+            )
+            .await?;
         }
 
         Ok(())
@@ -844,12 +868,9 @@ impl SecurityDashboard {
     }
 
     /// Get historical snapshots
-    pub async fn get_historical_data(
-        &self,
-        hours: Option<u64>,
-    ) -> Result<Vec<SecuritySnapshot>> {
+    pub async fn get_historical_data(&self, hours: Option<u64>) -> Result<Vec<SecuritySnapshot>> {
         let data = self.historical_data.read().await;
-        let cutoff = Utc::now() - Duration::hours(hours.unwrap_or(24));
+        let cutoff = Utc::now() - Duration::hours(hours.unwrap_or(24) as i64);
 
         Ok(data
             .iter()
@@ -867,7 +888,8 @@ impl SecurityDashboard {
 
         // Deduct points for failed authentications
         let auth_failure_rate = if metrics.auth_metrics.total_attempts > 0 {
-            (metrics.auth_metrics.failed_auths as f64 / metrics.auth_metrics.total_attempts as f64) * 100.0
+            (metrics.auth_metrics.failed_auths as f64 / metrics.auth_metrics.total_attempts as f64)
+                * 100.0
         } else {
             0.0
         };
@@ -892,7 +914,12 @@ impl SecurityDashboard {
         // Deduct points for component health issues
         let unhealthy_components = component_status
             .values()
-            .filter(|status| matches!(status.status, ComponentHealth::Degraded | ComponentHealth::Down))
+            .filter(|status| {
+                matches!(
+                    status.status,
+                    ComponentHealth::Degraded | ComponentHealth::Down
+                )
+            })
             .count();
 
         score = score.saturating_sub((unhealthy_components * 15) as u8);
@@ -917,21 +944,11 @@ impl SecurityDashboard {
         };
 
         match format {
-            ExportFormat::Json => {
-                serde_json::to_string_pretty(&export_data).map_err(Into::into)
-            }
-            ExportFormat::Html => {
-                self.generate_html_report(&export_data).await
-            }
-            ExportFormat::Csv => {
-                self.generate_csv_report(&export_data).await
-            }
-            ExportFormat::Xml => {
-                self.generate_xml_report(&export_data).await
-            }
-            ExportFormat::Pdf => {
-                self.generate_pdf_report(&export_data).await
-            }
+            ExportFormat::Json => serde_json::to_string_pretty(&export_data).map_err(Into::into),
+            ExportFormat::Html => self.generate_html_report(&export_data).await,
+            ExportFormat::Csv => self.generate_csv_report(&export_data).await,
+            ExportFormat::Xml => self.generate_xml_report(&export_data).await,
+            ExportFormat::Pdf => self.generate_pdf_report(&export_data).await,
         }
     }
 
@@ -1000,21 +1017,32 @@ impl SecurityDashboard {
                 "<td>{}</td>\n",
                 event.audit_event.timestamp.format("%Y-%m-%d %H:%M:%S")
             ));
-            html.push_str(&format!(
-                "<td>{:?}</td>\n",
-                event.audit_event.event_type
-            ));
-            html.push_str(&format!(
-                "<td>{:?}</td>\n",
-                event.audit_event.severity
-            ));
-            html.push_str(&format!(
-                "<td>{}</td>\n",
-                event.audit_event.user_id.as_deref().unwrap_or("N/A")
-            ));
+            html.push_str(&format!("<td>{:?}</td>\n", event.audit_event.event_type));
+            html.push_str(&format!("<td>{:?}</td>\n", event.audit_event.severity));
+            // Extract user identifier from source or details
+            let user_id = if event.audit_event.source.source_type == AuditSourceType::User {
+                Some(event.audit_event.source.identifier.clone())
+            } else if let Some(user) = event.audit_event.details.get("user_id") {
+                user.as_str().map(|s| s.to_string())
+            } else {
+                None
+            };
             html.push_str(&format!(
                 "<td>{}</td>\n",
-                event.audit_event.source_address.as_deref().unwrap_or("N/A")
+                user_id.unwrap_or_else(|| "N/A".to_string())
+            ));
+
+            // Extract source IP address from network context or source
+            let source_address = if let Some(network) = &event.audit_event.network_context {
+                network.source_ip.clone()
+            } else if let Some(ip) = &event.audit_event.source.ip_address {
+                ip.clone()
+            } else {
+                "N/A".to_string()
+            };
+            html.push_str(&format!(
+                "<td>{}</td>\n",
+                source_address
             ));
             html.push_str("</tr>\n");
         }
@@ -1035,18 +1063,9 @@ impl SecurityDashboard {
                     AlertSeverity::Info => "info",
                 };
 
-                html.push_str(&format!(
-                    "<div class=\"alert {}\">\n",
-                    alert_class
-                ));
-                html.push_str(&format!(
-                    "<h3>{}</h3>\n",
-                    alert.title
-                ));
-                html.push_str(&format!(
-                    "<p>{}</p>\n",
-                    alert.description
-                ));
+                html.push_str(&format!("<div class=\"alert {}\">\n", alert_class));
+                html.push_str(&format!("<h3>{}</h3>\n", alert.title));
+                html.push_str(&format!("<p>{}</p>\n", alert.description));
                 html.push_str(&format!(
                     "<small>Source: {} | Time: {}</small>\n",
                     alert.source,
@@ -1073,15 +1092,39 @@ impl SecurityDashboard {
 
         // Events
         for event in &data.events {
+            // Extract user identifier from source or details
+            let user_id = if event.audit_event.source.source_type == AuditSourceType::User {
+                Some(event.audit_event.source.identifier.clone())
+            } else if let Some(user) = event.audit_event.details.get("user_id") {
+                user.as_str().map(|s| s.to_string())
+            } else {
+                None
+            };
+
+            // Extract source IP address from network context or source
+            let source_address = if let Some(network) = &event.audit_event.network_context {
+                network.source_ip.clone()
+            } else if let Some(ip) = &event.audit_event.source.ip_address {
+                ip.clone()
+            } else {
+                String::new()
+            };
+
+            // Extract resource from details
+            let resource = event.audit_event.details.get("resource")
+                .or_else(|| event.audit_event.details.get("resource_name"))
+                .and_then(|r| r.as_str())
+                .unwrap_or_default();
+
             csv.push_str(&format!(
-                "{},{:?},{:?},{},{},{},{}\n",
+                "{},{:?},{:?},{:?},{},{},{}\n",
                 event.audit_event.timestamp.format("%Y-%m-%d %H:%M:%S"),
                 event.audit_event.event_type,
                 event.audit_event.severity,
                 event.audit_event.outcome,
-                event.audit_event.user_id.as_deref().unwrap_or(""),
-                event.audit_event.source_address.as_deref().unwrap_or(""),
-                event.audit_event.resource.as_deref().unwrap_or("")
+                user_id.unwrap_or_default(),
+                source_address,
+                resource
             ));
         }
 
@@ -1097,25 +1140,52 @@ impl SecurityDashboard {
 
         // Metadata
         xml.push_str("<metadata>\n");
-        xml.push_str(&format!("  <generated_at>{}</generated_at>\n", data.generated_at.to_rfc3339()));
-        xml.push_str(&format!("  <security_score>{}</security_score>\n", data.security_score));
+        xml.push_str(&format!(
+            "  <generated_at>{}</generated_at>\n",
+            data.generated_at.to_rfc3339()
+        ));
+        xml.push_str(&format!(
+            "  <security_score>{}</security_score>\n",
+            data.security_score
+        ));
         xml.push_str("</metadata>\n");
 
         // Metrics
         xml.push_str("<metrics>\n");
-        xml.push_str(&format!("  <total_events>{}</total_events>\n", data.metrics.total_events));
-        xml.push_str(&format!("  <failed_auths>{}</failed_auths>\n", data.metrics.auth_metrics.failed_auths));
-        xml.push_str(&format!("  <integrity_violations>{}</integrity_violations>\n", data.metrics.integrity_metrics.violations_detected));
+        xml.push_str(&format!(
+            "  <total_events>{}</total_events>\n",
+            data.metrics.total_events
+        ));
+        xml.push_str(&format!(
+            "  <failed_auths>{}</failed_auths>\n",
+            data.metrics.auth_metrics.failed_auths
+        ));
+        xml.push_str(&format!(
+            "  <integrity_violations>{}</integrity_violations>\n",
+            data.metrics.integrity_metrics.violations_detected
+        ));
         xml.push_str("</metrics>\n");
 
         // Events
         xml.push_str("<events>\n");
         for event in &data.events {
             xml.push_str("  <event>\n");
-            xml.push_str(&format!("    <timestamp>{}</timestamp>\n", event.audit_event.timestamp.to_rfc3339()));
-            xml.push_str(&format!("    <type>{:?}</type>\n", event.audit_event.event_type));
-            xml.push_str(&format!("    <severity>{:?}</severity>\n", event.audit_event.severity));
-            xml.push_str(&format!("    <outcome>{:?}</outcome>\n", event.audit_event.outcome));
+            xml.push_str(&format!(
+                "    <timestamp>{}</timestamp>\n",
+                event.audit_event.timestamp.to_rfc3339()
+            ));
+            xml.push_str(&format!(
+                "    <type>{:?}</type>\n",
+                event.audit_event.event_type
+            ));
+            xml.push_str(&format!(
+                "    <severity>{:?}</severity>\n",
+                event.audit_event.severity
+            ));
+            xml.push_str(&format!(
+                "    <outcome>{:?}</outcome>\n",
+                event.audit_event.outcome
+            ));
             xml.push_str("  </event>\n");
         }
         xml.push_str("</events>\n");
@@ -1195,11 +1265,17 @@ impl SecurityDashboard {
 
         // Check resource thresholds
         if metrics.resource_metrics.cpu_usage > thresholds.resource_threshold {
-            warn!("High CPU usage detected: {}%", metrics.resource_metrics.cpu_usage);
+            warn!(
+                "High CPU usage detected: {}%",
+                metrics.resource_metrics.cpu_usage
+            );
         }
 
         if metrics.resource_metrics.memory_usage > thresholds.resource_threshold {
-            warn!("High memory usage detected: {}%", metrics.resource_metrics.memory_usage);
+            warn!(
+                "High memory usage detected: {}%",
+                metrics.resource_metrics.memory_usage
+            );
         }
 
         Ok(())
@@ -1216,16 +1292,24 @@ impl SecurityDashboard {
         let security_score = Self::calculate_security_score_static(&metrics, &component_status);
 
         let mut key_indicators = HashMap::new();
-        key_indicators.insert("failed_auth_rate".to_string(),
+        key_indicators.insert(
+            "failed_auth_rate".to_string(),
             if metrics.auth_metrics.total_attempts > 0 {
-                (metrics.auth_metrics.failed_auths as f64 / metrics.auth_metrics.total_attempts as f64) * 100.0
+                (metrics.auth_metrics.failed_auths as f64
+                    / metrics.auth_metrics.total_attempts as f64)
+                    * 100.0
             } else {
                 0.0
-            });
-        key_indicators.insert("integrity_violations".to_string(),
-            metrics.integrity_metrics.violations_detected as f64);
-        key_indicators.insert("intrusion_anomalies".to_string(),
-            metrics.intrusion_metrics.total_anomalies as f64);
+            },
+        );
+        key_indicators.insert(
+            "integrity_violations".to_string(),
+            metrics.integrity_metrics.violations_detected as f64,
+        );
+        key_indicators.insert(
+            "intrusion_anomalies".to_string(),
+            metrics.intrusion_metrics.total_anomalies as f64,
+        );
 
         let snapshot = SecuritySnapshot {
             timestamp: Utc::now(),
@@ -1254,7 +1338,8 @@ impl SecurityDashboard {
 
         // Similar logic as calculate_security_score method
         let auth_failure_rate = if metrics.auth_metrics.total_attempts > 0 {
-            (metrics.auth_metrics.failed_auths as f64 / metrics.auth_metrics.total_attempts as f64) * 100.0
+            (metrics.auth_metrics.failed_auths as f64 / metrics.auth_metrics.total_attempts as f64)
+                * 100.0
         } else {
             0.0
         };
@@ -1277,7 +1362,12 @@ impl SecurityDashboard {
 
         let unhealthy_components = component_status
             .values()
-            .filter(|status| matches!(status.status, ComponentHealth::Degraded | ComponentHealth::Down))
+            .filter(|status| {
+                matches!(
+                    status.status,
+                    ComponentHealth::Degraded | ComponentHealth::Down
+                )
+            })
             .count();
 
         score = score.saturating_sub((unhealthy_components * 15) as u8);

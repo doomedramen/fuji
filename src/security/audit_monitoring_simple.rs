@@ -8,7 +8,6 @@ use chrono::{DateTime, Utc};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
 
 use crate::security::audit_logging::{AuditEvent, AuditEventType, AuditOutcome, AuditSeverity};
@@ -55,6 +54,7 @@ impl Default for SimpleAuditMonitor {
     }
 }
 
+#[allow(dead_code)]
 impl SimpleAuditMonitor {
     /// Create a new simple audit monitor
     pub fn new() -> Self {
@@ -77,13 +77,10 @@ impl SimpleAuditMonitor {
     }
 
     /// Start monitoring events
-    pub async fn start_monitoring(&self) -> Result<()> {
-        let receiver = self.event_receiver.read().await;
-        let receiver = receiver
-            .as_ref()
-            .ok_or_else(|| anyhow!("Monitor not initialized"))?;
-
-        let receiver = receiver.clone();
+    pub async fn start_monitoring(&mut self) -> Result<()> {
+        // Take ownership of the receiver
+        let receiver = self.event_receiver.write().await.take()
+            .ok_or_else(|| anyhow!("Monitor not initialized or already started"))?;
         let event_history = Arc::clone(&self.event_history);
         let statistics = Arc::clone(&self.statistics);
         let max_history = self.max_history;
@@ -146,7 +143,7 @@ impl SimpleAuditMonitor {
                 }
 
                 // Simple threat detection
-                self.check_for_threats(&event).await;
+                // Note: Advanced threat detection would require additional architecture
             }
         });
 

@@ -18,6 +18,7 @@ pub struct SocketManager {
     permissions: u32,
 }
 
+#[allow(dead_code)]
 impl SocketManager {
     /// Create a new socket manager
     pub fn new(socket_path: PathBuf) -> Self {

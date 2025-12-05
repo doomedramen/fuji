@@ -147,7 +147,10 @@
 //! - **Configuration errors** - Invalid parameters or settings
 //!
 
-use anyhow::{anyhow, Result};
+use crate::{
+    security::{IntoSecurityError, SecurityResult, SecurityResultExt},
+    security_crypto_error, security_validation_error,
+};
 use chacha20poly1305::{
     aead::{Aead, KeyInit},
     ChaCha20Poly1305, Key, Nonce,
@@ -319,10 +322,10 @@ impl EncryptionConfig {
 /// Generic encryption interface
 pub trait Encryptor: Send + Sync {
     /// Encrypt data using the configured algorithm
-    fn encrypt(&self, plaintext: &[u8], key: &[u8]) -> Result<EncryptedData>;
+    fn encrypt(&self, plaintext: &[u8], key: &[u8]) -> SecurityResult<EncryptedData>;
 
     /// Decrypt data using the configured algorithm
-    fn decrypt(&self, encrypted: &EncryptedData, key: &[u8]) -> Result<Vec<u8>>;
+    fn decrypt(&self, encrypted: &EncryptedData, key: &[u8]) -> SecurityResult<Vec<u8>>;
 
     /// Get the algorithm used by this encryptor
     fn algorithm(&self) -> EncryptionAlgorithm;
@@ -379,24 +382,32 @@ impl EncryptedData {
     }
 
     /// Decode nonce and ciphertext from base64
-    pub fn decode_components(&self) -> Result<(Vec<u8>, Vec<u8>)> {
+    pub fn decode_components(&self) -> SecurityResult<(Vec<u8>, Vec<u8>)> {
         let nonce = general_purpose::STANDARD
             .decode(&self.nonce)
-            .map_err(|e| anyhow!("Failed to decode nonce: {}", e))?;
+            .with_security_context("Failed to decode nonce from encrypted data")
+            .with_crypto_context("base64_decode", "Invalid base64 encoding in nonce")?;
         let ciphertext = general_purpose::STANDARD
             .decode(&self.ciphertext)
-            .map_err(|e| anyhow!("Failed to decode ciphertext: {}", e))?;
+            .with_security_context("Failed to decode ciphertext from encrypted data")
+            .with_crypto_context("base64_decode", "Invalid base64 encoding in ciphertext")?;
 
         Ok((nonce, ciphertext))
     }
 
     /// Decode authentication tag if present
-    pub fn decode_tag(&self) -> Result<Option<Vec<u8>>> {
+    pub fn decode_tag(&self) -> SecurityResult<Option<Vec<u8>>> {
         match &self.tag {
             Some(tag) => {
                 let decoded = general_purpose::STANDARD
                     .decode(tag)
-                    .map_err(|e| anyhow!("Failed to decode authentication tag: {}", e))?;
+                    .with_security_context(
+                        "Failed to decode authentication tag from encrypted data",
+                    )
+                    .with_crypto_context(
+                        "base64_decode",
+                        "Invalid base64 encoding in authentication tag",
+                    )?;
                 Ok(Some(decoded))
             }
             None => Ok(None),
@@ -425,7 +436,16 @@ impl ChaCha20Poly1305Encryptor {
 }
 
 impl Encryptor for ChaCha20Poly1305Encryptor {
-    fn encrypt(&self, plaintext: &[u8], key: &[u8]) -> Result<EncryptedData> {
+    fn encrypt(&self, plaintext: &[u8], key: &[u8]) -> SecurityResult<EncryptedData> {
+        // Validate key length
+        if key.len() != 32 {
+            return Err(security_validation_error!(
+                "encryption_key",
+                "ChaCha20-Poly1305 requires exactly 32 bytes (256 bits)",
+                key.len()
+            ));
+        }
+
         let key = Key::from_slice(key);
 
         let mut nonce_bytes = [0u8; 12];
@@ -433,9 +453,12 @@ impl Encryptor for ChaCha20Poly1305Encryptor {
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         let cipher = ChaCha20Poly1305::new(&key);
-        let encrypted = cipher
-            .encrypt(nonce, plaintext)
-            .map_err(|e| anyhow!("ChaCha20-Poly1305 encryption failed: {}", e))?;
+        let encrypted = cipher.encrypt(nonce, plaintext).map_err(|e| {
+            security_crypto_error!(
+                "chacha20poly1305_encrypt",
+                &e
+            )
+        })?;
 
         // ChaCha20-Poly1305 includes the tag in the ciphertext
         let metadata = {
@@ -457,12 +480,25 @@ impl Encryptor for ChaCha20Poly1305Encryptor {
         ))
     }
 
-    fn decrypt(&self, encrypted: &EncryptedData, key: &[u8]) -> Result<Vec<u8>> {
+    fn decrypt(&self, encrypted: &EncryptedData, key: &[u8]) -> SecurityResult<Vec<u8>> {
+        // Validate key length
+        if key.len() != 32 {
+            return Err(security_validation_error!(
+                "encryption_key",
+                "ChaCha20-Poly1305 requires exactly 32 bytes (256 bits)",
+                key.len()
+            ));
+        }
+
         if encrypted.algorithm != EncryptionAlgorithm::ChaCha20Poly1305 {
-            return Err(anyhow!(
-                "Algorithm mismatch: expected {:?}, got {:?}",
-                EncryptionAlgorithm::ChaCha20Poly1305,
-                encrypted.algorithm
+            return Err(security_crypto_error!(
+                "algorithm_mismatch",
+                format!(
+                    "Expected {:?}, got {:?}",
+                    EncryptionAlgorithm::ChaCha20Poly1305,
+                    encrypted.algorithm
+                )
+                .as_str()
             ));
         }
 
@@ -473,9 +509,12 @@ impl Encryptor for ChaCha20Poly1305Encryptor {
         let nonce = Nonce::from_slice(&nonce_bytes);
         let cipher = ChaCha20Poly1305::new(&key);
 
-        cipher
-            .decrypt(nonce, &ciphertext[..])
-            .map_err(|e| anyhow!("ChaCha20-Poly1305 decryption failed: {}", e))
+        cipher.decrypt(nonce, &ciphertext[..]).map_err(|e| {
+            security_crypto_error!(
+                "chacha20poly1305_decrypt",
+                &e
+            )
+        })
     }
 
     fn algorithm(&self) -> EncryptionAlgorithm {
@@ -502,20 +541,30 @@ pub fn generate_nonce(size: usize) -> Vec<u8> {
 }
 
 /// Validate encryption security parameters
-pub fn validate_security_params(config: &EncryptionConfig) -> Result<()> {
+pub fn validate_security_params(config: &EncryptionConfig) -> SecurityResult<()> {
     // Check PBKDF2 iterations
     if config.pbkdf2_iterations < 60_000 {
-        return Err(anyhow!(
-            "PBKDF2 iterations ({}) below minimum recommended value (60,000)",
+        return Err(security_validation_error!(
+            "pbkdf2_iterations",
+            format!(
+                "PBKDF2 iterations ({}) below minimum recommended value (60,000)",
+                config.pbkdf2_iterations
+            )
+            .as_str(),
             config.pbkdf2_iterations
         ));
     }
 
     // Check algorithm is supported
     if !config.algorithm.is_recommended() {
-        return Err(anyhow!(
-            "Encryption algorithm {:?} is not recommended",
-            config.algorithm
+        return Err(security_validation_error!(
+            "encryption_algorithm",
+            format!(
+                "Encryption algorithm {:?} is not recommended for current security standards",
+                config.algorithm
+            )
+            .as_str(),
+            format!("{:?}", config.algorithm)
         ));
     }
 

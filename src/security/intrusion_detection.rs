@@ -214,13 +214,13 @@
 //! - **Executive summaries** for leadership communication
 
 use anyhow::Result;
-use chrono::{DateTime, Utc, Datelike, Timelike};
+use chrono::{DateTime, Datelike, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{interval, sleep};
-use tracing::{error, info, warn, debug, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::security::audit_logging::{AuditEvent, AuditEventType};
 use crate::security::audit_monitoring_simple::SimpleAuditMonitor;
@@ -484,13 +484,14 @@ impl Default for IntrusionDetectionConfig {
     }
 }
 
+#[allow(dead_code)]
 impl IntrusionDetectionEngine {
     /// Create a new intrusion detection engine
     pub async fn new(config: IntrusionDetectionConfig) -> Result<Self> {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let audit_monitor = SimpleAuditMonitor::new();
 
-        let mut engine = Self {
+        let engine = Self {
             config,
             rules: RwLock::new(Vec::new()),
             alerts: RwLock::new(Vec::new()),
@@ -631,7 +632,10 @@ impl IntrusionDetectionEngine {
     }
 
     /// Generate intrusion detection report
-    pub async fn generate_report(&self, time_range: Option<(DateTime<Utc>, DateTime<Utc>)>) -> Result<IntrusionReport> {
+    pub async fn generate_report(
+        &self,
+        time_range: Option<(DateTime<Utc>, DateTime<Utc>)>,
+    ) -> Result<IntrusionReport> {
         let alerts = self.alerts.read().await;
 
         let filtered_alerts = if let Some((start, end)) = time_range {
@@ -704,7 +708,8 @@ impl IntrusionDetectionEngine {
                 name: "Suspicious Command Sequence".to_string(),
                 description: "Detect potentially malicious command sequences".to_string(),
                 rule_type: RuleType::Signature,
-                pattern: "command_sequence CONTAINS ('rm -rf /', 'dd if=', 'wget http')".to_string(),
+                pattern: "command_sequence CONTAINS ('rm -rf /', 'dd if=', 'wget http')"
+                    .to_string(),
                 severity: AlertSeverity::High,
                 enabled: true,
                 priority: 2,
@@ -782,13 +787,17 @@ impl IntrusionDetectionEngine {
         for event in events {
             if event.source.source_type == crate::security::audit_logging::AuditSourceType::User {
                 let user_id = &event.source.identifier;
-                user_events.entry(user_id.clone()).or_insert_with(Vec::new).push(event);
+                user_events
+                    .entry(user_id.clone())
+                    .or_insert_with(Vec::new)
+                    .push(event);
             }
         }
 
         // Analyze each user's activity
         for (user_id, user_event_list) in user_events {
-            self.analyze_user_activity(&user_id, &user_event_list).await?;
+            self.analyze_user_activity(&user_id, &user_event_list)
+                .await?;
         }
 
         Ok(())
@@ -813,7 +822,8 @@ impl IntrusionDetectionEngine {
                             "Unusual Login Time",
                             &format!("User {} logged in at unusual time", user_id),
                             vec![event.id.clone()],
-                        ).await?;
+                        )
+                        .await?;
                     }
                 }
             }
@@ -824,7 +834,8 @@ impl IntrusionDetectionEngine {
 
     /// Check if login time is normal for user
     fn is_normal_login_time(&self, pattern: &UserActivityPattern, hour: u8, day: u8) -> bool {
-        pattern.login_patterns
+        pattern
+            .login_patterns
             .iter()
             .any(|tp| tp.hour == hour && tp.day_of_week == day && tp.frequency > 0.1)
     }
@@ -832,23 +843,27 @@ impl IntrusionDetectionEngine {
     /// Update user activity pattern
     async fn update_user_pattern(&self, user_id: &str, event: &AuditEvent) -> Result<()> {
         let mut patterns = self.user_patterns.write().await;
-        let pattern = patterns.entry(user_id.to_string()).or_insert_with(|| {
-            UserActivityPattern {
+        let pattern = patterns
+            .entry(user_id.to_string())
+            .or_insert_with(|| UserActivityPattern {
                 user_id: user_id.to_string(),
                 login_patterns: Vec::new(),
                 command_patterns: HashMap::new(),
                 network_patterns: Vec::new(),
                 resource_baselines: HashMap::new(),
                 last_updated: Utc::now(),
-            }
-        });
+            });
 
         // Update login pattern
         if event.event_type == AuditEventType::Authentication {
             let hour = event.timestamp.hour12().1 as u8;
             let day = (event.timestamp.date_naive().weekday() as u32 % 7) as u8;
 
-            if let Some(tp) = pattern.login_patterns.iter_mut().find(|tp| tp.hour == hour && tp.day_of_week == day) {
+            if let Some(tp) = pattern
+                .login_patterns
+                .iter_mut()
+                .find(|tp| tp.hour == hour && tp.day_of_week == day)
+            {
                 tp.frequency = (tp.frequency + 1.0).min(1.0);
             } else {
                 pattern.login_patterns.push(TimePattern {
@@ -914,21 +929,29 @@ impl IntrusionDetectionEngine {
     }
 
     /// Check statistical anomaly rule
-    async fn check_statistical_rule(&self, rule: &DetectionRule, _event: &AuditEvent) -> Result<bool> {
+    async fn check_statistical_rule(
+        &self,
+        _rule: &DetectionRule,
+        _event: &AuditEvent,
+    ) -> Result<bool> {
         // This would implement statistical analysis
         // For now, return false as placeholder
         Ok(false)
     }
 
     /// Check behavioral pattern rule
-    async fn check_behavioral_rule(&self, rule: &DetectionRule, event: &AuditEvent) -> Result<bool> {
+    async fn check_behavioral_rule(
+        &self,
+        _rule: &DetectionRule,
+        _event: &AuditEvent,
+    ) -> Result<bool> {
         // This would implement behavioral analysis
         // For now, return false as placeholder
         Ok(false)
     }
 
     /// Create and store an intrusion alert
-    async fn create_alert(
+    pub async fn create_alert(
         &self,
         source: AlertSource,
         severity: AlertSeverity,
@@ -980,7 +1003,8 @@ impl IntrusionDetectionEngine {
             &rule.name,
             &rule.description,
             vec![event.id.clone()],
-        ).await
+        )
+        .await
     }
 
     /// Trigger automatic response
@@ -990,7 +1014,10 @@ impl IntrusionDetectionEngine {
         }
 
         // Add delay before response
-        sleep(Duration::from_secs(self.config.auto_response.response_delay)).await;
+        sleep(Duration::from_secs(
+            self.config.auto_response.response_delay,
+        ))
+        .await;
 
         info!("Triggering auto-response for alert: {}", alert.id);
 
@@ -1015,9 +1042,9 @@ impl IntrusionDetectionEngine {
 
     /// Model update loop
     async fn model_update_loop(&self) {
-        let mut interval = interval(
-            Duration::from_secs(self.config.model_update_interval * 3600)
-        );
+        let mut interval = interval(Duration::from_secs(
+            self.config.model_update_interval * 3600,
+        ));
 
         loop {
             interval.tick().await;
@@ -1082,19 +1109,23 @@ impl IntrusionDetectionEngine {
         // Group events by type
         let mut event_counts: HashMap<String, usize> = HashMap::new();
         for event in events {
-            *event_counts.entry(event.event_type.to_string()).or_insert(0) += 1;
+            *event_counts
+                .entry(event.event_type.to_string())
+                .or_insert(0) += 1;
         }
 
         // Check for unusual frequency patterns
         for (event_type, count) in event_counts {
-            if count > 100 { // Arbitrary threshold
+            if count > 100 {
+                // Arbitrary threshold
                 self.create_alert(
                     AlertSource::AnomalyDetection,
                     AlertSeverity::Medium,
                     "Unusual Event Frequency",
                     &format!("High frequency of {} events: {}", event_type, count),
                     Vec::new(),
-                ).await?;
+                )
+                .await?;
             }
         }
 
@@ -1115,7 +1146,8 @@ impl IntrusionDetectionEngine {
                             "ML-Based Anomaly Detection",
                             &format!("Anomaly detected with score: {:.3}", anomaly_score),
                             vec![event.id.clone()],
-                        ).await?;
+                        )
+                        .await?;
                     }
                 }
             }
@@ -1160,16 +1192,20 @@ impl IntrusionDetectionEngine {
     fn generate_recommendations(&self, alerts: &[IntrusionAlert]) -> Vec<String> {
         let mut recommendations = Vec::new();
 
-        let high_severity_count = alerts.iter()
+        let high_severity_count = alerts
+            .iter()
             .filter(|a| matches!(a.severity, AlertSeverity::High | AlertSeverity::Critical))
             .count();
 
         if high_severity_count > 0 {
-            recommendations.push("Immediate investigation recommended for high-severity alerts".to_string());
+            recommendations
+                .push("Immediate investigation recommended for high-severity alerts".to_string());
         }
 
         if alerts.len() > 50 {
-            recommendations.push("Consider reviewing security policies - high alert volume detected".to_string());
+            recommendations.push(
+                "Consider reviewing security policies - high alert volume detected".to_string(),
+            );
         }
 
         recommendations.push("Regular security training recommended for all users".to_string());
@@ -1224,6 +1260,7 @@ pub struct SimpleMLModel {
 
 impl SimpleMLModel {
     /// Create a new simple ML model
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             weights: HashMap::new(),
@@ -1287,7 +1324,7 @@ impl MLModel for SimpleMLModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::security::audit_logging::{AuditOutcome, AuditSeverity};
+    use crate::security::audit_logging::{AuditOutcome, AuditSeverity, AuditSource, AuditSourceType};
 
     #[tokio::test]
     async fn test_intrusion_detection_engine_creation() {
@@ -1323,13 +1360,16 @@ mod tests {
         let config = IntrusionDetectionConfig::default();
         let engine = IntrusionDetectionEngine::new(config).await.unwrap();
 
-        assert!(engine.create_alert(
-            AlertSource::UserReport,
-            AlertSeverity::High,
-            "Test Alert",
-            "Test description",
-            vec!["event_1".to_string()],
-        ).await.is_ok());
+        assert!(engine
+            .create_alert(
+                AlertSource::UserReport,
+                AlertSeverity::High,
+                "Test Alert",
+                "Test description",
+                vec!["event_1".to_string()],
+            )
+            .await
+            .is_ok());
     }
 
     #[tokio::test]
@@ -1341,14 +1381,28 @@ mod tests {
             id: "test_event".to_string(),
             timestamp: Utc::now(),
             event_type: AuditEventType::Authentication,
-            severity: AuditSeverity::Info,
+            severity: AuditSeverity::Low,
+            source: AuditSource {
+                identifier: "test_user".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: std::collections::HashMap::new(),
+            },
             outcome: AuditOutcome::Success,
-            user_id: Some("test_user".to_string()),
-            resource: "system".to_string(),
+            description: "Test authentication event".to_string(),
             details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: "test_hash_001".to_string(),
         };
 
-        assert!(engine.update_user_pattern("test_user", &event).await.is_ok());
+        assert!(engine
+            .update_user_pattern("test_user", &event)
+            .await
+            .is_ok());
     }
 
     #[tokio::test]
@@ -1360,22 +1414,44 @@ mod tests {
             id: "1".to_string(),
             timestamp: Utc::now(),
             event_type: AuditEventType::Authentication,
-            severity: AuditSeverity::Info,
+            severity: AuditSeverity::Low,
+            source: AuditSource {
+                identifier: "user1".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: std::collections::HashMap::new(),
+            },
             outcome: AuditOutcome::Success,
-            user_id: Some("user1".to_string()),
-            resource: "system".to_string(),
+            description: "Test authentication event".to_string(),
             details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: "test_hash_002".to_string(),
         };
 
         let event2 = AuditEvent {
             id: "2".to_string(),
             timestamp: Utc::now(),
-            event_type: AuditEventType::Logout,
-            severity: AuditSeverity::Info,
+            event_type: AuditEventType::Authentication,
+            severity: AuditSeverity::Low,
+            source: AuditSource {
+                identifier: "user1".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: std::collections::HashMap::new(),
+            },
             outcome: AuditOutcome::Success,
-            user_id: Some("user1".to_string()),
-            resource: "system".to_string(),
+            description: "Test authentication event".to_string(),
             details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: "test_hash_003".to_string(),
         };
 
         let events = vec![&event1, &event2];

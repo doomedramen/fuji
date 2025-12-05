@@ -12,11 +12,11 @@
 use anyhow::Result;
 use chrono::Utc;
 use fuji::security::secure_updates::*;
-use sha2::{Sha256, Digest};
-use tempfile::TempDir;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use tempfile::TempDir;
 
 #[tokio::test]
 async fn test_secure_update_manager_creation() -> Result<()> {
@@ -62,6 +62,7 @@ async fn test_create_security_patch_update() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     let metadata = UpdateMetadata {
+            previous_version: None,
         package_id: "security-patch-001".to_string(),
         version: "2.1.0".to_string(),
         previous_version: Some("2.0.0".to_string()),
@@ -72,15 +73,13 @@ async fn test_create_security_patch_update() -> Result<()> {
         checksums: HashMap::new(),
         dependencies: vec!["libssl".to_string(), "libcrypto".to_string()],
         size_bytes: 5_242_880,
-        signatures: vec![
-            DigitalSignature {
-                algorithm: SignatureAlgorithm::Ed25519,
-                key_id: "security-team-ed25519".to_string(),
-                signature: "ed25519_signature_placeholder".to_string(),
-                certificate_chain: vec!["cert1".to_string(), "cert2".to_string()],
-                timestamp: Utc::now(),
-            }
-        ],
+        signatures: vec![DigitalSignature {
+            algorithm: SignatureAlgorithm::Ed25519,
+            key_id: "security-team-ed25519".to_string(),
+            signature: "ed25519_signature_placeholder".to_string(),
+            certificate_chain: vec!["cert1".to_string(), "cert2".to_string()],
+            timestamp: Utc::now(),
+        }],
         creator: "Security Team".to_string(),
         classification: UpdateClassification::Official,
     };
@@ -94,7 +93,10 @@ async fn test_create_security_patch_update() -> Result<()> {
     let update = &active_updates[0];
     assert_eq!(update.metadata.package_id, "security-patch-001");
     assert_eq!(update.metadata.security_level, SecurityLevel::Critical);
-    assert_eq!(update.metadata.package_type, UpdatePackageType::SecurityPatch);
+    assert_eq!(
+        update.metadata.package_type,
+        UpdatePackageType::SecurityPatch
+    );
     assert_eq!(update.stages.len(), 3); // download, verify, install
 
     Ok(())
@@ -113,6 +115,7 @@ async fn test_create_feature_update() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     let metadata = UpdateMetadata {
+            previous_version: None,
         package_id: "feature-update-new-dashboard".to_string(),
         version: "3.0.0".to_string(),
         previous_version: Some("2.5.0".to_string()),
@@ -123,15 +126,13 @@ async fn test_create_feature_update() -> Result<()> {
         checksums: HashMap::new(),
         dependencies: vec!["web-ui".to_string(), "metrics-collector".to_string()],
         size_bytes: 15_728_640,
-        signatures: vec![
-            DigitalSignature {
-                algorithm: SignatureAlgorithm::RSA512,
-                key_id: "dev-team-rsa".to_string(),
-                signature: "rsa512_signature_placeholder".to_string(),
-                certificate_chain: vec!["dev_cert".to_string()],
-                timestamp: Utc::now(),
-            }
-        ],
+        signatures: vec![DigitalSignature {
+            algorithm: SignatureAlgorithm::RSA512,
+            key_id: "dev-team-rsa".to_string(),
+            signature: "rsa512_signature_placeholder".to_string(),
+            certificate_chain: vec!["dev_cert".to_string()],
+            timestamp: Utc::now(),
+        }],
         creator: "Development Team".to_string(),
         classification: UpdateClassification::Beta,
     };
@@ -161,20 +162,26 @@ async fn test_trusted_key_management() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     // Add trusted keys
-    manager.add_trusted_key(
-        "security-team-ed25519".to_string(),
-        "ed25519_public_key_2024".to_string()
-    ).await?;
+    manager
+        .add_trusted_key(
+            "security-team-ed25519".to_string(),
+            "ed25519_public_key_2024".to_string(),
+        )
+        .await?;
 
-    manager.add_trusted_key(
-        "dev-team-rsa".to_string(),
-        "rsa4096_public_key_2024".to_string()
-    ).await?;
+    manager
+        .add_trusted_key(
+            "dev-team-rsa".to_string(),
+            "rsa4096_public_key_2024".to_string(),
+        )
+        .await?;
 
-    manager.add_trusted_key(
-        "qa-team-ecdsa".to_string(),
-        "ecdsa_p256_public_key_2024".to_string()
-    ).await?;
+    manager
+        .add_trusted_key(
+            "qa-team-ecdsa".to_string(),
+            "ecdsa_p256_public_key_2024".to_string(),
+        )
+        .await?;
 
     // Remove a trusted key
     manager.remove_trusted_key("dev-team-rsa").await?;
@@ -199,6 +206,7 @@ async fn test_download_update() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     let metadata = UpdateMetadata {
+            previous_version: None,
         package_id: "download-test-001".to_string(),
         version: "1.0.0".to_string(),
         description: "Test download functionality".to_string(),
@@ -220,7 +228,12 @@ async fn test_download_update() -> Result<()> {
     let local_path = manager.download_update(&package_id, download_url).await?;
 
     assert!(local_path.exists());
-    assert!(local_path.file_name().unwrap().to_str().unwrap().contains("download-test-001"));
+    assert!(local_path
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .contains("download-test-001"));
 
     // Verify update status after download
     let active_updates = manager.get_active_updates().await?;
@@ -229,7 +242,11 @@ async fn test_download_update() -> Result<()> {
     assert!(update.local_path.is_some());
 
     // Check download stage completion
-    let download_stage = update.stages.iter().find(|s| s.stage_id == "download").unwrap();
+    let download_stage = update
+        .stages
+        .iter()
+        .find(|s| s.stage_id == "download")
+        .unwrap();
     assert_eq!(download_stage.status, UpdateStatus::Completed);
     assert_eq!(download_stage.progress, 100);
 
@@ -244,7 +261,7 @@ async fn test_verify_update_with_integrity() -> Result<()> {
         staging_directory: temp_dir.path().join("staging"),
         backup_directory: temp_dir.path().join("backup"),
         enable_signature_verification: false, // Disable for this test
-        enable_security_scanning: false,       // Disable for this test
+        enable_security_scanning: false,      // Disable for this test
         ..Default::default()
     };
 
@@ -258,6 +275,7 @@ async fn test_verify_update_with_integrity() -> Result<()> {
     checksums.insert("sha256".to_string(), hex::encode(package_hash));
 
     let metadata = UpdateMetadata {
+            previous_version: None,
         package_id: "integrity-test-001".to_string(),
         version: "1.0.0".to_string(),
         description: "Test integrity verification".to_string(),
@@ -305,7 +323,7 @@ async fn test_verify_update_with_checksum_mismatch() -> Result<()> {
         staging_directory: temp_dir.path().join("staging"),
         backup_directory: temp_dir.path().join("backup"),
         enable_signature_verification: false, // Disable for this test
-        enable_security_scanning: false,       // Disable for this test
+        enable_security_scanning: false,      // Disable for this test
         ..Default::default()
     };
 
@@ -315,10 +333,13 @@ async fn test_verify_update_with_checksum_mismatch() -> Result<()> {
     let package_content = b"original-content";
 
     let mut checksums = HashMap::new();
-    checksums.insert("sha256".to_string(),
-        hex::encode(Sha256::digest(package_content)));
+    checksums.insert(
+        "sha256".to_string(),
+        hex::encode(Sha256::digest(package_content)),
+    );
 
     let metadata = UpdateMetadata {
+            previous_version: None,
         package_id: "checksum-mismatch-test".to_string(),
         version: "1.0.0".to_string(),
         description: "Test checksum mismatch detection".to_string(),
@@ -367,7 +388,7 @@ async fn test_install_update_success() -> Result<()> {
         staging_directory: temp_dir.path().join("staging"),
         backup_directory: temp_dir.path().join("backup"),
         enable_signature_verification: false, // Disable for this test
-        enable_security_scanning: false,       // Disable for this test
+        enable_security_scanning: false,      // Disable for this test
         enable_auto_rollback: true,
         ..Default::default()
     };
@@ -382,6 +403,7 @@ async fn test_install_update_success() -> Result<()> {
     checksums.insert("sha256".to_string(), hex::encode(package_hash));
 
     let metadata = UpdateMetadata {
+            previous_version: None,
         package_id: "install-success-test".to_string(),
         version: "2.0.0".to_string(),
         description: "Test successful installation".to_string(),
@@ -424,7 +446,10 @@ async fn test_install_update_success() -> Result<()> {
     // Check update history
     let update_history = manager.get_update_history().await?;
     assert_eq!(update_history.len(), 1);
-    assert_eq!(update_history[0].metadata.package_id, "install-success-test");
+    assert_eq!(
+        update_history[0].metadata.package_id,
+        "install-success-test"
+    );
 
     // Verify installation marker
     assert!(Path::new("/tmp/fuji_update_marker").exists());
@@ -481,6 +506,7 @@ async fn test_cancel_update() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     let metadata = UpdateMetadata {
+            previous_version: None,
         package_id: "cancel-test-001".to_string(),
         version: "1.0.0".to_string(),
         description: "Test update cancellation".to_string(),
@@ -509,7 +535,10 @@ async fn test_cancel_update() -> Result<()> {
     assert_eq!(active_updates.len(), 1);
 
     let update = &active_updates[0];
-    assert!(matches!(update.status, UpdateStatus::Failed { error_code, .. }));
+    assert!(matches!(
+        update.status,
+        UpdateStatus::Failed { error_code, .. }
+    ));
     if let UpdateStatus::Failed { error_code, .. } = &update.status {
         assert_eq!(error_code, "CANCELLED");
     }
@@ -519,7 +548,10 @@ async fn test_cancel_update() -> Result<()> {
 
     // Verify all stages are marked as failed/cancelled
     for stage in &update.stages {
-        if matches!(stage.status, UpdateStatus::Pending | UpdateStatus::Downloading) {
+        if matches!(
+            stage.status,
+            UpdateStatus::Pending | UpdateStatus::Downloading
+        ) {
             assert!(matches!(stage.status, UpdateStatus::Failed { .. }));
             assert!(stage.error.as_ref().unwrap().contains("cancelled"));
         }
@@ -550,17 +582,19 @@ async fn test_cleanup_old_updates() -> Result<()> {
     fs::write(&old_staged_file, "old staged data")?;
 
     // Set old modification times
-    let old_backup_time = std::time::SystemTime::now() - std::time::Duration::from_secs(31 * 24 * 60 * 60);
-    let old_staged_time = std::time::SystemTime::now() - std::time::Duration::from_secs(25 * 60 * 60);
+    let old_backup_time =
+        std::time::SystemTime::now() - std::time::Duration::from_secs(31 * 24 * 60 * 60);
+    let old_staged_time =
+        std::time::SystemTime::now() - std::time::Duration::from_secs(25 * 60 * 60);
 
     filetime::set_file_mtime(
         temp_dir.path().join("backup").join("old-backup-2023"),
-        filetime::FileTime::from_system_time(old_backup_time)
+        filetime::FileTime::from_system_time(old_backup_time),
     )?;
 
     filetime::set_file_mtime(
         &old_staged_file,
-        filetime::FileTime::from_system_time(old_staged_time)
+        filetime::FileTime::from_system_time(old_staged_time),
     )?;
 
     // Run cleanup
@@ -587,6 +621,7 @@ async fn test_component_update() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     let metadata = UpdateMetadata {
+            previous_version: None,
         package_id: "component-update-logger".to_string(),
         version: "3.2.1".to_string(),
         description: "Update logging component with improved performance".to_string(),
@@ -609,7 +644,11 @@ async fn test_component_update() -> Result<()> {
     let active_updates = manager.get_active_updates().await?;
     let update = &active_updates[0];
 
-    if let UpdatePackageType::Component { component_name, version } = &update.metadata.package_type {
+    if let UpdatePackageType::Component {
+        component_name,
+        version,
+    } = &update.metadata.package_type
+    {
         assert_eq!(component_name, "logging-system");
         assert_eq!(version, "3.2.1");
     } else {
@@ -634,6 +673,7 @@ async fn test_update_stages_progress() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     let metadata = UpdateMetadata {
+            previous_version: None,
         package_id: "progress-test-001".to_string(),
         version: "1.0.0".to_string(),
         description: "Test update stages and progress tracking".to_string(),
@@ -656,7 +696,8 @@ async fn test_update_stages_progress() -> Result<()> {
     // Verify initial stages
     assert_eq!(update.stages.len(), 3);
 
-    let stages: std::collections::HashMap<String, _> = update.stages
+    let stages: std::collections::HashMap<String, _> = update
+        .stages
         .iter()
         .map(|s| (s.stage_id.clone(), s))
         .collect();
@@ -689,7 +730,9 @@ async fn test_multiple_signature_algorithms() -> Result<()> {
         required_signature_algorithms: vec![
             SignatureAlgorithm::Ed25519,
             SignatureAlgorithm::RSA512,
-            SignatureAlgorithm::ECDSA { curve: "P-256".to_string() },
+            SignatureAlgorithm::ECDSA {
+                curve: "P-256".to_string(),
+            },
         ],
         ..Default::default()
     };
@@ -697,22 +740,29 @@ async fn test_multiple_signature_algorithms() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     // Add trusted keys for all algorithms
-    manager.add_trusted_key(
-        "ed25519-main".to_string(),
-        "ed25519_main_key_2024".to_string()
-    ).await?;
+    manager
+        .add_trusted_key(
+            "ed25519-main".to_string(),
+            "ed25519_main_key_2024".to_string(),
+        )
+        .await?;
 
-    manager.add_trusted_key(
-        "rsa512-main".to_string(),
-        "rsa512_main_key_2024".to_string()
-    ).await?;
+    manager
+        .add_trusted_key(
+            "rsa512-main".to_string(),
+            "rsa512_main_key_2024".to_string(),
+        )
+        .await?;
 
-    manager.add_trusted_key(
-        "ecdsa-p256-main".to_string(),
-        "ecdsa_p256_main_key_2024".to_string()
-    ).await?;
+    manager
+        .add_trusted_key(
+            "ecdsa-p256-main".to_string(),
+            "ecdsa_p256_main_key_2024".to_string(),
+        )
+        .await?;
 
     let metadata = UpdateMetadata {
+            previous_version: None,
         package_id: "multi-sig-test-001".to_string(),
         version: "2.0.0".to_string(),
         description: "Test multiple signature algorithms".to_string(),
@@ -738,7 +788,9 @@ async fn test_multiple_signature_algorithms() -> Result<()> {
                 timestamp: Utc::now(),
             },
             DigitalSignature {
-                algorithm: SignatureAlgorithm::ECDSA { curve: "P-256".to_string() },
+                algorithm: SignatureAlgorithm::ECDSA {
+                    curve: "P-256".to_string(),
+                },
                 key_id: "ecdsa-p256-main".to_string(),
                 signature: "ecdsa_signature_data".to_string(),
                 certificate_chain: vec!["ecdsa_cert".to_string()],
@@ -758,14 +810,18 @@ async fn test_multiple_signature_algorithms() -> Result<()> {
     assert_eq!(update.metadata.signatures.len(), 3);
 
     // Check signature algorithms
-    let algorithms: std::collections::HashSet<_> = update.metadata.signatures
+    let algorithms: std::collections::HashSet<_> = update
+        .metadata
+        .signatures
         .iter()
         .map(|s| &s.algorithm)
         .collect();
 
     assert!(algorithms.contains(&SignatureAlgorithm::Ed25519));
     assert!(algorithms.contains(&SignatureAlgorithm::RSA512));
-    assert!(algorithms.contains(&SignatureAlgorithm::ECDSA { curve: "P-256".to_string() }));
+    assert!(algorithms.contains(&SignatureAlgorithm::ECDSA {
+        curve: "P-256".to_string()
+    }));
 
     assert_eq!(package_id, "multi-sig-test-001");
 
@@ -795,9 +851,13 @@ async fn test_security_levels() -> Result<()> {
 
     for (level, package_id) in security_levels {
         let metadata = UpdateMetadata {
+            previous_version: None,
             package_id: package_id.to_string(),
             version: "1.0.0".to_string(),
-            description: format!("Test {} security level", format!("{:?}", level).to_lowercase()),
+            description: format!(
+                "Test {} security level",
+                format!("{:?}", level).to_lowercase()
+            ),
             package_type: UpdatePackageType::SecurityPatch,
             security_level: level.clone(),
             build_timestamp: Utc::now(),
@@ -813,7 +873,10 @@ async fn test_security_levels() -> Result<()> {
         assert_eq!(created_id, package_id);
 
         let active_updates = manager.get_active_updates().await?;
-        let update = active_updates.iter().find(|u| u.metadata.package_id == package_id).unwrap();
+        let update = active_updates
+            .iter()
+            .find(|u| u.metadata.package_id == package_id)
+            .unwrap();
         assert_eq!(update.metadata.security_level, level);
     }
 
@@ -847,9 +910,13 @@ async fn test_update_classifications() -> Result<()> {
 
     for (classification, package_id) in classifications {
         let metadata = UpdateMetadata {
+            previous_version: None,
             package_id: package_id.to_string(),
             version: "1.0.0".to_string(),
-            description: format!("Test {} classification", format!("{:?}", classification).to_lowercase()),
+            description: format!(
+                "Test {} classification",
+                format!("{:?}", classification).to_lowercase()
+            ),
             package_type: UpdatePackageType::FeatureUpdate,
             security_level: SecurityLevel::Medium,
             build_timestamp: Utc::now(),
@@ -865,7 +932,10 @@ async fn test_update_classifications() -> Result<()> {
         assert_eq!(created_id, package_id);
 
         let active_updates = manager.get_active_updates().await?;
-        let update = active_updates.iter().find(|u| u.metadata.package_id == package_id).unwrap();
+        let update = active_updates
+            .iter()
+            .find(|u| u.metadata.package_id == package_id)
+            .unwrap();
         assert_eq!(update.metadata.classification, classification);
     }
 

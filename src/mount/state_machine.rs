@@ -68,6 +68,7 @@ pub struct MountStateMachine {
     max_history: usize,
 }
 
+#[allow(dead_code)]
 impl MountStateMachine {
     /// Create a new mount state machine
     pub fn new(mount_id: String) -> (Self, broadcast::Receiver<StateTransition>) {

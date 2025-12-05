@@ -3,8 +3,8 @@
 //! This module defines standardized error types for all security-related operations
 //! using thiserror for better error handling, context preservation, and debugging.
 
-use thiserror::Error;
 use std::fmt;
+use thiserror::Error;
 
 /// Main security error type for all security operations
 #[derive(Error, Debug)]
@@ -126,10 +126,7 @@ pub enum SecurityError {
 
     /// Timeout errors for security operations
     #[error("Security operation timeout: {operation} after {duration_ms}ms")]
-    TimeoutError {
-        operation: String,
-        duration_ms: u64,
-    },
+    TimeoutError { operation: String, duration_ms: u64 },
 
     /// Hardware security module errors
     #[error("HSM error: {module} - {reason}")]
@@ -163,6 +160,144 @@ pub enum SecurityError {
         #[source]
         source: anyhow::Error,
     },
+}
+
+impl Clone for SecurityError {
+    fn clone(&self) -> Self {
+        match self {
+            SecurityError::CryptographicError { operation, reason, source: _ } => {
+                SecurityError::CryptographicError {
+                    operation: operation.clone(),
+                    reason: reason.clone(),
+                    source: None, // Cannot clone Box<dyn Error>
+                }
+            }
+            SecurityError::AuthenticationFailed { details, user_id, attempt_count } => {
+                SecurityError::AuthenticationFailed {
+                    details: details.clone(),
+                    user_id: user_id.clone(),
+                    attempt_count: *attempt_count,
+                }
+            }
+            SecurityError::AccessDenied { operation, reason, required_permission } => {
+                SecurityError::AccessDenied {
+                    operation: operation.clone(),
+                    reason: reason.clone(),
+                    required_permission: required_permission.clone(),
+                }
+            }
+            SecurityError::CredentialError { operation, reason, credential_type } => {
+                SecurityError::CredentialError {
+                    operation: operation.clone(),
+                    reason: reason.clone(),
+                    credential_type: credential_type.clone(),
+                }
+            }
+            SecurityError::EncryptionError { algorithm, reason, source: _ } => {
+                SecurityError::EncryptionError {
+                    algorithm: algorithm.clone(),
+                    reason: reason.clone(),
+                    source: None, // Cannot clone Box<dyn Error>
+                }
+            }
+            SecurityError::KeyManagementError { operation, reason, key_id } => {
+                SecurityError::KeyManagementError {
+                    operation: operation.clone(),
+                    reason: reason.clone(),
+                    key_id: key_id.clone(),
+                }
+            }
+            SecurityError::AuditError { operation, reason, event_id } => {
+                SecurityError::AuditError {
+                    operation: operation.clone(),
+                    reason: reason.clone(),
+                    event_id: event_id.clone(),
+                }
+            }
+            SecurityError::IntrusionDetectionError { component, reason, threat_level } => {
+                SecurityError::IntrusionDetectionError {
+                    component: component.clone(),
+                    reason: reason.clone(),
+                    threat_level: threat_level.clone(),
+                }
+            }
+            SecurityError::SystemSecurityError { component, reason, source: _ } => {
+                SecurityError::SystemSecurityError {
+                    component: component.clone(),
+                    reason: reason.clone(),
+                    source: None, // Cannot clone Box<dyn Error>
+                }
+            }
+            SecurityError::ConfigurationError { setting, reason, config_file } => {
+                SecurityError::ConfigurationError {
+                    setting: setting.clone(),
+                    reason: reason.clone(),
+                    config_file: config_file.clone(),
+                }
+            }
+            SecurityError::NetworkSecurityError { protocol, reason, remote_address } => {
+                SecurityError::NetworkSecurityError {
+                    protocol: protocol.clone(),
+                    reason: reason.clone(),
+                    remote_address: remote_address.clone(),
+                }
+            }
+            SecurityError::FileSystemSecurityError { path, reason, operation } => {
+                SecurityError::FileSystemSecurityError {
+                    path: path.clone(),
+                    reason: reason.clone(),
+                    operation: operation.clone(),
+                }
+            }
+            SecurityError::ValidationError { field, reason, value } => {
+                SecurityError::ValidationError {
+                    field: field.clone(),
+                    reason: reason.clone(),
+                    value: value.clone(),
+                }
+            }
+            SecurityError::ResourceLimitExceeded { resource, current, limit } => {
+                SecurityError::ResourceLimitExceeded {
+                    resource: resource.clone(),
+                    current: *current,
+                    limit: *limit,
+                }
+            }
+            SecurityError::TimeoutError { operation, duration_ms } => {
+                SecurityError::TimeoutError {
+                    operation: operation.clone(),
+                    duration_ms: *duration_ms,
+                }
+            }
+            SecurityError::HsmError { module, reason, source: _ } => {
+                SecurityError::HsmError {
+                    module: module.clone(),
+                    reason: reason.clone(),
+                    source: None, // Cannot clone Box<dyn Error>
+                }
+            }
+            SecurityError::SecureUpdateError { stage, reason, update_id } => {
+                SecurityError::SecureUpdateError {
+                    stage: stage.clone(),
+                    reason: reason.clone(),
+                    update_id: update_id.clone(),
+                }
+            }
+            SecurityError::PolicyViolation { policy, reason, severity } => {
+                SecurityError::PolicyViolation {
+                    policy: policy.clone(),
+                    reason: reason.clone(),
+                    severity: *severity,
+                }
+            }
+            SecurityError::Generic { context, source } => {
+                SecurityError::Generic {
+                    context: context.clone(),
+                    source: anyhow::anyhow!(source.to_string()), // Create new anyhow::Error from string
+                }
+            }
+        }
+    }
 }
 
 /// Severity levels for policy violations
@@ -244,7 +379,7 @@ pub trait SecurityResultExt<T> {
 impl<T> SecurityResultExt<T> for SecurityResult<T> {
     fn with_credential_context(self, operation: &str, credential_type: &str) -> SecurityResult<T> {
         self.map_err(|e| match e {
-            SecurityError::Generic { context, source } => SecurityError::CredentialError {
+            SecurityError::Generic { context, source: _ } => SecurityError::CredentialError {
                 operation: operation.to_string(),
                 reason: context,
                 credential_type: credential_type.to_string(),
@@ -255,7 +390,7 @@ impl<T> SecurityResultExt<T> for SecurityResult<T> {
 
     fn with_crypto_context(self, operation: &str, reason: &str) -> SecurityResult<T> {
         self.map_err(|e| match e {
-            SecurityError::Generic { context, source } => SecurityError::CryptographicError {
+            SecurityError::Generic { context: _context, source } => SecurityError::CryptographicError {
                 operation: operation.to_string(),
                 reason: reason.to_string(),
                 source: Some(source.into()),
@@ -266,7 +401,7 @@ impl<T> SecurityResultExt<T> for SecurityResult<T> {
 
     fn with_auth_context(self, details: &str, user_id: Option<&str>) -> SecurityResult<T> {
         self.map_err(|e| match e {
-            SecurityError::Generic { context, .. } => SecurityError::AuthenticationFailed {
+            SecurityError::Generic { context: _context, .. } => SecurityError::AuthenticationFailed {
                 details: details.to_string(),
                 user_id: user_id.map(|u| u.to_string()),
                 attempt_count: 1,
@@ -277,7 +412,7 @@ impl<T> SecurityResultExt<T> for SecurityResult<T> {
 
     fn with_audit_context(self, operation: &str, reason: &str) -> SecurityResult<T> {
         self.map_err(|e| match e {
-            SecurityError::Generic { context, .. } => SecurityError::AuditError {
+            SecurityError::Generic { context: _context, .. } => SecurityError::AuditError {
                 operation: operation.to_string(),
                 reason: reason.to_string(),
                 event_id: None,
@@ -291,7 +426,7 @@ impl<T> SecurityResultExt<T> for SecurityResult<T> {
 #[macro_export]
 macro_rules! security_credential_error {
     ($operation:expr, $reason:expr, $type:expr) => {
-        SecurityError::CredentialError {
+        $crate::security::SecurityError::CredentialError {
             operation: $operation.to_string(),
             reason: $reason.to_string(),
             credential_type: $type.to_string(),
@@ -302,17 +437,17 @@ macro_rules! security_credential_error {
 #[macro_export]
 macro_rules! security_crypto_error {
     ($operation:expr, $reason:expr) => {
-        SecurityError::CryptographicError {
+        $crate::security::SecurityError::CryptographicError {
             operation: $operation.to_string(),
             reason: $reason.to_string(),
             source: None,
         }
     };
-    ($operation:expr, $reason:expr, $source:expr) => {
-        SecurityError::CryptographicError {
+    ($operation:expr, $source:expr) => {
+        $crate::security::SecurityError::CryptographicError {
             operation: $operation.to_string(),
-            reason: $reason.to_string(),
-            source: Some(Box::new($source)),
+            reason: $source.to_string(),
+            source: None,
         }
     };
 }
@@ -320,21 +455,21 @@ macro_rules! security_crypto_error {
 #[macro_export]
 macro_rules! security_auth_error {
     ($details:expr) => {
-        SecurityError::AuthenticationFailed {
+        $crate::security::SecurityError::AuthenticationFailed {
             details: $details.to_string(),
             user_id: None,
             attempt_count: 1,
         }
     };
     ($details:expr, $user_id:expr) => {
-        SecurityError::AuthenticationFailed {
+        $crate::security::SecurityError::AuthenticationFailed {
             details: $details.to_string(),
             user_id: Some($user_id.to_string()),
             attempt_count: 1,
         }
     };
     ($details:expr, $user_id:expr, $attempts:expr) => {
-        SecurityError::AuthenticationFailed {
+        $crate::security::SecurityError::AuthenticationFailed {
             details: $details.to_string(),
             user_id: Some($user_id.to_string()),
             attempt_count: $attempts,
@@ -345,14 +480,14 @@ macro_rules! security_auth_error {
 #[macro_export]
 macro_rules! security_validation_error {
     ($field:expr, $reason:expr) => {
-        SecurityError::ValidationError {
+        $crate::security::SecurityError::ValidationError {
             field: $field.to_string(),
             reason: $reason.to_string(),
             value: None,
         }
     };
     ($field:expr, $reason:expr, $value:expr) => {
-        SecurityError::ValidationError {
+        $crate::security::SecurityError::ValidationError {
             field: $field.to_string(),
             reason: $reason.to_string(),
             value: Some($value.to_string()),
@@ -405,25 +540,25 @@ impl SecurityErrorMetrics {
     /// Get the category of an error
     fn error_category(&self, error: &SecurityError) -> String {
         match error {
-            SecurityError::CryptographicError { .. } => "cryptographic",
-            SecurityError::AuthenticationFailed { .. } => "authentication",
-            SecurityError::AccessDenied { .. } => "authorization",
-            SecurityError::CredentialError { .. } => "credential",
-            SecurityError::EncryptionError { .. } => "encryption",
-            SecurityError::KeyManagementError { .. } => "key_management",
-            SecurityError::AuditError { .. } => "audit",
-            SecurityError::IntrusionDetectionError { .. } => "intrusion_detection",
-            SecurityError::SystemSecurityError { .. } => "system_security",
-            SecurityError::ConfigurationError { .. } => "configuration",
-            SecurityError::NetworkSecurityError { .. } => "network_security",
-            SecurityError::FileSystemSecurityError { .. } => "file_system_security",
-            SecurityError::ValidationError { .. } => "validation",
-            SecurityError::ResourceLimitExceeded { .. } => "resource_limit",
-            SecurityError::TimeoutError { .. } => "timeout",
-            SecurityError::HsmError { .. } => "hsm",
-            SecurityError::SecureUpdateError { .. } => "secure_update",
-            SecurityError::PolicyViolation { .. } => "policy_violation",
-            SecurityError::Generic { .. } => "generic",
+            SecurityError::CryptographicError { .. } => "cryptographic".to_string(),
+            SecurityError::AuthenticationFailed { .. } => "authentication".to_string(),
+            SecurityError::AccessDenied { .. } => "authorization".to_string(),
+            SecurityError::CredentialError { .. } => "credential".to_string(),
+            SecurityError::EncryptionError { .. } => "encryption".to_string(),
+            SecurityError::KeyManagementError { .. } => "key_management".to_string(),
+            SecurityError::AuditError { .. } => "audit".to_string(),
+            SecurityError::IntrusionDetectionError { .. } => "intrusion_detection".to_string(),
+            SecurityError::SystemSecurityError { .. } => "system_security".to_string(),
+            SecurityError::ConfigurationError { .. } => "configuration".to_string(),
+            SecurityError::NetworkSecurityError { .. } => "network_security".to_string(),
+            SecurityError::FileSystemSecurityError { .. } => "file_system_security".to_string(),
+            SecurityError::ValidationError { .. } => "validation".to_string(),
+            SecurityError::ResourceLimitExceeded { .. } => "resource_limit".to_string(),
+            SecurityError::TimeoutError { .. } => "timeout".to_string(),
+            SecurityError::HsmError { .. } => "hsm".to_string(),
+            SecurityError::SecureUpdateError { .. } => "secure_update".to_string(),
+            SecurityError::PolicyViolation { .. } => "policy_violation".to_string(),
+            SecurityError::Generic { .. } => "generic".to_string(),
         }
     }
 }

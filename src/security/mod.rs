@@ -117,8 +117,8 @@ pub mod env_provider;
 pub mod error;
 pub mod file_provider;
 pub mod hardware_credential_provider;
-pub mod intrusion_detection;
 pub mod integrity;
+pub mod intrusion_detection;
 pub mod key_derivation;
 pub mod keyring_provider;
 pub mod path_security;
@@ -127,13 +127,15 @@ pub mod process_isolation;
 pub mod resource_limits;
 pub mod seccomp;
 pub mod secure_socket;
-pub mod socket;
 pub mod secure_updates;
 pub mod security_dashboard;
+pub mod socket;
 
 // Re-export commonly used error types for convenience
-pub use error::{SecurityError, SecurityResult, SecurityResultExt, IntoSecurityError, PolicySeverity};
 pub use error::SecurityErrorMetrics;
+pub use error::{
+    IntoSecurityError, PolicySeverity, SecurityError, SecurityResult, SecurityResultExt,
+};
 
 /// Credential information for network mounts
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,6 +177,7 @@ pub struct CredentialManager {
     providers: Vec<Box<dyn CredentialProvider>>,
 }
 
+#[allow(dead_code)]
 impl CredentialManager {
     /// Create a new credential manager with default providers
     pub fn new() -> Self {

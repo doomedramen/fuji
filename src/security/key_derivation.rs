@@ -4,16 +4,16 @@
 //! Argon2, scrypt, and PBKDF2 variants with configurable parameters
 //! for different security requirements.
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use pbkdf2::pbkdf2_hmac;
 use rand::{rngs::OsRng, RngCore};
 use sha2::{Sha256, Sha512};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 use tracing::{debug, warn};
 
 /// Key derivation function types
 use serde::{Deserialize, Serialize};
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum KeyDerivationFunction {
     /// PBKDF2 with SHA-256
     PBKDF2Sha256,
@@ -166,7 +166,7 @@ impl KeyDerivationFunction {
 }
 
 /// Security levels for key derivation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SecurityLevel {
     /// Low security - fast, for testing only
     Low,
@@ -214,12 +214,12 @@ impl KDFParameters {
         let key = match self.function {
             KeyDerivationFunction::PBKDF2Sha256 => {
                 let mut derived_key = vec![0u8; self.key_length];
-                pbkdf2_hmac::<Sha256>(password, salt, self.iterations as usize, &mut derived_key);
+                pbkdf2_hmac::<Sha256>(password, salt, self.iterations as u32, &mut derived_key);
                 derived_key
             }
             KeyDerivationFunction::PBKDF2Sha512 => {
                 let mut derived_key = vec![0u8; self.key_length];
-                pbkdf2_hmac::<Sha512>(password, salt, self.iterations as usize, &mut derived_key);
+                pbkdf2_hmac::<Sha512>(password, salt, self.iterations as u32, &mut derived_key);
                 derived_key
             }
             KeyDerivationFunction::Argon2id => self.derive_key_argon2id(password, salt)?,
@@ -246,7 +246,7 @@ impl KDFParameters {
         // For now, fall back to PBKDF2 as placeholder
         warn!("Argon2id not available, falling back to PBKDF2-SHA256");
         let mut derived_key = vec![0u8; self.key_length];
-        pbkdf2_hmac::<Sha256>(password, salt, self.iterations as usize, &mut derived_key);
+        pbkdf2_hmac::<Sha256>(password, salt, self.iterations as u32, &mut derived_key);
         Ok(derived_key)
     }
 
@@ -259,7 +259,7 @@ impl KDFParameters {
         pbkdf2_hmac::<Sha512>(
             password,
             salt,
-            self.iterations as usize * 10,
+            (self.iterations as u32).saturating_mul(10),
             &mut derived_key,
         );
         Ok(derived_key)
@@ -301,8 +301,7 @@ impl KDFParameters {
             }
             KeyDerivationFunction::Argon2id | KeyDerivationFunction::Scrypt => {
                 // Tune memory cost and parallelism
-                if let (Some(memory), Some(parallel)) = (self.memory_cost, self.parallelism)
-                {
+                if let (Some(memory), Some(parallel)) = (self.memory_cost, self.parallelism) {
                     for mem_multiplier in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0] {
                         for par_multiplier in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0] {
                             let mut test_params = self.clone();

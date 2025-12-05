@@ -34,6 +34,7 @@ pub struct MonitoringManager {
     running: Arc<RwLock<bool>>,
 }
 
+#[allow(dead_code)]
 impl MonitoringManager {
     /// Create a new monitoring manager
     pub fn new() -> Result<Self> {

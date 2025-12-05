@@ -480,7 +480,7 @@ impl PathSecurityValidator {
         }
 
         // Check mount configuration integrity
-        if let Some(mount_config) = self.get_mount_config(mount_id) {
+        if let Some(_mount_config) = self.get_mount_config(mount_id) {
             // Verify mount point hasn't been modified
             if let Ok(metadata) = fs::metadata(mount_point).await {
                 if let Ok(modified) = metadata.modified() {
@@ -663,7 +663,7 @@ impl PathSecurityValidator {
         }
 
         // Check for suspicious files
-        if let Err(e) = self.check_suspicious_files(&config.mount_point).await {
+        if let Err(_e) = self.check_suspicious_files(&config.mount_point).await {
             return Ok(IntegrityStatus::Suspicious);
         }
 

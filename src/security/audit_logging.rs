@@ -130,8 +130,10 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit},
     ChaCha20Poly1305, Key, Nonce,
 };
-use chrono::{DateTime, TimeZone, Utc};
+use base64::{Engine as _, engine::general_purpose};
+use chrono::{DateTime, Utc};
 use hex;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -140,11 +142,10 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::sync::{RwLock, Semaphore};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use uuid::Uuid;
-
 
 /// Audit event types for security monitoring
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -173,6 +174,8 @@ pub enum AuditEventType {
     SecurityViolation,
     /// Administrative actions (admin operations, system maintenance)
     AdministrativeAction,
+    /// Process management events (process start, stop, execution)
+    ProcessManagement,
 }
 
 impl AuditEventType {
@@ -191,6 +194,7 @@ impl AuditEventType {
             AuditEventType::CryptographicOperation => AuditSeverity::High,
             AuditEventType::SecurityViolation => AuditSeverity::Critical,
             AuditEventType::AdministrativeAction => AuditSeverity::High,
+            AuditEventType::ProcessManagement => AuditSeverity::Medium,
         }
     }
 
@@ -209,6 +213,7 @@ impl AuditEventType {
             AuditEventType::CryptographicOperation => "crypto",
             AuditEventType::SecurityViolation => "violation",
             AuditEventType::AdministrativeAction => "admin",
+            AuditEventType::ProcessManagement => "process",
         }
     }
 }
@@ -421,7 +426,6 @@ pub struct AuditLogger {
 }
 
 /// Event filter for audit logging
-#[derive(Debug, Clone)]
 pub struct AuditEventFilter {
     /// Filter name
     pub name: String,
@@ -433,10 +437,37 @@ pub struct AuditEventFilter {
     pub min_severity: AuditSeverity,
     /// Source filters
     pub source_filters: Vec<String>,
-    /// Custom filter function
+    /// Custom filter function (not cloneable)
     pub custom_filter: Option<Box<dyn Fn(&AuditEvent) -> bool + Send + Sync>>,
 }
 
+impl std::fmt::Debug for AuditEventFilter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AuditEventFilter")
+            .field("name", &self.name)
+            .field("include_types", &self.include_types)
+            .field("exclude_types", &self.exclude_types)
+            .field("min_severity", &self.min_severity)
+            .field("source_filters", &self.source_filters)
+            .field("custom_filter", &self.custom_filter.is_some())
+            .finish()
+    }
+}
+
+impl Clone for AuditEventFilter {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            include_types: self.include_types.clone(),
+            exclude_types: self.exclude_types.clone(),
+            min_severity: self.min_severity,
+            source_filters: self.source_filters.clone(),
+            custom_filter: None, // Cannot clone function pointers
+        }
+    }
+}
+
+#[allow(dead_code)]
 impl AuditLogger {
     /// Create new audit logger with default configuration
     pub fn new() -> Result<Self> {
@@ -1006,7 +1037,7 @@ impl AuditLogger {
     /// Sign event for integrity verification
     async fn sign_event(&self, event: &AuditEvent) -> Result<String> {
         let signing_key = self.signing_key.read().await;
-        if let Some(ref key) = *signing_key {
+        if let Some(ref _key) = *signing_key {
             // This would use proper cryptographic signing
             // For now, return a simple hash
             let combined = format!("{}:{}:{}", event.id, event.timestamp, event.event_hash);
@@ -1021,7 +1052,7 @@ impl AuditLogger {
     /// Encrypt sensitive data in event
     async fn encrypt_sensitive_data(&self, mut event: AuditEvent) -> Result<AuditEvent> {
         let encryption_key = self.encryption_key.read().await;
-        if let Some(ref key) = *encryption_key {
+        if let Some(ref _key) = *encryption_key {
             // Encrypt sensitive fields in details
             for (key, value) in &mut event.details {
                 if self.is_sensitive_field(key) {
@@ -1069,7 +1100,7 @@ impl AuditLogger {
         // Combine nonce and ciphertext
         let mut result = nonce_bytes.to_vec();
         result.extend_from_slice(&encrypted);
-        Ok(base64::encode(result))
+        Ok(general_purpose::STANDARD.encode(result))
     }
 
     /// Generate signing key

@@ -5,13 +5,14 @@
 //! limits, and comprehensive resource monitoring with automatic enforcement.
 
 use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use sysinfo::System;
 use tokio::sync::{RwLock, Semaphore};
 use tokio::time::interval;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 /// Resource limits configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -368,6 +369,7 @@ impl From<crate::config::ResourceLimitsConfig> for ResourceLimits {
     }
 }
 
+#[allow(dead_code)]
 impl ResourceLimitsManager {
     /// Create a new resource limits manager
     pub fn new(limits: ResourceLimits) -> Self {
@@ -405,7 +407,7 @@ impl ResourceLimitsManager {
         let usage = self.usage.clone();
         let system = self.system.clone();
         let violations = self.violations.clone();
-        let last_enforcement = self.last_enforcement.clone();
+        let _last_enforcement = self.last_enforcement.clone();
 
         // Start memory monitoring
         if limits.memory.enable_tracking {
@@ -771,7 +773,7 @@ impl ResourceLimitsManager {
 
     /// Generate resource usage report
     async fn generate_resource_report(
-        limits: &ResourceLimits,
+        _limits: &ResourceLimits,
         usage: &Arc<RwLock<ResourceUsage>>,
         violations: &Arc<RwLock<Vec<ResourceViolation>>>,
     ) {

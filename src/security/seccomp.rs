@@ -1396,6 +1396,7 @@ pub struct GlobalSeccompManager {
     total_violations: Arc<Mutex<u64>>,
 }
 
+#[allow(dead_code)]
 impl GlobalSeccompManager {
     /// Create a new global seccomp manager
     pub fn new(default_profile: SeccompProfile) -> Self {
