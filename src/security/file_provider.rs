@@ -378,8 +378,8 @@ impl FileCredentialProvider {
 
         // Decrypt using legacy AES-256-GCM
         {
+            use aes_gcm::aead::Aead;
             use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
-            use aes_gcm::aead::{Aead};
 
             let cipher = Aes256Gcm::new_from_slice(&encryption_key)
                 .map_err(|e| anyhow!("Failed to create legacy cipher: {}", e))?;

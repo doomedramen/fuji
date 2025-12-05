@@ -12,7 +12,7 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -438,7 +438,9 @@ impl ConfigSecurityManager {
         let path = path.as_ref();
 
         // Validate path
-        self.path_validator.validate_path(path, user_id, None).await?;
+        self.path_validator
+            .validate_path(path, user_id, None)
+            .await?;
 
         // Check read permissions
         if !self
@@ -556,7 +558,9 @@ impl ConfigSecurityManager {
         let path = path.as_ref();
 
         // Validate path
-        self.path_validator.validate_path(path, user_id, None).await?;
+        self.path_validator
+            .validate_path(path, user_id, None)
+            .await?;
 
         // Check write permissions
         if !self
@@ -711,7 +715,10 @@ impl ConfigSecurityManager {
         locks.insert(resource.to_string(), lock);
 
         // Log lock acquisition
-        info!("Config lock acquired on {} by user {}: {}", resource, user_id, reason);
+        info!(
+            "Config lock acquired on {} by user {}: {}",
+            resource, user_id, reason
+        );
 
         Ok(lock_id)
     }
@@ -913,7 +920,11 @@ impl ConfigSecurityManager {
     }
 
     /// Encrypt configuration data
-    pub async fn encrypt_config(&self, config_data: &ConfigData, key: Option<&str>) -> Result<Vec<u8>> {
+    pub async fn encrypt_config(
+        &self,
+        config_data: &ConfigData,
+        key: Option<&str>,
+    ) -> Result<Vec<u8>> {
         let mut key_manager = self.key_manager.lock().await;
         let (derived_key, _salt) =
             key_manager.derive_key_with_salt(key.unwrap_or("default_config_key").as_bytes())?;
@@ -998,7 +1009,7 @@ impl ConfigSecurityManager {
             timestamp: Utc::now(),
             version: history.len() as u64 + 1,
             checksum: {
-                use sha2::{Sha256, Digest};
+                use sha2::{Digest, Sha256};
                 let mut hasher = Sha256::new();
                 hasher.update(&config_data.content.as_bytes());
                 format!("{:x}", hasher.finalize())

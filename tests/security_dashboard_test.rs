@@ -4,18 +4,17 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use fuji::security::security_dashboard::{
-    AlertSeverity, AlertCategory, DashboardConfig, ExportFormat,
-    SecurityDashboard,
-};
 use fuji::security::audit_logging::{
-    AuditEvent, AuditSeverity, AuditEventType, AuditOutcome, AuditSource, AuditSourceType,
+    AuditEvent, AuditEventType, AuditOutcome, AuditSeverity, AuditSource, AuditSourceType,
 };
+use fuji::security::security_dashboard::{
+    AlertCategory, AlertSeverity, DashboardConfig, ExportFormat, SecurityDashboard,
+};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
 use uuid::Uuid;
-use serde_json::Value;
 
 #[tokio::test]
 async fn test_security_dashboard_creation() -> Result<()> {
@@ -58,7 +57,10 @@ async fn test_security_event_logging() -> Result<()> {
         description: "This is a test security event".to_string(),
         details: {
             let mut details = HashMap::new();
-            details.insert("test_key".to_string(), Value::String("test_value".to_string()));
+            details.insert(
+                "test_key".to_string(),
+                Value::String("test_value".to_string()),
+            );
             details
         },
         network_context: None,
@@ -86,13 +88,15 @@ async fn test_security_alert_creation() -> Result<()> {
 
     let alert_id = Uuid::new_v4().to_string();
 
-    dashboard.create_alert(
-        "Test Security Alert".to_string(),
-        "This is a test security alert".to_string(),
-        AlertSeverity::Critical,
-        AlertCategory::SecurityIncident,
-        "test_suite".to_string(),
-    ).await?;
+    dashboard
+        .create_alert(
+            "Test Security Alert".to_string(),
+            "This is a test security alert".to_string(),
+            AlertSeverity::Critical,
+            AlertCategory::SecurityIncident,
+            "test_suite".to_string(),
+        )
+        .await?;
 
     let active_alerts = dashboard.get_active_alerts().await?;
     assert_eq!(active_alerts.len(), 1);
@@ -307,13 +311,15 @@ async fn test_dashboard_export_html() -> Result<()> {
     let dashboard = SecurityDashboard::new(config);
 
     // Add test data
-    dashboard.create_alert(
-        "Test Export Alert".to_string(),
-        "Alert for testing HTML export".to_string(),
-        AlertSeverity::High,
-        AlertCategory::SecurityIncident,
-        "test_suite".to_string(),
-    ).await?;
+    dashboard
+        .create_alert(
+            "Test Export Alert".to_string(),
+            "Alert for testing HTML export".to_string(),
+            AlertSeverity::High,
+            AlertCategory::SecurityIncident,
+            "test_suite".to_string(),
+        )
+        .await?;
 
     // Export to HTML
     let html_export = dashboard.export_data(ExportFormat::Html).await?;
@@ -358,7 +364,10 @@ async fn test_event_search_and_filtering() -> Result<()> {
                     user_agent: None,
                     metadata: {
                         let mut meta = HashMap::new();
-                        meta.insert("component".to_string(), Value::String(format!("component_{}", i)));
+                        meta.insert(
+                            "component".to_string(),
+                            Value::String(format!("component_{}", i)),
+                        );
                         meta
                     },
                 },
@@ -389,13 +398,15 @@ async fn test_alert_acknowledgment_and_resolution() -> Result<()> {
     let dashboard = SecurityDashboard::new(config);
 
     // Create an alert
-    dashboard.create_alert(
-        "Test Alert Lifecycle".to_string(),
-        "Alert for testing acknowledgment and resolution".to_string(),
-        AlertSeverity::Medium,
-        AlertCategory::SecurityIncident,
-        "test_suite".to_string(),
-    ).await?;
+    dashboard
+        .create_alert(
+            "Test Alert Lifecycle".to_string(),
+            "Alert for testing acknowledgment and resolution".to_string(),
+            AlertSeverity::Medium,
+            AlertCategory::SecurityIncident,
+            "test_suite".to_string(),
+        )
+        .await?;
 
     // Get the created alert
     let alerts = dashboard.get_active_alerts().await?;

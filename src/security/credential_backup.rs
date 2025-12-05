@@ -5,7 +5,7 @@
 //! remote backup services, and recovery key generation.
 
 use anyhow::{anyhow, Result};
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -762,7 +762,9 @@ impl CredentialBackupManager {
 
     async fn decrypt_recovery_key(&self, encrypted_key: &str) -> Result<Vec<u8>> {
         // Simple base64 decoding for now - should be properly decrypted
-        general_purpose::STANDARD.decode(encrypted_key).map_err(|e| anyhow!("Failed to decode recovery key: {}", e))
+        general_purpose::STANDARD
+            .decode(encrypted_key)
+            .map_err(|e| anyhow!("Failed to decode recovery key: {}", e))
     }
 }
 

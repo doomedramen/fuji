@@ -79,7 +79,11 @@ impl SimpleAuditMonitor {
     /// Start monitoring events
     pub async fn start_monitoring(&mut self) -> Result<()> {
         // Take ownership of the receiver
-        let receiver = self.event_receiver.write().await.take()
+        let receiver = self
+            .event_receiver
+            .write()
+            .await
+            .take()
             .ok_or_else(|| anyhow!("Monitor not initialized or already started"))?;
         let event_history = Arc::clone(&self.event_history);
         let statistics = Arc::clone(&self.statistics);

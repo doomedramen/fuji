@@ -453,12 +453,9 @@ impl Encryptor for ChaCha20Poly1305Encryptor {
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         let cipher = ChaCha20Poly1305::new(&key);
-        let encrypted = cipher.encrypt(nonce, plaintext).map_err(|e| {
-            security_crypto_error!(
-                "chacha20poly1305_encrypt",
-                &e
-            )
-        })?;
+        let encrypted = cipher
+            .encrypt(nonce, plaintext)
+            .map_err(|e| security_crypto_error!("chacha20poly1305_encrypt", &e))?;
 
         // ChaCha20-Poly1305 includes the tag in the ciphertext
         let metadata = {
@@ -509,12 +506,9 @@ impl Encryptor for ChaCha20Poly1305Encryptor {
         let nonce = Nonce::from_slice(&nonce_bytes);
         let cipher = ChaCha20Poly1305::new(&key);
 
-        cipher.decrypt(nonce, &ciphertext[..]).map_err(|e| {
-            security_crypto_error!(
-                "chacha20poly1305_decrypt",
-                &e
-            )
-        })
+        cipher
+            .decrypt(nonce, &ciphertext[..])
+            .map_err(|e| security_crypto_error!("chacha20poly1305_decrypt", &e))
     }
 
     fn algorithm(&self) -> EncryptionAlgorithm {

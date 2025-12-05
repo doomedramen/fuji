@@ -13,9 +13,9 @@ use fuji::security::hardware_credential_provider::{
 };
 use fuji::security::key_derivation::{KeyDerivationFunction, KeyDerivationManager, SecurityLevel};
 use fuji::security::Credential;
+use rand::RngCore;
 use std::collections::HashMap;
 use std::time::SystemTime;
-use rand::RngCore;
 use tokio::time::{sleep, Duration};
 
 /// Test hardware-backed credential storage
@@ -345,7 +345,9 @@ impl fuji::security::hardware_credential_provider::HSMBACKEND for MockHSM {
 
     async fn secure_random(&self, length: usize) -> Result<Vec<u8>> {
         let mut random = vec![0u8; length];
-        rand::rngs::OsRng.try_fill_bytes(&mut random).map_err(|e| anyhow::anyhow!("Random generation failed: {}", e))?;
+        rand::rngs::OsRng
+            .try_fill_bytes(&mut random)
+            .map_err(|e| anyhow::anyhow!("Random generation failed: {}", e))?;
         Ok(random)
     }
 

@@ -22,7 +22,6 @@ fn test_cli_help_message() {
     assert!(cli.is_err());
 }
 
-
 #[test]
 fn test_mount_command_parsing() {
     let args = vec![
@@ -90,7 +89,10 @@ fn test_mount_command_with_options() {
         assert!(disable);
         assert!(dry_run);
         assert!(progress);
-        assert_eq!(options, Some(vec!["debug".to_string(), "uid=1000".to_string()]));
+        assert_eq!(
+            options,
+            Some(vec!["debug".to_string(), "uid=1000".to_string()])
+        );
     } else {
         panic!("Expected mount command");
     }
@@ -111,7 +113,6 @@ fn test_unmount_command_parsing() {
         panic!("Expected unmount command");
     }
 }
-
 
 #[test]
 fn test_daemon_start_command() {
@@ -387,7 +388,13 @@ fn test_discover_command() {
 
 #[test]
 fn test_batch_command() {
-    let args = vec!["fuji", "batch", "operations.json", "--continue-on-error", "--dry-run"];
+    let args = vec![
+        "fuji",
+        "batch",
+        "operations.json",
+        "--continue-on-error",
+        "--dry-run",
+    ];
     let cli = Cli::try_parse_from(args);
 
     assert!(cli.is_ok());
@@ -406,5 +413,3 @@ fn test_batch_command() {
         panic!("Expected batch command");
     }
 }
-
-

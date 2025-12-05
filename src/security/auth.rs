@@ -3,8 +3,8 @@
 //! Provides JWT token generation and validation for secure socket communication.
 
 use crate::{
-    security_auth_error, security_crypto_error, security_validation_error,
     security::{IntoSecurityError, SecurityError, SecurityResult},
+    security_auth_error, security_crypto_error, security_validation_error,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -58,21 +58,12 @@ impl JWTAuthenticator {
     pub fn new() -> SecurityResult<Self> {
         // Generate a new Ed25519 key pair
         let rng = ring::rand::SystemRandom::new();
-        let key_pair_bytes =
-            ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).map_err(|e| {
-                security_crypto_error!(
-                    "key_pair_generation",
-                    e
-                )
-            })?;
+        let key_pair_bytes = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng)
+            .map_err(|e| security_crypto_error!("key_pair_generation", e))?;
 
         let key_pair_bytes_vec = key_pair_bytes.as_ref().to_vec();
-        let key_pair = Ed25519KeyPair::from_pkcs8(key_pair_bytes.as_ref()).map_err(|e| {
-            security_crypto_error!(
-                "key_pair_parsing",
-                e
-            )
-        })?;
+        let key_pair = Ed25519KeyPair::from_pkcs8(key_pair_bytes.as_ref())
+            .map_err(|e| security_crypto_error!("key_pair_parsing", e))?;
 
         // Extract public key
         let public_key_bytes = key_pair.public_key().as_ref();
@@ -157,12 +148,8 @@ impl JWTAuthenticator {
         // For EdDSA, we need to use the PKCS#8 encoded private key
         let encoding_key = EncodingKey::from_ed_der(&self.key_pair_bytes);
 
-        encode(&header, &claims, &encoding_key).map_err(|e| {
-            security_crypto_error!(
-                "jwt_encoding",
-                e
-            )
-        })
+        encode(&header, &claims, &encoding_key)
+            .map_err(|e| security_crypto_error!("jwt_encoding", e))
     }
 
     /// Validate a JWT token
@@ -193,9 +180,8 @@ impl JWTAuthenticator {
 
         let decoding_key = DecodingKey::from_ed_der(&self.public_key_array);
 
-        let token_data = decode::<FujiClaims>(token, &decoding_key, &validation).map_err(|e| {
-            security_auth_error!("Invalid JWT token: {}", e)
-        })?;
+        let token_data = decode::<FujiClaims>(token, &decoding_key, &validation)
+            .map_err(|e| security_auth_error!("Invalid JWT token: {}", e))?;
 
         Ok(token_data.claims)
     }
@@ -289,18 +275,19 @@ fn validate_token_structure(
 
     // Try to decode the payload
     let payload = parts[1];
-    let decoded = URL_SAFE_NO_PAD
-        .decode(payload)
-        .map_err(|_| security_validation_error!(
+    let decoded = URL_SAFE_NO_PAD.decode(payload).map_err(|_| {
+        security_validation_error!(
             "token_payload",
             "Invalid base64url encoding in token payload"
-        ))?;
+        )
+    })?;
 
-    let claims: serde_json::Value =
-        serde_json::from_slice(&decoded).map_err(|e| security_validation_error!(
+    let claims: serde_json::Value = serde_json::from_slice(&decoded).map_err(|e| {
+        security_validation_error!(
             "token_claims",
             format!("Invalid JSON in token claims: {}", e)
-        ))?;
+        )
+    })?;
 
     Ok(jsonwebtoken::TokenData {
         header: Header::default(),

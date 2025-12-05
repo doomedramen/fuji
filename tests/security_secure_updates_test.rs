@@ -204,7 +204,7 @@ async fn test_download_update() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     let metadata = UpdateMetadata {
-            previous_version: None,
+        previous_version: None,
         package_id: "download-test-001".to_string(),
         version: "1.0.0".to_string(),
         description: "Test download functionality".to_string(),
@@ -273,7 +273,7 @@ async fn test_verify_update_with_integrity() -> Result<()> {
     checksums.insert("sha256".to_string(), hex::encode(package_hash));
 
     let metadata = UpdateMetadata {
-            previous_version: None,
+        previous_version: None,
         package_id: "integrity-test-001".to_string(),
         version: "1.0.0".to_string(),
         description: "Test integrity verification".to_string(),
@@ -337,7 +337,7 @@ async fn test_verify_update_with_checksum_mismatch() -> Result<()> {
     );
 
     let metadata = UpdateMetadata {
-            previous_version: None,
+        previous_version: None,
         package_id: "checksum-mismatch-test".to_string(),
         version: "1.0.0".to_string(),
         description: "Test checksum mismatch detection".to_string(),
@@ -401,7 +401,7 @@ async fn test_install_update_success() -> Result<()> {
     checksums.insert("sha256".to_string(), hex::encode(package_hash));
 
     let metadata = UpdateMetadata {
-            previous_version: None,
+        previous_version: None,
         package_id: "install-success-test".to_string(),
         version: "2.0.0".to_string(),
         description: "Test successful installation".to_string(),
@@ -504,7 +504,7 @@ async fn test_cancel_update() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     let metadata = UpdateMetadata {
-            previous_version: None,
+        previous_version: None,
         package_id: "cancel-test-001".to_string(),
         version: "1.0.0".to_string(),
         description: "Test update cancellation".to_string(),
@@ -615,7 +615,7 @@ async fn test_component_update() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     let metadata = UpdateMetadata {
-            previous_version: None,
+        previous_version: None,
         package_id: "component-update-logger".to_string(),
         version: "3.2.1".to_string(),
         description: "Update logging component with improved performance".to_string(),
@@ -667,7 +667,7 @@ async fn test_update_stages_progress() -> Result<()> {
     let manager = SecureUpdateManager::new(config).await?;
 
     let metadata = UpdateMetadata {
-            previous_version: None,
+        previous_version: None,
         package_id: "progress-test-001".to_string(),
         version: "1.0.0".to_string(),
         description: "Test update stages and progress tracking".to_string(),
@@ -756,7 +756,7 @@ async fn test_multiple_signature_algorithms() -> Result<()> {
         .await?;
 
     let metadata = UpdateMetadata {
-            previous_version: None,
+        previous_version: None,
         package_id: "multi-sig-test-001".to_string(),
         version: "2.0.0".to_string(),
         description: "Test multiple signature algorithms".to_string(),

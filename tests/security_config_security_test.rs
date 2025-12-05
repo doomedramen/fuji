@@ -934,7 +934,6 @@ async fn test_concurrent_lock_operations() -> Result<()> {
         lock_ids.push(lock_id);
     }
 
-  
     // Verify all locks were acquired
     assert_eq!(lock_ids.len(), 3, "Should have acquired 3 locks");
 

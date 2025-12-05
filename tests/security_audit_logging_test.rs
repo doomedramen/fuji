@@ -7,12 +7,6 @@
 //! - Log rotation and retention
 
 use anyhow::Result;
-use serde_json::json;
-use std::sync::Arc;
-use std::collections::HashMap;
-use std::time::Duration;
-use tracing::info;
-use tokio::time::sleep;
 use fuji::security::audit_logging::{
     AuditConfig, AuditEvent, AuditEventType, AuditLogger, AuditOutcome, AuditSeverity, AuditSource,
     AuditSourceType, NetworkContext, SessionContext,
@@ -20,6 +14,12 @@ use fuji::security::audit_logging::{
 use fuji::security::audit_monitoring::{
     AlertSeverity, AlertType, AuditMonitor, AuditMonitoringConfig, SecurityAlert,
 };
+use serde_json::json;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::sleep;
+use tracing::info;
 
 /// Test comprehensive audit logging functionality
 #[tokio::test]

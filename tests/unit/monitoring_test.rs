@@ -344,7 +344,9 @@ async fn test_retry_handler_all_circuit_breaker_statuses() {
 
     // Execute operations to create circuit breakers
     let _: Result<RetryResult<String>, _> = handler
-        .execute_with_retry("mount1", || async { Ok::<_, anyhow::Error>("success".to_string()) })
+        .execute_with_retry("mount1", || async {
+            Ok::<_, anyhow::Error>("success".to_string())
+        })
         .await;
 
     let _: Result<RetryResult<String>, _> = handler

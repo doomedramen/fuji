@@ -20,11 +20,15 @@ use tokio::sync::{Mutex, RwLock};
 use tracing::{error, info, instrument, warn};
 
 use crate::security::audit_logging::{
-    AuditEvent, AuditEventType, AuditSeverity, AuditOutcome, AuditSource, AuditSourceType
+    AuditEvent, AuditEventType, AuditOutcome, AuditSeverity, AuditSource, AuditSourceType,
 };
 
 /// Helper function to create audit events
-fn create_audit_event(event_type_name: &str, description: &str, outcome: AuditOutcome) -> AuditEvent {
+fn create_audit_event(
+    event_type_name: &str,
+    description: &str,
+    outcome: AuditOutcome,
+) -> AuditEvent {
     let event_type = match event_type_name {
         "trusted_key_added" | "trusted_key_removed" => AuditEventType::ConfigurationChange,
         "update_started" | "update_completed" | "update_failed" => AuditEventType::SystemEvent,
@@ -50,7 +54,10 @@ fn create_audit_event(event_type_name: &str, description: &str, outcome: AuditOu
     };
 
     AuditEvent {
-        id: format!("sec_update_{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)),
+        id: format!(
+            "sec_update_{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+        ),
         timestamp: Utc::now(),
         event_type,
         severity,
@@ -449,7 +456,11 @@ impl SecureUpdateManager {
         let mut trusted_keys = self.trusted_keys.write().await;
         trusted_keys.insert(key_id.clone(), public_key);
 
-        let event = create_audit_event("trusted_key_added", &format!("Added trusted key: {}", key_id), AuditOutcome::Success);
+        let event = create_audit_event(
+            "trusted_key_added",
+            &format!("Added trusted key: {}", key_id),
+            AuditOutcome::Success,
+        );
         self.audit_logger.log_event(event).await?;
 
         info!("Added trusted key: {}", key_id);
@@ -462,7 +473,11 @@ impl SecureUpdateManager {
         let mut trusted_keys = self.trusted_keys.write().await;
         trusted_keys.remove(_key_id);
 
-        let event = create_audit_event("trusted_key_removed", &format!("Removed trusted key: {}", _key_id), AuditOutcome::Success);
+        let event = create_audit_event(
+            "trusted_key_removed",
+            &format!("Removed trusted key: {}", _key_id),
+            AuditOutcome::Success,
+        );
         self.audit_logger.log_event(event).await?;
 
         info!("Removed trusted key: {}", _key_id);
@@ -750,7 +765,11 @@ impl SecureUpdateManager {
                 "Update package verification completed: {} - Valid: {}",
                 package_id, result.is_valid
             ),
-            if result.is_valid { AuditOutcome::Success } else { AuditOutcome::Failure },
+            if result.is_valid {
+                AuditOutcome::Success
+            } else {
+                AuditOutcome::Failure
+            },
         );
         self.audit_logger.log_event(event).await?;
 
@@ -915,7 +934,10 @@ impl SecureUpdateManager {
         // Create backup before installation
         let _backup_info = self.create_backup(package_id).await?;
         info!("Created backup before installing update: {}", package_id);
-        match self.perform_installation(package_id, local_path.as_path()).await {
+        match self
+            .perform_installation(package_id, local_path.as_path())
+            .await
+        {
             Ok(_) => {
                 // Update installation stage
                 self.update_stage_status(package_id, "install", UpdateStatus::Completed)
@@ -1239,8 +1261,8 @@ impl SecureUpdateManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use crate::security::integrity;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_secure_update_manager_creation() -> Result<()> {

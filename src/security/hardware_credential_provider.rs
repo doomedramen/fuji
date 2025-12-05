@@ -14,8 +14,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{RwLock, Semaphore};
-use tracing::{info};
-
+use tracing::info;
 
 /// Hardware-backed credential provider
 pub struct HardwareCredentialProvider {

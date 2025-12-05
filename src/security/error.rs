@@ -165,131 +165,174 @@ pub enum SecurityError {
 impl Clone for SecurityError {
     fn clone(&self) -> Self {
         match self {
-            SecurityError::CryptographicError { operation, reason, source: _ } => {
+            SecurityError::CryptographicError {
+                operation,
+                reason,
+                source: _,
+            } => {
                 SecurityError::CryptographicError {
                     operation: operation.clone(),
                     reason: reason.clone(),
                     source: None, // Cannot clone Box<dyn Error>
                 }
             }
-            SecurityError::AuthenticationFailed { details, user_id, attempt_count } => {
-                SecurityError::AuthenticationFailed {
-                    details: details.clone(),
-                    user_id: user_id.clone(),
-                    attempt_count: *attempt_count,
-                }
-            }
-            SecurityError::AccessDenied { operation, reason, required_permission } => {
-                SecurityError::AccessDenied {
-                    operation: operation.clone(),
-                    reason: reason.clone(),
-                    required_permission: required_permission.clone(),
-                }
-            }
-            SecurityError::CredentialError { operation, reason, credential_type } => {
-                SecurityError::CredentialError {
-                    operation: operation.clone(),
-                    reason: reason.clone(),
-                    credential_type: credential_type.clone(),
-                }
-            }
-            SecurityError::EncryptionError { algorithm, reason, source: _ } => {
+            SecurityError::AuthenticationFailed {
+                details,
+                user_id,
+                attempt_count,
+            } => SecurityError::AuthenticationFailed {
+                details: details.clone(),
+                user_id: user_id.clone(),
+                attempt_count: *attempt_count,
+            },
+            SecurityError::AccessDenied {
+                operation,
+                reason,
+                required_permission,
+            } => SecurityError::AccessDenied {
+                operation: operation.clone(),
+                reason: reason.clone(),
+                required_permission: required_permission.clone(),
+            },
+            SecurityError::CredentialError {
+                operation,
+                reason,
+                credential_type,
+            } => SecurityError::CredentialError {
+                operation: operation.clone(),
+                reason: reason.clone(),
+                credential_type: credential_type.clone(),
+            },
+            SecurityError::EncryptionError {
+                algorithm,
+                reason,
+                source: _,
+            } => {
                 SecurityError::EncryptionError {
                     algorithm: algorithm.clone(),
                     reason: reason.clone(),
                     source: None, // Cannot clone Box<dyn Error>
                 }
             }
-            SecurityError::KeyManagementError { operation, reason, key_id } => {
-                SecurityError::KeyManagementError {
-                    operation: operation.clone(),
-                    reason: reason.clone(),
-                    key_id: key_id.clone(),
-                }
-            }
-            SecurityError::AuditError { operation, reason, event_id } => {
-                SecurityError::AuditError {
-                    operation: operation.clone(),
-                    reason: reason.clone(),
-                    event_id: event_id.clone(),
-                }
-            }
-            SecurityError::IntrusionDetectionError { component, reason, threat_level } => {
-                SecurityError::IntrusionDetectionError {
-                    component: component.clone(),
-                    reason: reason.clone(),
-                    threat_level: threat_level.clone(),
-                }
-            }
-            SecurityError::SystemSecurityError { component, reason, source: _ } => {
+            SecurityError::KeyManagementError {
+                operation,
+                reason,
+                key_id,
+            } => SecurityError::KeyManagementError {
+                operation: operation.clone(),
+                reason: reason.clone(),
+                key_id: key_id.clone(),
+            },
+            SecurityError::AuditError {
+                operation,
+                reason,
+                event_id,
+            } => SecurityError::AuditError {
+                operation: operation.clone(),
+                reason: reason.clone(),
+                event_id: event_id.clone(),
+            },
+            SecurityError::IntrusionDetectionError {
+                component,
+                reason,
+                threat_level,
+            } => SecurityError::IntrusionDetectionError {
+                component: component.clone(),
+                reason: reason.clone(),
+                threat_level: threat_level.clone(),
+            },
+            SecurityError::SystemSecurityError {
+                component,
+                reason,
+                source: _,
+            } => {
                 SecurityError::SystemSecurityError {
                     component: component.clone(),
                     reason: reason.clone(),
                     source: None, // Cannot clone Box<dyn Error>
                 }
             }
-            SecurityError::ConfigurationError { setting, reason, config_file } => {
-                SecurityError::ConfigurationError {
-                    setting: setting.clone(),
-                    reason: reason.clone(),
-                    config_file: config_file.clone(),
-                }
-            }
-            SecurityError::NetworkSecurityError { protocol, reason, remote_address } => {
-                SecurityError::NetworkSecurityError {
-                    protocol: protocol.clone(),
-                    reason: reason.clone(),
-                    remote_address: remote_address.clone(),
-                }
-            }
-            SecurityError::FileSystemSecurityError { path, reason, operation } => {
-                SecurityError::FileSystemSecurityError {
-                    path: path.clone(),
-                    reason: reason.clone(),
-                    operation: operation.clone(),
-                }
-            }
-            SecurityError::ValidationError { field, reason, value } => {
-                SecurityError::ValidationError {
-                    field: field.clone(),
-                    reason: reason.clone(),
-                    value: value.clone(),
-                }
-            }
-            SecurityError::ResourceLimitExceeded { resource, current, limit } => {
-                SecurityError::ResourceLimitExceeded {
-                    resource: resource.clone(),
-                    current: *current,
-                    limit: *limit,
-                }
-            }
-            SecurityError::TimeoutError { operation, duration_ms } => {
-                SecurityError::TimeoutError {
-                    operation: operation.clone(),
-                    duration_ms: *duration_ms,
-                }
-            }
-            SecurityError::HsmError { module, reason, source: _ } => {
+            SecurityError::ConfigurationError {
+                setting,
+                reason,
+                config_file,
+            } => SecurityError::ConfigurationError {
+                setting: setting.clone(),
+                reason: reason.clone(),
+                config_file: config_file.clone(),
+            },
+            SecurityError::NetworkSecurityError {
+                protocol,
+                reason,
+                remote_address,
+            } => SecurityError::NetworkSecurityError {
+                protocol: protocol.clone(),
+                reason: reason.clone(),
+                remote_address: remote_address.clone(),
+            },
+            SecurityError::FileSystemSecurityError {
+                path,
+                reason,
+                operation,
+            } => SecurityError::FileSystemSecurityError {
+                path: path.clone(),
+                reason: reason.clone(),
+                operation: operation.clone(),
+            },
+            SecurityError::ValidationError {
+                field,
+                reason,
+                value,
+            } => SecurityError::ValidationError {
+                field: field.clone(),
+                reason: reason.clone(),
+                value: value.clone(),
+            },
+            SecurityError::ResourceLimitExceeded {
+                resource,
+                current,
+                limit,
+            } => SecurityError::ResourceLimitExceeded {
+                resource: resource.clone(),
+                current: *current,
+                limit: *limit,
+            },
+            SecurityError::TimeoutError {
+                operation,
+                duration_ms,
+            } => SecurityError::TimeoutError {
+                operation: operation.clone(),
+                duration_ms: *duration_ms,
+            },
+            SecurityError::HsmError {
+                module,
+                reason,
+                source: _,
+            } => {
                 SecurityError::HsmError {
                     module: module.clone(),
                     reason: reason.clone(),
                     source: None, // Cannot clone Box<dyn Error>
                 }
             }
-            SecurityError::SecureUpdateError { stage, reason, update_id } => {
-                SecurityError::SecureUpdateError {
-                    stage: stage.clone(),
-                    reason: reason.clone(),
-                    update_id: update_id.clone(),
-                }
-            }
-            SecurityError::PolicyViolation { policy, reason, severity } => {
-                SecurityError::PolicyViolation {
-                    policy: policy.clone(),
-                    reason: reason.clone(),
-                    severity: *severity,
-                }
-            }
+            SecurityError::SecureUpdateError {
+                stage,
+                reason,
+                update_id,
+            } => SecurityError::SecureUpdateError {
+                stage: stage.clone(),
+                reason: reason.clone(),
+                update_id: update_id.clone(),
+            },
+            SecurityError::PolicyViolation {
+                policy,
+                reason,
+                severity,
+            } => SecurityError::PolicyViolation {
+                policy: policy.clone(),
+                reason: reason.clone(),
+                severity: *severity,
+            },
             SecurityError::Generic { context, source } => {
                 SecurityError::Generic {
                     context: context.clone(),
@@ -390,7 +433,10 @@ impl<T> SecurityResultExt<T> for SecurityResult<T> {
 
     fn with_crypto_context(self, operation: &str, reason: &str) -> SecurityResult<T> {
         self.map_err(|e| match e {
-            SecurityError::Generic { context: _context, source } => SecurityError::CryptographicError {
+            SecurityError::Generic {
+                context: _context,
+                source,
+            } => SecurityError::CryptographicError {
                 operation: operation.to_string(),
                 reason: reason.to_string(),
                 source: Some(source.into()),
@@ -401,7 +447,9 @@ impl<T> SecurityResultExt<T> for SecurityResult<T> {
 
     fn with_auth_context(self, details: &str, user_id: Option<&str>) -> SecurityResult<T> {
         self.map_err(|e| match e {
-            SecurityError::Generic { context: _context, .. } => SecurityError::AuthenticationFailed {
+            SecurityError::Generic {
+                context: _context, ..
+            } => SecurityError::AuthenticationFailed {
                 details: details.to_string(),
                 user_id: user_id.map(|u| u.to_string()),
                 attempt_count: 1,
@@ -412,7 +460,9 @@ impl<T> SecurityResultExt<T> for SecurityResult<T> {
 
     fn with_audit_context(self, operation: &str, reason: &str) -> SecurityResult<T> {
         self.map_err(|e| match e {
-            SecurityError::Generic { context: _context, .. } => SecurityError::AuditError {
+            SecurityError::Generic {
+                context: _context, ..
+            } => SecurityError::AuditError {
                 operation: operation.to_string(),
                 reason: reason.to_string(),
                 event_id: None,

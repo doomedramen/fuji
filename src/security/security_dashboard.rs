@@ -12,7 +12,9 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
-use crate::security::audit_logging::{AuditEvent, AuditEventType, AuditOutcome, AuditSeverity, AuditSourceType};
+use crate::security::audit_logging::{
+    AuditEvent, AuditEventType, AuditOutcome, AuditSeverity, AuditSourceType,
+};
 use crate::security::integrity::RuntimeIntegrityChecker;
 use crate::security::secure_updates::SecureUpdateManager;
 
@@ -593,25 +595,15 @@ impl SecurityDashboard {
 
             AuditEventType::SecurityViolation => EventCategory::Integrity,
 
-            AuditEventType::ConfigurationChange => {
-                EventCategory::Configuration
-            }
+            AuditEventType::ConfigurationChange => EventCategory::Configuration,
 
-            AuditEventType::SystemEvent => {
-                EventCategory::Update
-            }
+            AuditEventType::SystemEvent => EventCategory::Update,
 
-            AuditEventType::NetworkEvent => {
-                EventCategory::Network
-            }
+            AuditEventType::NetworkEvent => EventCategory::Network,
 
-            AuditEventType::DataAccess => {
-                EventCategory::DataProtection
-            }
+            AuditEventType::DataAccess => EventCategory::DataProtection,
 
-            AuditEventType::ProcessManagement => {
-                EventCategory::ProcessIsolation
-            }
+            AuditEventType::ProcessManagement => EventCategory::ProcessIsolation,
 
             _ => EventCategory::Other,
         }
@@ -688,20 +680,18 @@ impl SecurityDashboard {
                 actions.push("Increase monitoring frequency".to_string());
                 actions.push("Review security controls".to_string());
             }
-            (AuditEventType::SecurityViolation, outcome) => {
-                match outcome {
-                    AuditOutcome::Success => {
-                        actions.push("Revoke elevated privileges".to_string());
-                        actions.push("Audit user activities".to_string());
-                        actions.push("Review access controls".to_string());
-                    }
-                    _ => {
-                        actions.push("Isolate affected system".to_string());
-                        actions.push("Perform forensic analysis".to_string());
-                        actions.push("Restore from backup".to_string());
-                    }
+            (AuditEventType::SecurityViolation, outcome) => match outcome {
+                AuditOutcome::Success => {
+                    actions.push("Revoke elevated privileges".to_string());
+                    actions.push("Audit user activities".to_string());
+                    actions.push("Review access controls".to_string());
                 }
-            }
+                _ => {
+                    actions.push("Isolate affected system".to_string());
+                    actions.push("Perform forensic analysis".to_string());
+                    actions.push("Restore from backup".to_string());
+                }
+            },
             _ => {}
         }
 
@@ -1040,10 +1030,7 @@ impl SecurityDashboard {
             } else {
                 "N/A".to_string()
             };
-            html.push_str(&format!(
-                "<td>{}</td>\n",
-                source_address
-            ));
+            html.push_str(&format!("<td>{}</td>\n", source_address));
             html.push_str("</tr>\n");
         }
 
@@ -1111,7 +1098,10 @@ impl SecurityDashboard {
             };
 
             // Extract resource from details
-            let resource = event.audit_event.details.get("resource")
+            let resource = event
+                .audit_event
+                .details
+                .get("resource")
                 .or_else(|| event.audit_event.details.get("resource_name"))
                 .and_then(|r| r.as_str())
                 .unwrap_or_default();

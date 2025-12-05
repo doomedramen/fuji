@@ -542,12 +542,14 @@ async fn test_hash_algorithm_comparison() -> Result<()> {
         .iter()
         .find(|(algo, _)| matches!(algo, HashAlgorithm::Sha256))
         .unwrap()
-        .1.clone();
+        .1
+        .clone();
     let sha512_hash = hashes
         .iter()
         .find(|(algo, _)| matches!(algo, HashAlgorithm::Sha512))
         .unwrap()
-        .1.clone();
+        .1
+        .clone();
     assert!(
         sha512_hash.len() > sha256_hash.len(),
         "SHA-512 should produce longer hash than SHA-256"

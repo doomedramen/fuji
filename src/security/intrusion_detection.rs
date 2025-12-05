@@ -1324,7 +1324,9 @@ impl MLModel for SimpleMLModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::security::audit_logging::{AuditOutcome, AuditSeverity, AuditSource, AuditSourceType};
+    use crate::security::audit_logging::{
+        AuditOutcome, AuditSeverity, AuditSource, AuditSourceType,
+    };
 
     #[tokio::test]
     async fn test_intrusion_detection_engine_creation() {

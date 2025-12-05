@@ -11,9 +11,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tracing::{error, info, warn};
 
-use crate::security::audit_logging::{
-    AuditEvent, AuditEventType, AuditOutcome, AuditSeverity,
-};
+use crate::security::audit_logging::{AuditEvent, AuditEventType, AuditOutcome, AuditSeverity};
 
 /// Real-time audit monitor for security event analysis
 pub struct AuditMonitor {
@@ -840,11 +838,11 @@ impl PolicyViolationDetector {
     fn is_unusual_location(&self, ip: &str) -> bool {
         // Simple heuristic: consider non-private IPs as potentially unusual
         // In a real implementation, this would check against known locations
-        !ip.starts_with("192.168.") &&
-        !ip.starts_with("10.") &&
-        !ip.starts_with("172.16.") &&
-        !ip.starts_with("127.") &&
-        ip != "localhost"
+        !ip.starts_with("192.168.")
+            && !ip.starts_with("10.")
+            && !ip.starts_with("172.16.")
+            && !ip.starts_with("127.")
+            && ip != "localhost"
     }
 }
 
