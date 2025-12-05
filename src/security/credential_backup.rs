@@ -6,17 +6,15 @@
 
 use anyhow::{anyhow, Result};
 use base64;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
 use tokio::sync::RwLock;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
 
-use crate::security::encryption::{create_encryptor, EncryptedData, EncryptionAlgorithm};
-use crate::security::hardware_credential_provider::{EnhancedCredential, SecurityMetadata};
 
 /// Backup strategy for credential storage
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -663,7 +661,7 @@ impl CredentialBackupManager {
 
     async fn store_recovery_key_backup(
         &self,
-        _key_id: &str,
+        __key_id: &str,
         _encrypted_shares: &[String],
         backup_id: &str,
         data: &[u8],
@@ -674,7 +672,7 @@ impl CredentialBackupManager {
 
     async fn retrieve_recovery_key_backup(
         &self,
-        _key_id: &str,
+        __key_id: &str,
         _encrypted_shares: &[String],
         backup_id: &str,
     ) -> Result<Vec<u8>> {
@@ -683,7 +681,7 @@ impl CredentialBackupManager {
 
     async fn delete_recovery_key_backup(
         &self,
-        _key_id: &str,
+        __key_id: &str,
         _encrypted_shares: &[String],
         backup_id: &str,
     ) -> Result<()> {

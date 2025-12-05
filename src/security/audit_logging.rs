@@ -23,7 +23,6 @@ use tokio::sync::{RwLock, Semaphore};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-use crate::security::encryption::{create_encryptor, EncryptedData, EncryptionAlgorithm};
 
 /// Audit event types for security monitoring
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

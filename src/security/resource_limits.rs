@@ -5,7 +5,6 @@
 //! limits, and comprehensive resource monitoring with automatic enforcement.
 
 use anyhow::{anyhow, Result};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

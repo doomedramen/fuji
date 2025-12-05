@@ -11,7 +11,6 @@ use async_trait::async_trait;
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use ring::hkdf;
-use serde::{Deserialize, Serialize};
 use serde_json;
 use sha2::Sha256;
 use std::collections::HashMap;
@@ -21,6 +20,7 @@ use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{debug, info, warn};
 
+use serde::{Deserialize, Serialize};
 use super::{
     encryption::{create_encryptor, EncryptedData, EncryptionAlgorithm, EncryptionConfig},
     Credential, CredentialProvider,
@@ -377,7 +377,6 @@ impl FileCredentialProvider {
         let encryption_key = self.derive_encryption_key(&pbkdf2_salt, &hkdf_salt)?;
 
         // Decrypt using legacy AES-256-GCM
-        #[cfg(feature = "aes-gcm")]
         {
             use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
@@ -396,7 +395,6 @@ impl FileCredentialProvider {
                 .map_err(|e| anyhow!("Failed to parse decrypted credentials: {}", e))
         }
 
-        #[cfg(not(feature = "aes-gcm"))]
         {
             Err(anyhow!(
                 "Legacy AES-256-GCM format not supported without aes-gcm feature"

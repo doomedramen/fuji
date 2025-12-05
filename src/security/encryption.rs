@@ -203,7 +203,7 @@ impl EncryptedData {
     /// Create new encrypted data with separate authentication tag
     pub fn new(
         algorithm: EncryptionAlgorithm,
-        nonce: &[u8],
+        ___nonce: &[u8],
         ciphertext: &[u8],
         tag: Option<&[u8]>,
         metadata: HashMap<String, String>,
@@ -220,7 +220,7 @@ impl EncryptedData {
     /// Create new encrypted data for algorithms where tag is included in ciphertext
     pub fn new_with_combined_tag(
         algorithm: EncryptionAlgorithm,
-        nonce: &[u8],
+        ___nonce: &[u8],
         combined_data: &[u8],
         metadata: HashMap<String, String>,
     ) -> Self {

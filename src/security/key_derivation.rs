@@ -7,12 +7,12 @@
 use anyhow::{anyhow, Result};
 use pbkdf2::pbkdf2_hmac;
 use rand::{rngs::OsRng, RngCore};
-use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Sha512};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{debug, warn};
 
 /// Key derivation function types
+use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum KeyDerivationFunction {
     /// PBKDF2 with SHA-256
@@ -301,7 +301,7 @@ impl KDFParameters {
             }
             KeyDerivationFunction::Argon2id | KeyDerivationFunction::Scrypt => {
                 // Tune memory cost and parallelism
-                if let (Some(mut memory), Some(mut parallel)) = (self.memory_cost, self.parallelism)
+                if let (Some(memory), Some(parallel)) = (self.memory_cost, self.parallelism)
                 {
                     for mem_multiplier in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0] {
                         for par_multiplier in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0] {

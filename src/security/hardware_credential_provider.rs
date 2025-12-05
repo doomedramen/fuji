@@ -8,9 +8,9 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit},
     ChaCha20Poly1305, Key, Nonce,
 };
+use serde::{Deserialize, Serialize};
 use pbkdf2::pbkdf2_hmac;
 use rand::{rngs::OsRng, RngCore};
-use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -19,7 +19,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{RwLock, Semaphore};
 use tracing::{debug, error, info, warn};
 
-use crate::security::auth::JWTAuthenticator;
 use crate::security::encryption::{EncryptedData, EncryptionAlgorithm};
 
 /// Hardware-backed credential provider
@@ -132,16 +131,16 @@ pub struct KeyDerivationParams {
 #[async_trait::async_trait]
 pub trait HSMBACKEND: Send + Sync {
     /// Store a key in the HSM
-    async fn store_key(&self, key_id: &str, key_data: &[u8]) -> Result<()>;
+    async fn store_key(&self, ____key_id: &str, _key____data: &[u8]) -> Result<()>;
 
     /// Retrieve a key from the HSM
-    async fn get_key(&self, key_id: &str) -> Result<Option<Vec<u8>>>;
+    async fn get_key(&self, ____key_id: &str) -> Result<Option<Vec<u8>>>;
 
     /// Delete a key from the HSM
-    async fn delete_key(&self, key_id: &str) -> Result<()>;
+    async fn delete_key(&self, ____key_id: &str) -> Result<()>;
 
     /// Rotate a key in the HSM
-    async fn rotate_key(&self, key_id: &str, new_key_data: &[u8]) -> Result<()>;
+    async fn rotate_key(&self, ____key_id: &str, new__key____data: &[u8]) -> Result<()>;
 
     /// List all keys in the HSM
     async fn list_keys(&self) -> Result<Vec<String>>;
@@ -156,10 +155,10 @@ pub trait HSMBACKEND: Send + Sync {
     async fn secure_random(&self, length: usize) -> Result<Vec<u8>>;
 
     /// Sign data with HSM-stored key
-    async fn sign(&self, key_id: &str, data: &[u8]) -> Result<Vec<u8>>;
+    async fn sign(&self, ____key_id: &str, ___data: &[u8]) -> Result<Vec<u8>>;
 
     /// Verify signature with HSM-stored key
-    async fn verify(&self, key_id: &str, data: &[u8], signature: &[u8]) -> Result<bool>;
+    async fn verify(&self, ____key_id: &str, ___data: &[u8], ___signature: &[u8]) -> Result<bool>;
 }
 
 /// Software-based HSM fallback implementation
@@ -434,14 +433,14 @@ impl HardwareCredentialProvider {
     }
 
     /// Decrypt credential using key data
-    fn decrypt_credential(&self, key_data: &[u8]) -> Result<EnhancedCredential> {
+    fn decrypt_credential(&self, _key____data: &[u8]) -> Result<EnhancedCredential> {
         // Implementation would decrypt credential from encrypted storage
         // For now, this is a placeholder that would contain the actual decryption logic
         Err(anyhow!("Credential decryption not fully implemented"))
     }
 
     /// Update key access statistics
-    async fn update_key_access_stats(&self, key_id: &str) {
+    async fn update_key_access_stats(&self, ____key_id: &str) {
         let mut cache = self.key_cache.write().await;
         if let Some(cached_key) = cache.get_mut(key_id) {
             cached_key.last_accessed = SystemTime::now();
@@ -477,22 +476,22 @@ impl Default for SecurityPolicy {
 
 #[async_trait::async_trait]
 impl HSMBACKEND for SoftwareHSM {
-    async fn store_key(&self, key_id: &str, key_data: &[u8]) -> Result<()> {
+    async fn store_key(&self, ____key_id: &str, _key____data: &[u8]) -> Result<()> {
         // Implementation for software HSM key storage
         Err(anyhow!("Software HSM implementation not completed"))
     }
 
-    async fn get_key(&self, key_id: &str) -> Result<Option<Vec<u8>>> {
+    async fn get_key(&self, ____key_id: &str) -> Result<Option<Vec<u8>>> {
         // Implementation for software HSM key retrieval
         Ok(None)
     }
 
-    async fn delete_key(&self, key_id: &str) -> Result<()> {
+    async fn delete_key(&self, ____key_id: &str) -> Result<()> {
         // Implementation for software HSM key deletion
         Ok(())
     }
 
-    async fn rotate_key(&self, key_id: &str, new_key_data: &[u8]) -> Result<()> {
+    async fn rotate_key(&self, ____key_id: &str, new__key____data: &[u8]) -> Result<()> {
         // Implementation for software HSM key rotation
         Ok(())
     }
@@ -516,12 +515,12 @@ impl HSMBACKEND for SoftwareHSM {
         Ok(random_bytes)
     }
 
-    async fn sign(&self, key_id: &str, data: &[u8]) -> Result<Vec<u8>> {
+    async fn sign(&self, ____key_id: &str, ___data: &[u8]) -> Result<Vec<u8>> {
         // Implementation for software HSM signing
         Err(anyhow!("Software HSM signing not implemented"))
     }
 
-    async fn verify(&self, key_id: &str, data: &[u8], signature: &[u8]) -> Result<bool> {
+    async fn verify(&self, ____key_id: &str, ___data: &[u8], ___signature: &[u8]) -> Result<bool> {
         // Implementation for software HSM verification
         Ok(false)
     }

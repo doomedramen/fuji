@@ -46,3 +46,4 @@ test-results/
 # Temporary test files
 test-temp/
 tmp/ 
+/src/security.backup.20251204_231106

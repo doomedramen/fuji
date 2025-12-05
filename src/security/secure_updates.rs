@@ -9,13 +9,12 @@
 //! - Rollback and recovery mechanisms
 //! - Update audit logging
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tracing::{error, info, instrument, warn};
@@ -399,7 +398,7 @@ impl SecureUpdateManager {
 
     /// Remove trusted public key
     #[instrument(skip(self))]
-    pub async fn remove_trusted_key(&self, key_id: &str) -> Result<()> {
+    pub async fn remove_trusted_key(&self, _key_id: &str) -> Result<()> {
         let mut trusted_keys = self.trusted_keys.write().await;
         trusted_keys.remove(key_id);
 
