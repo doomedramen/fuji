@@ -323,6 +323,9 @@ async fn test_process_isolation_timeout() -> Result<()> {
         .create_isolated_process_async("sleep", vec!["5".to_string()])
         .await?;
 
+    // Get PID before we move child
+    let pid = child.id().unwrap() as u32;
+
     // Set a short timeout
     let result = timeout(Duration::from_millis(100), child.wait_with_output()).await;
 
@@ -330,7 +333,6 @@ async fn test_process_isolation_timeout() -> Result<()> {
     assert!(result.is_err());
 
     // Clean up
-    let pid = child.id().unwrap() as u32;
     isolator.terminate_isolated_process(pid)?;
 
     Ok(())

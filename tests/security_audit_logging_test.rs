@@ -9,7 +9,10 @@
 use anyhow::Result;
 use serde_json::json;
 use std::sync::Arc;
+use std::collections::HashMap;
+use std::time::Duration;
 use tracing::info;
+use tokio::time::sleep;
 use fuji::security::audit_logging::{
     AuditConfig, AuditEvent, AuditEventType, AuditLogger, AuditOutcome, AuditSeverity, AuditSource,
     AuditSourceType, NetworkContext, SessionContext,
@@ -17,10 +20,6 @@ use fuji::security::audit_logging::{
 use fuji::security::audit_monitoring::{
     AlertSeverity, AlertType, AuditMonitor, AuditMonitoringConfig, SecurityAlert,
 };
-use serde_json::json;
-use std::collections::HashMap;
-use std::time::Duration;
-use tokio::time::sleep;
 
 /// Test comprehensive audit logging functionality
 #[tokio::test]
@@ -62,7 +61,7 @@ async fn test_comprehensive_audit_logging() -> Result<()> {
             "test_user",
             AuditOutcome::Success,
             "password",
-            HashMap::from([("method".to_string(), json("local"))]),
+            HashMap::from([("method".to_string(), json!("local"))]),
         )
         .await?;
 
@@ -74,8 +73,8 @@ async fn test_comprehensive_audit_logging() -> Result<()> {
             "cred_123",
             AuditOutcome::Success,
             HashMap::from([
-                ("credential_type".to_string(), json("nfs")),
-                ("mount_point".to_string(), json("/mnt/share")),
+                ("credential_type".to_string(), json!("nfs")),
+                ("mount_point".to_string(), json!("/mnt/share")),
             ]),
         )
         .await?;
@@ -86,8 +85,8 @@ async fn test_comprehensive_audit_logging() -> Result<()> {
             source.clone(),
             "unauthorized_access_attempt",
             HashMap::from([
-                ("target".to_string(), json("secure_file")),
-                ("attempts".to_string(), json(5)),
+                ("target".to_string(), json!("secure_file")),
+                ("attempts".to_string(), json!(5)),
             ]),
         )
         .await?;
@@ -183,7 +182,7 @@ async fn test_real_time_monitoring() -> Result<()> {
             description: format!("Failed authentication attempt {}", i),
             details: HashMap::from([
                 ("username".to_string(), json!("admin")),
-                ("reason".to_string(), json("invalid_password")),
+                ("reason".to_string(), json!("invalid_password")),
             ]),
             network_context: Some(NetworkContext {
                 source_ip: "203.0.113.10".to_string(),
@@ -264,7 +263,7 @@ async fn test_privilege_escalation_detection() -> Result<()> {
             details: HashMap::from([
                 (
                     "action_type".to_string(),
-                    json(if i % 2 == 0 {
+                    json!(if i % 2 == 0 {
                         "user_creation"
                     } else {
                         "config_change"
@@ -272,7 +271,7 @@ async fn test_privilege_escalation_detection() -> Result<()> {
                 ),
                 (
                     "target".to_string(),
-                    json(if i % 2 == 0 {
+                    json!(if i % 2 == 0 {
                         "new_user"
                     } else {
                         "system_config"

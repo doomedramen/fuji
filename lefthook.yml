@@ -10,7 +10,7 @@ pre-commit:
 
     # Run clippy lints (relaxed for local development)
     clippy:
-      run: cargo clippy --all-targets --all-features -- -A dead_code -A unused-imports -A unused-variables -A warnings || true
+      run: cargo clippy --all-targets --all-features -- -A dead_code -A unused-imports -A unused-variables -A warnings -A clippy::absurd_extreme_comparisons || true
       glob: "*.rs"
 
     # Run tests with coverage (disabled for local development)

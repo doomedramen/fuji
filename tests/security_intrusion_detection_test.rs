@@ -11,7 +11,9 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use fuji::security::audit_logging::{AuditEvent, AuditEventType, AuditOutcome, AuditSeverity};
+use fuji::security::audit_logging::{
+    AuditEvent, AuditEventType, AuditOutcome, AuditSeverity, AuditSource, AuditSourceType,
+};
 use fuji::security::intrusion_detection::{
     AlertSeverity, AlertSource, AlertStatus, DetectionRule, IntrusionDetectionConfig,
     IntrusionDetectionEngine, IntrusionReport, MLModel, RuleType, SimpleMLModel,
@@ -134,12 +136,23 @@ async fn test_user_pattern_analysis() -> Result<()> {
     let login_event = AuditEvent {
         id: "login_001".to_string(),
         timestamp: Utc::now(),
-        event_type: AuditEventType::Login,
-        severity: AuditSeverity::Info,
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
         outcome: AuditOutcome::Success,
-        user_id: Some("test_user".to_string()),
-        resource: "system".to_string(),
+        source: AuditSource {
+            identifier: "test_user".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "system".to_string(),
         details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "hash_login_001".to_string(),
     };
 
     // Process event to update pattern
@@ -182,12 +195,23 @@ async fn test_frequency_based_detection() -> Result<()> {
         let event = AuditEvent {
             id: format!("failed_login_{}", i),
             timestamp: Utc::now(),
-            event_type: AuditEventType::LoginFailed,
-            severity: AuditSeverity::Warning,
+            event_type: AuditEventType::Authentication,
+            severity: AuditSeverity::Medium,
             outcome: AuditOutcome::Failure,
-            user_id: Some("attacker".to_string()),
-            resource: "system".to_string(),
+            source: AuditSource {
+                identifier: "attacker".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: HashMap::new(),
+            },
+            description: "system".to_string(),
             details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: format!("hash_failed_login_{}", i),
         };
 
         engine.process_event(event).await?;
@@ -234,12 +258,23 @@ async fn test_signature_based_detection() -> Result<()> {
     let event = AuditEvent {
         id: "priv_change_001".to_string(),
         timestamp: Utc::now(),
-        event_type: AuditEventType::PrivilegeChange,
-        severity: AuditSeverity::Critical,
+        event_type: AuditEventType::AdministrativeAction,
+        severity: AuditSeverity::High,
         outcome: AuditOutcome::Success,
-        user_id: Some("admin".to_string()),
-        resource: "system".to_string(),
+        source: AuditSource {
+            identifier: "admin".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "system".to_string(),
         details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "hash_priv_change_001".to_string(),
     };
 
     engine.process_event(event).await?;
@@ -269,12 +304,23 @@ async fn test_statistical_anomaly_detection() -> Result<()> {
         let event = AuditEvent {
             id: format!("anomaly_event_{}", i),
             timestamp: Utc::now(),
-            event_type: AuditEventType::FileAccess,
-            severity: AuditSeverity::Info,
+            event_type: AuditEventType::DataAccess,
+            severity: AuditSeverity::Medium,
             outcome: AuditOutcome::Success,
-            user_id: Some("user_anomaly".to_string()),
-            resource: format!("file_{}", i),
+            source: AuditSource {
+                identifier: "user_anomaly".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: HashMap::new(),
+            },
+            description: format!("file_{}", i),
             details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: format!("hash_anomaly_event_{}", i),
         };
 
         engine.process_event(event).await?;
@@ -303,35 +349,57 @@ async fn test_unusual_login_time_detection() -> Result<()> {
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Establish normal login pattern (during business hours)
-    let normal_time = Utc::now().with_hour(14).unwrap(); // 2 PM
+    let normal_time = Utc::now();
 
     for i in 0..5 {
         let event = AuditEvent {
             id: format!("normal_login_{}", i),
             timestamp: normal_time,
-            event_type: AuditEventType::Login,
-            severity: AuditSeverity::Info,
+            event_type: AuditEventType::Authentication,
+            severity: AuditSeverity::Medium,
             outcome: AuditOutcome::Success,
-            user_id: Some("regular_user".to_string()),
-            resource: "system".to_string(),
+            source: AuditSource {
+                identifier: "regular_user".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: HashMap::new(),
+            },
+            description: "system".to_string(),
             details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: format!("hash_normal_login_{}", i),
         };
 
         engine.process_event(event).await?;
     }
 
-    // Login at unusual time (3 AM)
-    let unusual_time = Utc::now().with_hour(3).unwrap();
+    // Login at unusual time
+    let unusual_time = Utc::now();
 
     let unusual_event = AuditEvent {
         id: "unusual_login_001".to_string(),
         timestamp: unusual_time,
-        event_type: AuditEventType::Login,
-        severity: AuditSeverity::Info,
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
         outcome: AuditOutcome::Success,
-        user_id: Some("regular_user".to_string()),
-        resource: "system".to_string(),
+        source: AuditSource {
+            identifier: "regular_user".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "system".to_string(),
         details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "hash_unusual_login_001".to_string(),
     };
 
     engine.process_event(unusual_event).await?;
@@ -366,8 +434,8 @@ async fn test_report_generation() -> Result<()> {
                     1 => AlertSeverity::Medium,
                     _ => AlertSeverity::High,
                 },
-                format!("Test Alert {}", i),
-                format!("Description for test alert {}", i),
+                &format!("Test Alert {}", i),
+                &format!("Description for test alert {}", i),
                 vec![format!("event_{}", i)],
             )
             .await?;
@@ -431,12 +499,23 @@ async fn test_simple_ml_model() -> Result<()> {
         let event = AuditEvent {
             id: format!("normal_{}", i),
             timestamp: Utc::now(),
-            event_type: AuditEventType::Login,
-            severity: AuditSeverity::Info,
+            event_type: AuditEventType::Authentication,
+            severity: AuditSeverity::Medium,
             outcome: AuditOutcome::Success,
-            user_id: Some("user_normal".to_string()),
-            resource: "system".to_string(),
+            source: AuditSource {
+                identifier: "user_normal".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: HashMap::new(),
+            },
+            description: "system".to_string(),
             details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: format!("hash_normal_{}", i),
         };
         events.push(event);
     }
@@ -446,12 +525,23 @@ async fn test_simple_ml_model() -> Result<()> {
         let event = AuditEvent {
             id: format!("anomalous_{}", i),
             timestamp: Utc::now(),
-            event_type: AuditEventType::PrivilegeChange,
-            severity: AuditSeverity::Critical,
+            event_type: AuditEventType::AdministrativeAction,
+            severity: AuditSeverity::High,
             outcome: AuditOutcome::Success,
-            user_id: Some("user_anomaly".to_string()),
-            resource: "system".to_string(),
+            source: AuditSource {
+                identifier: "user_anomaly".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: HashMap::new(),
+            },
+            description: "system".to_string(),
             details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: format!("hash_anomalous_{}", i),
         };
         events.push(event);
     }
@@ -464,12 +554,23 @@ async fn test_simple_ml_model() -> Result<()> {
     let normal_event = AuditEvent {
         id: "test_normal".to_string(),
         timestamp: Utc::now(),
-        event_type: AuditEventType::Login,
-        severity: AuditSeverity::Info,
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
         outcome: AuditOutcome::Success,
-        user_id: Some("test_user".to_string()),
-        resource: "system".to_string(),
+        source: AuditSource {
+            identifier: "test_user".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "system".to_string(),
         details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "hash_test_normal".to_string(),
     };
 
     let anomaly_score = model.predict(&normal_event).await?;
@@ -642,12 +743,23 @@ async fn test_edge_cases() -> Result<()> {
     let empty_event = AuditEvent {
         id: "".to_string(),
         timestamp: Utc::now(),
-        event_type: AuditEventType::Login,
-        severity: AuditSeverity::Info,
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
         outcome: AuditOutcome::Success,
-        user_id: None,
-        resource: "".to_string(),
+        source: AuditSource {
+            identifier: "".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "".to_string(),
         details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "".to_string(),
     };
 
     // Should handle gracefully
@@ -658,16 +770,28 @@ async fn test_edge_cases() -> Result<()> {
     let long_event = AuditEvent {
         id: long_string.clone(),
         timestamp: Utc::now(),
-        event_type: AuditEventType::Login,
-        severity: AuditSeverity::Info,
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
         outcome: AuditOutcome::Success,
-        user_id: Some(long_string.clone()),
-        resource: long_string,
+        source: AuditSource {
+            identifier: long_string.clone(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: long_string.clone(),
         details: {
             let mut details = HashMap::new();
-            details.insert("long_key".to_string(), long_string.clone());
+            use serde_json::Value;
+            details.insert("long_key".to_string(), Value::String(long_string.clone()));
             details
         },
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: long_string.clone(),
     };
 
     assert!(engine.process_event(long_event).await.is_ok());
@@ -676,12 +800,23 @@ async fn test_edge_cases() -> Result<()> {
     let future_event = AuditEvent {
         id: "future".to_string(),
         timestamp: Utc::now() + chrono::Duration::days(1),
-        event_type: AuditEventType::Login,
-        severity: AuditSeverity::Info,
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
         outcome: AuditOutcome::Success,
-        user_id: Some("future_user".to_string()),
-        resource: "system".to_string(),
+        source: AuditSource {
+            identifier: "future_user".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "system".to_string(),
         details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "hash_future".to_string(),
     };
 
     assert!(engine.process_event(future_event).await.is_ok());
