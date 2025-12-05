@@ -315,7 +315,11 @@ impl PathSecurityValidator {
 
         // Check for dangerous system files
         for dangerous_file in &self.dangerous_system_files {
-            if abs_path.starts_with(dangerous_file) {
+            // Use Path comparison for exact matches or parent directories
+            let dangerous_path = Path::new(dangerous_file);
+
+            // Check direct match
+            if abs_path == dangerous_path || abs_path.starts_with(dangerous_path) {
                 return Ok(ValidationResult {
                     is_safe: false,
                     warning_message: Some(format!(
@@ -325,6 +329,21 @@ impl PathSecurityValidator {
                     security_events: vec![],
                     status: ValidationStatus::Blocked("Access violation".to_string()),
                 });
+            }
+
+            // Check canonicalized paths (for macOS where /etc -> /private/etc)
+            if let Ok(canonical_dangerous) = std::fs::canonicalize(dangerous_path) {
+                if abs_path == canonical_dangerous || abs_path.starts_with(&canonical_dangerous) {
+                    return Ok(ValidationResult {
+                        is_safe: false,
+                        warning_message: Some(format!(
+                            "Access to dangerous system file: {}",
+                            dangerous_file
+                        )),
+                        security_events: vec![],
+                        status: ValidationStatus::Blocked("Access violation".to_string()),
+                    });
+                }
             }
         }
 
@@ -1020,6 +1039,7 @@ mod tests {
         let result = validator
             .validate_path(&dangerous_path, "read", None)
             .await?;
+
         assert!(!result.is_safe && result.warning_message.is_some());
 
         Ok(())
@@ -1064,8 +1084,8 @@ mod tests {
         std::os::unix::fs::symlink(&link2, &link1)?;
         std::os::unix::fs::symlink(&target_file, &link2)?;
 
-        // This should fail due to deep symlinks
-        let result = validator.validate_symlink_depth(&link1, 2).await;
+        // This should fail due to deep symlinks (depth=2, max_depth=1)
+        let result = validator.validate_symlink_depth(&link1, 1).await;
         assert!(result.is_err());
 
         Ok(())

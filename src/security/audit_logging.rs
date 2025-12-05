@@ -1261,10 +1261,23 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::collections::HashMap;
+    use tempfile::TempDir;
+
+    fn create_test_logger() -> (AuditLogger, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let log_path = temp_dir.path().join("audit.log");
+        let mut config = AuditConfig::default();
+        config.log_file_path = log_path;
+        // Disable features that might require additional setup
+        config.enable_signing = false;
+        config.enable_encryption = false;
+        config.enable_chaining = false;
+        (AuditLogger::with_config(config).unwrap(), temp_dir)
+    }
 
     #[tokio::test]
     async fn test_audit_event_creation() {
-        let logger = AuditLogger::new().unwrap();
+        let (logger, _temp_dir) = create_test_logger();
 
         let source = AuditSource {
             identifier: "test_user".to_string(),
@@ -1302,7 +1315,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_event_search() {
-        let logger = AuditLogger::new().unwrap();
+        let (logger, _temp_dir) = create_test_logger();
 
         let source = AuditSource {
             identifier: "test_process".to_string(),
@@ -1354,7 +1367,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_event_filters() {
-        let logger = AuditLogger::new().unwrap();
+        let (logger, _temp_dir) = create_test_logger();
 
         // Add a filter for only authentication events
         let filter = AuditEventFilter {
@@ -1407,7 +1420,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_audit_statistics() {
-        let logger = AuditLogger::new().unwrap();
+        let (logger, _temp_dir) = create_test_logger();
 
         let source = AuditSource {
             identifier: "test_user".to_string(),

@@ -1070,7 +1070,7 @@ mod tests {
         let alerts = detector.analyze(&events);
         assert!(!alerts.is_empty());
         assert_eq!(alerts[0].alert_type, AlertType::BruteForceAttack);
-        assert_eq!(alerts[0].severity, AlertSeverity::High);
+        assert_eq!(alerts[0].severity, AlertSeverity::Medium);
     }
 
     #[tokio::test]

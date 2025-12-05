@@ -368,8 +368,18 @@ mod tests {
         let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "test");
         let daemon_err = DaemonError::from(io_err);
         match daemon_err {
+            DaemonError::Io(io_error) => {
+                assert_eq!(io_error.kind(), std::io::ErrorKind::PermissionDenied);
+                assert_eq!(io_error.to_string(), "test");
+            }
+            _ => panic!("Expected Io error"),
+        }
+
+        // Test creating a PermissionDenied error directly
+        let permission_err = DaemonError::permission_denied("test operation");
+        match permission_err {
             DaemonError::PermissionDenied { operation } => {
-                assert_eq!(operation, "test");
+                assert_eq!(operation, "test operation");
             }
             _ => panic!("Expected PermissionDenied error"),
         }

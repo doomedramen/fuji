@@ -581,6 +581,9 @@ impl CredentialBackupManager {
         backup_id: &str,
         data: &[u8],
     ) -> Result<u64> {
+        // Ensure the backup directory exists
+        fs::create_dir_all(_path).await?;
+
         let backup_path = _path.join(format!("{}.backup", backup_id));
         fs::write(&backup_path, data).await?;
         Ok(data.len() as u64)

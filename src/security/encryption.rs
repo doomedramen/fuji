@@ -151,10 +151,11 @@ use crate::{
     security::{IntoSecurityError, SecurityResult, SecurityResultExt},
     security_crypto_error, security_validation_error,
 };
-use chacha20poly1305::{
+use aes_gcm::{
     aead::{Aead, KeyInit},
-    ChaCha20Poly1305, Key, Nonce,
+    Aes256Gcm as AesGcm, Key as AesKey, Nonce as AesNonce,
 };
+use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -367,15 +368,14 @@ impl EncryptedData {
     /// Create new encrypted data for algorithms where tag is included in ciphertext
     pub fn new_with_combined_tag(
         algorithm: EncryptionAlgorithm,
-        ___nonce: &[u8],
-        combined_data: &[u8],
+        nonce: &[u8],
+        ciphertext_with_tag: &[u8],
         metadata: HashMap<String, String>,
     ) -> Self {
-        let (nonce, ciphertext) = combined_data.split_at(algorithm.nonce_size());
         Self {
             algorithm,
             nonce: general_purpose::STANDARD.encode(nonce),
-            ciphertext: general_purpose::STANDARD.encode(ciphertext),
+            ciphertext: general_purpose::STANDARD.encode(ciphertext_with_tag),
             tag: None,
             metadata,
         }
@@ -516,14 +516,105 @@ impl Encryptor for ChaCha20Poly1305Encryptor {
     }
 }
 
+/// AES-256-GCM encryptor implementation
+pub struct Aes256GcmEncryptor {
+    algorithm: EncryptionAlgorithm,
+}
+
+impl Aes256GcmEncryptor {
+    pub fn new() -> Self {
+        Self {
+            algorithm: EncryptionAlgorithm::Aes256Gcm,
+        }
+    }
+}
+
+impl Encryptor for Aes256GcmEncryptor {
+    fn encrypt(&self, plaintext: &[u8], key: &[u8]) -> SecurityResult<EncryptedData> {
+        // Validate key length
+        if key.len() != 32 {
+            return Err(security_validation_error!(
+                "encryption_key",
+                "AES-256-GCM requires exactly 32 bytes (256 bits)",
+                key.len()
+            ));
+        }
+
+        let key = aes_gcm::Key::<AesGcm>::from_slice(key);
+
+        let mut nonce_bytes = [0u8; 12];
+        OsRng.fill_bytes(&mut nonce_bytes);
+        let nonce = AesNonce::from_slice(&nonce_bytes);
+
+        let cipher = AesGcm::new(&key);
+        let encrypted = cipher
+            .encrypt(nonce, plaintext)
+            .map_err(|e| security_crypto_error!("aes256gcm_encrypt", &e))?;
+
+        // AES-256-GCM includes the tag in the ciphertext
+        let metadata = {
+            let mut meta = HashMap::new();
+            meta.insert(
+                "algorithm".to_string(),
+                self.algorithm.identifier().to_string(),
+            );
+            meta.insert("key_derivation".to_string(), "pbkdf2-sha256".to_string());
+            meta.insert("created_at".to_string(), chrono::Utc::now().to_rfc3339());
+            meta
+        };
+
+        Ok(EncryptedData::new_with_combined_tag(
+            self.algorithm,
+            &nonce_bytes,
+            &encrypted,
+            metadata,
+        ))
+    }
+
+    fn decrypt(&self, encrypted: &EncryptedData, key: &[u8]) -> SecurityResult<Vec<u8>> {
+        // Validate key length
+        if key.len() != 32 {
+            return Err(security_validation_error!(
+                "encryption_key",
+                "AES-256-GCM requires exactly 32 bytes (256 bits)",
+                key.len()
+            ));
+        }
+
+        if encrypted.algorithm != EncryptionAlgorithm::Aes256Gcm {
+            return Err(security_crypto_error!(
+                "algorithm_mismatch",
+                format!(
+                    "Expected {:?}, got {:?}",
+                    EncryptionAlgorithm::Aes256Gcm,
+                    encrypted.algorithm
+                )
+                .as_str()
+            ));
+        }
+
+        let key = aes_gcm::Key::<AesGcm>::from_slice(key);
+
+        let (nonce_bytes, ciphertext) = encrypted.decode_components()?;
+
+        let nonce = AesNonce::from_slice(&nonce_bytes);
+        let cipher = AesGcm::new(&key);
+
+        cipher
+            .decrypt(nonce, &ciphertext[..])
+            .map_err(|e| security_crypto_error!("aes256gcm_decrypt", &e))
+    }
+
+    fn algorithm(&self) -> EncryptionAlgorithm {
+        self.algorithm
+    }
+}
+
 /// Factory function to create appropriate encryptor
 pub fn create_encryptor(algorithm: EncryptionAlgorithm) -> Box<dyn Encryptor> {
     match algorithm {
         EncryptionAlgorithm::ChaCha20Poly1305 => Box::new(ChaCha20Poly1305Encryptor::new()),
-        EncryptionAlgorithm::Aes256Gcm => {
-            // TODO: Implement AES-256-GCM encryptor
-            panic!("AES-256-GCM encryptor not yet implemented");
-        }
+        EncryptionAlgorithm::Aes256Gcm => Box::new(Aes256GcmEncryptor::new()),
     }
 }
 
