@@ -2,7 +2,7 @@
 //!
 //! Provides JWT token generation and validation for secure socket communication.
 
-use anyhow::{anyhow, Result};
+use crate::security::{SecurityResult, SecurityError, IntoSecurityError};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey};
@@ -51,15 +51,23 @@ pub struct JWTAuthenticator {
 
 impl JWTAuthenticator {
     /// Create a new JWT authenticator with a new key pair
-    pub fn new() -> Result<Self> {
+    pub fn new() -> SecurityResult<Self> {
         // Generate a new Ed25519 key pair
         let rng = ring::rand::SystemRandom::new();
         let key_pair_bytes = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng)
-            .map_err(|e| anyhow!("Failed to generate key pair: {}", e))?;
+            .map_err(|e| SecurityError::CryptographicError {
+                operation: "key_pair_generation".to_string(),
+                reason: format!("Failed to generate Ed25519 key pair: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let key_pair_bytes_vec = key_pair_bytes.as_ref().to_vec();
         let key_pair = Ed25519KeyPair::from_pkcs8(key_pair_bytes.as_ref())
-            .map_err(|e| anyhow!("Failed to parse key pair: {}", e))?;
+            .map_err(|e| SecurityError::CryptographicError {
+                operation: "key_pair_parsing".to_string(),
+                reason: format!("Failed to parse PKCS#8 key pair: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         // Extract public key
         let public_key_bytes = key_pair.public_key().as_ref();
@@ -83,7 +91,7 @@ impl JWTAuthenticator {
     pub fn from_key_pair_with_bytes(
         key_pair: Ed25519KeyPair,
         key_pair_bytes: Vec<u8>,
-    ) -> Result<Self> {
+    ) -> SecurityResult<Self> {
         let public_key_bytes = key_pair.public_key().as_ref();
         let mut public_key_array = [0u8; 32];
         public_key_array.copy_from_slice(&public_key_bytes[..32]);
@@ -118,10 +126,19 @@ impl JWTAuthenticator {
         user_id: &str,
         mounts: HashSet<String>,
         roles: HashSet<String>,
-    ) -> Result<String> {
+    ) -> SecurityResult<String> {
+        // Validate input parameters
+        if user_id.is_empty() {
+            return Err(SecurityError::ValidationError {
+                field: "user_id".to_string(),
+                reason: "User ID cannot be empty".to_string(),
+                value: None,
+            });
+        }
+
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_err(|e| anyhow!("Time went backwards: {}", e))?;
+            .with_security_context("Failed to get current time")?;
 
         let claims = FujiClaims {
             sub: user_id.to_string(),
@@ -137,19 +154,40 @@ impl JWTAuthenticator {
         let encoding_key = EncodingKey::from_ed_der(&self.key_pair_bytes);
 
         encode(&header, &claims, &encoding_key)
-            .map_err(|e| anyhow!("Failed to encode token: {}", e))
+            .map_err(|e| SecurityError::CryptographicError {
+                operation: "jwt_encoding".to_string(),
+                reason: format!("Failed to encode JWT token: {}", e),
+                source: Some(Box::new(e)),
+            })
     }
 
     /// Validate a JWT token
-    pub fn validate_token(&self, token: &str) -> Result<FujiClaims> {
+    pub fn validate_token(&self, token: &str) -> SecurityResult<FujiClaims> {
+        // Validate input
+        if token.is_empty() {
+            return Err(SecurityError::AuthenticationFailed {
+                details: "Token cannot be empty".to_string(),
+                user_id: None,
+                attempt_count: 1,
+            });
+        }
+
         // Check if token is revoked
         {
             let revoked = self
                 .revoked_tokens
                 .try_read()
-                .map_err(|_| anyhow!("Failed to read revoked tokens"))?;
+                .map_err(|_| SecurityError::SystemSecurityError {
+                    component: "revoked_tokens_store".to_string(),
+                    reason: "Failed to acquire read lock for revoked tokens".to_string(),
+                    source: None,
+                })?;
             if revoked.contains(token) {
-                return Err(anyhow!("Token has been revoked"));
+                return Err(SecurityError::AuthenticationFailed {
+                    details: "Token has been revoked".to_string(),
+                    user_id: None,
+                    attempt_count: 1,
+                });
             }
         }
 
@@ -160,13 +198,25 @@ impl JWTAuthenticator {
         let decoding_key = DecodingKey::from_ed_der(&self.public_key_array);
 
         let token_data = decode::<FujiClaims>(token, &decoding_key, &validation)
-            .map_err(|e| anyhow!("Invalid token: {}", e))?;
+            .map_err(|e| SecurityError::AuthenticationFailed {
+                details: format!("Invalid JWT token: {}", e),
+                user_id: None,
+                attempt_count: 1,
+            })?;
 
         Ok(token_data.claims)
     }
 
     /// Revoke a token
-    pub async fn revoke_token(&self, token: String) -> Result<()> {
+    pub async fn revoke_token(&self, token: String) -> SecurityResult<()> {
+        if token.is_empty() {
+            return Err(SecurityError::ValidationError {
+                field: "token".to_string(),
+                reason: "Cannot revoke empty token".to_string(),
+                value: None,
+            });
+        }
+
         let mut revoked = self.revoked_tokens.write().await;
         revoked.insert(token);
         Ok(())
@@ -193,8 +243,9 @@ impl JWTAuthenticator {
     }
 
     /// Clean up expired revoked tokens
-    pub async fn cleanup_expired_tokens(&self) -> Result<usize> {
+    pub async fn cleanup_expired_tokens(&self) -> SecurityResult<usize> {
         let mut revoked = self.revoked_tokens.write().await;
+
         let mut to_remove = Vec::new();
 
         for token in revoked.iter() {
@@ -204,7 +255,7 @@ impl JWTAuthenticator {
                     if let Some(exp_val) = exp.as_u64() {
                         let now = SystemTime::now()
                             .duration_since(UNIX_EPOCH)
-                            .unwrap_or_default()
+                            .with_security_context("Failed to get current time for cleanup")?
                             .as_secs();
 
                         if exp_val < now {
@@ -232,20 +283,32 @@ impl JWTAuthenticator {
 }
 
 /// Helper to validate token structure without full verification
-fn validate_token_structure(token: &str) -> Result<jsonwebtoken::TokenData<serde_json::Value>> {
+fn validate_token_structure(token: &str) -> SecurityResult<jsonwebtoken::TokenData<serde_json::Value>> {
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 3 {
-        return Err(anyhow!("Invalid token structure"));
+        return Err(SecurityError::ValidationError {
+            field: "token_structure".to_string(),
+            reason: "JWT token must have 3 parts separated by dots".to_string(),
+            value: Some(format!("{} parts found", parts.len())),
+        });
     }
 
     // Try to decode the payload
     let payload = parts[1];
     let decoded = URL_SAFE_NO_PAD
         .decode(payload)
-        .map_err(|_| anyhow!("Invalid token payload"))?;
+        .map_err(|_| SecurityError::ValidationError {
+            field: "token_payload".to_string(),
+            reason: "Invalid base64url encoding in token payload".to_string(),
+            value: None,
+        })?;
 
     let claims: serde_json::Value =
-        serde_json::from_slice(&decoded).map_err(|_| anyhow!("Invalid claims format"))?;
+        serde_json::from_slice(&decoded).map_err(|e| SecurityError::ValidationError {
+            field: "token_claims".to_string(),
+            reason: format!("Invalid JSON in token claims: {}", e),
+            value: None,
+        })?;
 
     Ok(jsonwebtoken::TokenData {
         header: Header::default(),

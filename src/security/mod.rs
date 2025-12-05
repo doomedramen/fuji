@@ -114,6 +114,7 @@ pub mod config_security;
 pub mod credential_backup;
 pub mod encryption;
 pub mod env_provider;
+pub mod error;
 pub mod file_provider;
 pub mod hardware_credential_provider;
 pub mod intrusion_detection;
@@ -129,6 +130,10 @@ pub mod secure_socket;
 pub mod socket;
 pub mod secure_updates;
 pub mod security_dashboard;
+
+// Re-export commonly used error types for convenience
+pub use error::{SecurityError, SecurityResult, SecurityResultExt, IntoSecurityError, PolicySeverity};
+pub use error::SecurityErrorMetrics;
 
 /// Credential information for network mounts
 #[derive(Debug, Clone, Serialize, Deserialize)]

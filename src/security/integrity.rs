@@ -10,13 +10,14 @@
 
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::interval;
-use tracing::{debug, error, info, warn, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::security::audit_monitoring_simple::SimpleAuditMonitor;
 
@@ -120,6 +121,11 @@ impl HashAlgorithm {
         let hash = self.hash(data);
         hex::encode(hash)
     }
+}
+
+/// Convenience function to hash data using default SHA-256 algorithm
+pub fn hash_data(data: &[u8]) -> Vec<u8> {
+    HashAlgorithm::Sha256.hash(data)
 }
 
 /// Integrity response configuration
@@ -332,8 +338,8 @@ impl RuntimeIntegrityChecker {
     pub fn new(config: IntegrityConfig) -> Result<Self> {
         let (violation_tx, _) = mpsc::unbounded_channel();
 
-        let executable_path = std::env::current_exe()
-            .unwrap_or_else(|_| PathBuf::from("/proc/self/exe"));
+        let executable_path =
+            std::env::current_exe().unwrap_or_else(|_| PathBuf::from("/proc/self/exe"));
 
         let process_info = Self::get_process_info()?;
 
@@ -424,11 +430,13 @@ impl RuntimeIntegrityChecker {
                 error!("Integrity check failed: {}", e);
 
                 // Log the failure
-                self.audit_monitor.log_integrity_event(
-                    "integrity_check_failed",
-                    &format!("Integrity check failed: {}", e),
-                    Some(&self.process_info),
-                ).await?;
+                self.audit_monitor
+                    .log_integrity_event(
+                        "integrity_check_failed",
+                        &format!("Integrity check failed: {}", e),
+                        Some(&self.process_info),
+                    )
+                    .await?;
             }
         }
     }
@@ -439,7 +447,8 @@ impl RuntimeIntegrityChecker {
         debug!("Performing integrity check");
 
         let baseline = self.baseline.read().await;
-        let baseline = baseline.as_ref()
+        let baseline = baseline
+            .as_ref()
             .ok_or_else(|| anyhow!("No integrity baseline available"))?;
 
         let mut violations = Vec::new();
@@ -479,7 +488,10 @@ impl RuntimeIntegrityChecker {
     }
 
     /// Check code integrity
-    async fn check_code_integrity(&self, baseline: &IntegrityBaseline) -> Result<Option<IntegrityViolation>> {
+    async fn check_code_integrity(
+        &self,
+        baseline: &IntegrityBaseline,
+    ) -> Result<Option<IntegrityViolation>> {
         let current_hash = self.compute_file_hash(&self.executable_path)?;
 
         if let Some(expected_hash) = baseline.code_hashes.get("main") {
@@ -502,10 +514,10 @@ impl RuntimeIntegrityChecker {
                     timestamp: Utc::now(),
                     severity: ViolationSeverity::Critical,
                     source_process: self.process_info.clone(),
-                    context: HashMap::from([
-                        ("executable_path".to_string(),
-                         self.executable_path.to_string_lossy().to_string()),
-                    ]),
+                    context: HashMap::from([(
+                        "executable_path".to_string(),
+                        self.executable_path.to_string_lossy().to_string(),
+                    )]),
                     status: ViolationStatus::New,
                 };
 
@@ -517,7 +529,10 @@ impl RuntimeIntegrityChecker {
     }
 
     /// Check data integrity
-    async fn check_data_integrity(&self, baseline: &IntegrityBaseline) -> Result<Option<IntegrityViolation>> {
+    async fn check_data_integrity(
+        &self,
+        baseline: &IntegrityBaseline,
+    ) -> Result<Option<IntegrityViolation>> {
         for (path, expected_checksum) in &baseline.data_checksums {
             if path.exists() {
                 let current_checksum = self.compute_file_hash(path)?;
@@ -535,10 +550,10 @@ impl RuntimeIntegrityChecker {
                         timestamp: Utc::now(),
                         severity: ViolationSeverity::High,
                         source_process: self.process_info.clone(),
-                        context: HashMap::from([
-                            ("file_path".to_string(),
-                             path.to_string_lossy().to_string()),
-                        ]),
+                        context: HashMap::from([(
+                            "file_path".to_string(),
+                            path.to_string_lossy().to_string(),
+                        )]),
                         status: ViolationStatus::New,
                     };
 
@@ -551,7 +566,10 @@ impl RuntimeIntegrityChecker {
     }
 
     /// Check memory integrity
-    async fn check_memory_integrity(&self, baseline: &IntegrityBaseline) -> Result<Option<IntegrityViolation>> {
+    async fn check_memory_integrity(
+        &self,
+        baseline: &IntegrityBaseline,
+    ) -> Result<Option<IntegrityViolation>> {
         let current_layout = self.get_memory_layout().await?;
 
         // Compare memory layouts
@@ -567,10 +585,14 @@ impl RuntimeIntegrityChecker {
                 severity: ViolationSeverity::High,
                 source_process: self.process_info.clone(),
                 context: HashMap::from([
-                    ("expected_regions".to_string(),
-                     baseline.memory_layout.len().to_string()),
-                    ("actual_regions".to_string(),
-                     current_layout.len().to_string()),
+                    (
+                        "expected_regions".to_string(),
+                        baseline.memory_layout.len().to_string(),
+                    ),
+                    (
+                        "actual_regions".to_string(),
+                        current_layout.len().to_string(),
+                    ),
                 ]),
                 status: ViolationStatus::New,
             };
@@ -605,8 +627,10 @@ impl RuntimeIntegrityChecker {
                         source_process: self.process_info.clone(),
                         context: HashMap::from([
                             ("library_path".to_string(), path.clone()),
-                            ("memory_range".to_string(),
-                             format!("{:x}-{:x}", mapping.start, mapping.end)),
+                            (
+                                "memory_range".to_string(),
+                                format!("{:x}-{:x}", mapping.start, mapping.end),
+                            ),
                         ]),
                         status: ViolationStatus::New,
                     };
@@ -621,17 +645,22 @@ impl RuntimeIntegrityChecker {
 
     /// Handle integrity violation
     async fn handle_violation(&self, violation: IntegrityViolation) -> Result<()> {
-        error!("Integrity violation detected: {:?}", violation.violation_type);
+        error!(
+            "Integrity violation detected: {:?}",
+            violation.violation_type
+        );
 
         // Store violation
         self.violations.write().await.push(violation.clone());
 
         // Log to audit
-        self.audit_monitor.log_integrity_event(
-            "integrity_violation",
-            &format!("Integrity violation: {:?}", violation.violation_type),
-            Some(&self.process_info),
-        ).await?;
+        self.audit_monitor
+            .log_integrity_event(
+                "integrity_violation",
+                &format!("Integrity violation: {:?}", violation.violation_type),
+                Some(&self.process_info),
+            )
+            .await?;
 
         // Send notification
         let _ = self.violation_tx.send(violation.clone());
@@ -778,8 +807,7 @@ impl RuntimeIntegrityChecker {
             .to_string_lossy()
             .to_string();
 
-        let executable_path = std::env::current_exe()
-            .unwrap_or_else(|_| PathBuf::from("unknown"));
+        let executable_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("unknown"));
 
         let uid = unsafe { libc::getuid() };
         let gid = unsafe { libc::getgid() };
@@ -805,8 +833,11 @@ impl RuntimeIntegrityChecker {
             is_baseline_established: baseline.is_some(),
             baseline_created_at: baseline.as_ref().map(|b| b.created_at),
             total_violations: violations.len(),
-            active_violations: violations.iter()
-                .filter(|v| v.status == ViolationStatus::New || v.status == ViolationStatus::Investigating)
+            active_violations: violations
+                .iter()
+                .filter(|v| {
+                    v.status == ViolationStatus::New || v.status == ViolationStatus::Investigating
+                })
                 .count(),
             last_violation: violations.last().cloned(),
             last_check_time: Utc::now(),
@@ -977,14 +1008,22 @@ pub mod memory_protection {
         }
 
         /// Protect memory region
-        pub async fn protect_region(&self, addr: usize, size: usize, flags: ProtFlags) -> Result<()> {
+        pub async fn protect_region(
+            &self,
+            addr: usize,
+            size: usize,
+            flags: ProtFlags,
+        ) -> Result<()> {
             let ptr = addr as *mut libc::c_void;
 
             unsafe {
                 mprotect(ptr, size, flags)?;
             }
 
-            self.protected_regions.write().await.push((addr, size, flags));
+            self.protected_regions
+                .write()
+                .await
+                .push((addr, size, flags));
 
             info!("Protected memory region: {:x}-{:x}", addr, addr + size);
             Ok(())
@@ -1014,7 +1053,11 @@ pub mod memory_protection {
                 mprotect(ptr, size, ProtFlags::PROT_READ)?;
             }
 
-            info!("Securely cleared memory region: {:x}-{:x}", addr, addr + size);
+            info!(
+                "Securely cleared memory region: {:x}-{:x}",
+                addr,
+                addr + size
+            );
             Ok(())
         }
     }
@@ -1052,7 +1095,10 @@ pub mod secure_boot {
 
         /// Extend measurement
         pub async fn extend_measurement(&self, component: &str, hash: &str) -> Result<()> {
-            self.measurements.write().await.insert(component.to_string(), hash.to_string());
+            self.measurements
+                .write()
+                .await
+                .insert(component.to_string(), hash.to_string());
             info!("Extended measurement for: {}", component);
             Ok(())
         }
@@ -1067,8 +1113,8 @@ pub mod secure_boot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::NamedTempFile;
     use std::io::Write;
+    use tempfile::NamedTempFile;
 
     #[tokio::test]
     async fn test_integrity_config_default() {
