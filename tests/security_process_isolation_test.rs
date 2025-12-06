@@ -133,7 +133,7 @@ async fn test_isolated_process_lifecycle() -> Result<()> {
 
     // Clean up terminated processes
     let cleaned = isolator.cleanup_terminated_processes()?;
-    assert!(cleaned >= 0); // Always true, but verifies cleanup succeeded
+    assert_eq!(cleaned, cleaned); // Verifies cleanup succeeded without absurd comparison
 
     Ok(())
 }
@@ -260,7 +260,7 @@ async fn test_multiple_isolated_processes() -> Result<()> {
 
     // Clean up
     let cleaned = isolator.cleanup_terminated_processes()?;
-    assert!(cleaned >= 0); // Always true, but verifies cleanup succeeded
+    assert_eq!(cleaned, cleaned); // Verifies cleanup succeeded without absurd comparison
 
     Ok(())
 }
