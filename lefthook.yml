@@ -8,9 +8,9 @@ pre-commit:
       run: cargo fmt -- --check
       glob: "*.rs"
 
-    # Run clippy lints (relaxed for local development)
+    # Run clippy (same as CI)
     clippy:
-      run: cargo clippy --all-targets --all-features -- -A dead_code -A unused-imports -A unused-variables -A warnings -A clippy::absurd_extreme_comparisons || true
+      run: cargo clippy --all-targets --all-features
       glob: "*.rs"
 
     # Run tests with coverage (disabled for local development)
@@ -25,9 +25,9 @@ pre-push:
       run: cargo check --all-targets --all-features
       glob: "*.rs"
 
-    # Run clippy with warnings allowed (CI will enforce strict checks)
+    # Run clippy (same as CI)
     clippy:
-      run: cargo clippy --all-targets --all-features --quiet
+      run: cargo clippy --all-targets --all-features
       glob: "*.rs"
 
     # Run all tests (same as CI)
@@ -46,9 +46,9 @@ pre-push:
 ci:
   pre-commit:
     commands:
-      # Full linting in CI
+      # Run clippy (same as CI)
       clippy:
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --all-features
 
       # Run all tests
       test:
