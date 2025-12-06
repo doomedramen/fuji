@@ -5,6 +5,7 @@
 use crate::config::Config;
 use crate::mount::{get_mount_handler, MountConfig, MountState, MountStatus};
 use crate::platform::Platform;
+use std::path::Path;
 use crate::security::path_security::{
     IntegrityStatus, PathSecurityEvent, PathSecurityValidator, SecurityProfile,
 };
@@ -232,14 +233,14 @@ impl Daemon {
     }
 
     /// Clean up resources
-    async fn cleanup(&self, socket_path: &PathBuf, pid_file: &PathBuf) -> Result<()> {
+    async fn cleanup(&self, socket_path: &Path, pid_file: &Path) -> Result<()> {
         info!("Cleaning up daemon resources");
 
         // Unmount all active mounts
         let config = self.config.read().await;
         for mount in config.get_active_mounts() {
             info!("Unmounting {} during shutdown", mount.id);
-            if let Ok(handler) = get_mount_handler(&mount.url.split("://").next().unwrap_or("")) {
+            if let Ok(handler) = get_mount_handler(mount.url.split("://").next().unwrap_or("")) {
                 if let Err(e) = handler.unmount(&mount.mount_point).await {
                     warn!("Failed to unmount {}: {}", mount.id, e);
                 }
@@ -301,7 +302,7 @@ async fn handle_request(
             dry_run,
             progress,
         } => {
-            handle_mount_request(
+            handle_mount_request(MountRequestParams {
                 url,
                 mount_point,
                 options,
@@ -311,7 +312,7 @@ async fn handle_request(
                 config,
                 path_security,
                 resource_limits,
-            )
+            })
             .await
         }
 
@@ -327,7 +328,7 @@ async fn handle_request(
             filter_type,
             filter_point,
         } => {
-            handle_status_request(
+            handle_status_request(StatusRequestParams {
                 verbose,
                 watch,
                 json,
@@ -337,7 +338,7 @@ async fn handle_request(
                 config,
                 monitor,
                 start_time,
-            )
+            })
             .await
         }
 
@@ -384,57 +385,60 @@ async fn handle_request(
     }
 }
 
-/// Handle mount request
-async fn handle_mount_request(
+/// Parameters for mount requests
+struct MountRequestParams {
     url: String,
     mount_point: Option<String>,
-    _options: Option<Vec<String>>, // TODO: Integrate options into MountType
+    options: Option<Vec<String>>, // TODO: Integrate options into MountType
     disable: bool,
     dry_run: bool,
-    _progress: bool, // TODO: Implement progress reporting
+    progress: bool, // TODO: Implement progress reporting
     config: Arc<RwLock<Config>>,
     path_security: Arc<PathSecurityValidator>,
     resource_limits: Arc<ResourceLimitsManager>,
-) -> Response {
+}
+
+/// Handle mount request
+async fn handle_mount_request(params: MountRequestParams) -> Response {
     // Parse URL
-    let protocol = url.split("://").next().unwrap_or("");
+    let protocol = params.url.split("://").next().unwrap_or("");
     let handler = match get_mount_handler(protocol) {
         Ok(h) => h,
         Err(e) => return Response::Error(e.to_string()),
     };
 
     // Parse mount type
-    let mount_type = match handler.parse_url(&url) {
+    let mount_type = match handler.parse_url(&params.url) {
         Ok(mt) => mt,
         Err(e) => return Response::Error(e.to_string()),
     };
 
     // Generate mount ID
-    let mount_id = match handler.generate_mount_id(&url) {
+    let mount_id = match handler.generate_mount_id(&params.url) {
         Ok(id) => id,
         Err(e) => return Response::Error(e.to_string()),
     };
 
     // Check if mount already exists
     {
-        let cfg = config.read().await;
+        let cfg = params.config.read().await;
         if cfg.get_mount(&mount_id).is_some() {
             return Response::Error(format!("Mount {} already exists", mount_id));
         }
     }
 
     // Use provided mount point or generate one
-    let mount_point = if let Some(mp) = mount_point {
+    let mount_point = if let Some(mp) = params.mount_point {
         std::path::PathBuf::from(mp)
     } else {
-        match handler.generate_mount_point(&url) {
+        match handler.generate_mount_point(&params.url) {
             Ok(path) => path,
             Err(e) => return Response::Error(e.to_string()),
         }
     };
 
     // Validate mount point path security using enhanced path security validator
-    match path_security.validate_mount_point(&mount_point).await {
+    match params.path_security.validate_mount_point(&mount_point).await {
         Ok(validation_result) => {
             if !validation_result.is_safe {
                 error!(
@@ -533,13 +537,13 @@ async fn handle_mount_request(
     }
 
     // Create mount config
-    let mut mount_config = MountConfig::new(url.clone(), mount_type, mount_point.clone());
-    if disable {
+    let mut mount_config = MountConfig::new(params.url.clone(), mount_type, mount_point.clone());
+    if params.disable {
         mount_config.disable();
     }
 
     // Register mount with path security validator for ongoing monitoring
-    if let Err(e) = path_security
+    if let Err(e) = params.path_security
         .register_mount(
             mount_id.clone(),
             mount_point.clone(),
@@ -556,7 +560,7 @@ async fn handle_mount_request(
     }
 
     // If dry run, just return what would happen
-    if dry_run {
+    if params.dry_run {
         return Response::MountSuccess {
             mount_id,
             mount_point: mount_config.mount_point,
@@ -564,12 +568,12 @@ async fn handle_mount_request(
     }
 
     // Save to configuration
-    config.write().await.add_mount(mount_config.clone());
+    params.config.write().await.add_mount(mount_config.clone());
 
     // If enabled, attempt to mount
-    if !disable {
+    if !params.disable {
         // Check resource limits before attempting mount operation
-        let mount_permit = match resource_limits.acquire_mount_permit().await {
+        let mount_permit = match params.resource_limits.acquire_mount_permit().await {
             Ok(permit) => {
                 info!("Acquired mount permit for {}", mount_id);
                 Some(permit)
@@ -587,14 +591,14 @@ async fn handle_mount_request(
 
         // Release the mount permit
         if let Some(_permit) = mount_permit {
-            resource_limits.release_mount_permit();
+            params.resource_limits.release_mount_permit();
         }
 
         // Handle mount result
         if let Err(e) = mount_result {
             error!("Failed to mount {}: {}", mount_id, e);
             if let Err(status_err) =
-                Daemon::update_mount_status(config.clone(), &mount_id, MountStatus::Failed).await
+                Daemon::update_mount_status(params.config.clone(), &mount_id, MountStatus::Failed).await
             {
                 error!("Failed to update mount status: {}", status_err);
             }
@@ -603,7 +607,7 @@ async fn handle_mount_request(
 
         // Update status
         if let Err(status_err) =
-            Daemon::update_mount_status(config.clone(), &mount_id, MountStatus::Active).await
+            Daemon::update_mount_status(params.config.clone(), &mount_id, MountStatus::Active).await
         {
             error!("Failed to update mount status: {}", status_err);
         }
@@ -660,24 +664,27 @@ async fn handle_unmount_request(
     Response::UnmountSuccess
 }
 
-/// Handle status request
-async fn handle_status_request(
+/// Parameters for status requests
+struct StatusRequestParams {
     verbose: bool,
-    _watch: bool,
-    _json: bool,
+    watch: bool,
+    json: bool,
     filter_url: Option<String>,
     filter_type: Option<String>,
     filter_point: Option<String>,
     config: Arc<RwLock<Config>>,
     monitor: Arc<MountMonitor>,
     start_time: Instant,
-) -> Response {
-    let cfg = config.read().await;
+}
+
+/// Handle status request
+async fn handle_status_request(params: StatusRequestParams) -> Response {
+    let cfg = params.config.read().await;
     let mut mounts = Vec::new();
 
     for mount in cfg.get_all_mounts() {
         // Apply filters
-        if let Some(ref filter_url) = filter_url {
+        if let Some(ref filter_url) = params.filter_url {
             let regex = match regex::Regex::new(filter_url) {
                 Ok(r) => r,
                 Err(_) => {
@@ -690,7 +697,7 @@ async fn handle_status_request(
             }
         }
 
-        if let Some(ref filter_type) = filter_type {
+        if let Some(ref filter_type) = params.filter_type {
             let mount_type_str = match &mount.mount_type {
                 crate::mount::MountType::NFS { .. } => "nfs",
                 crate::mount::MountType::SMB { .. } => "smb",
@@ -700,7 +707,7 @@ async fn handle_status_request(
             }
         }
 
-        if let Some(ref filter_point) = filter_point {
+        if let Some(ref filter_point) = params.filter_point {
             let mount_point_str = mount.mount_point.to_string_lossy();
             let regex = match regex::Regex::new(filter_point) {
                 Ok(r) => r,
@@ -713,8 +720,8 @@ async fn handle_status_request(
                 continue;
             }
         }
-        let health_score = if verbose {
-            Some(monitor.get_health_score(&mount.id).await.unwrap_or(0))
+        let health_score = if params.verbose {
+            Some(params.monitor.get_health_score(&mount.id).await.unwrap_or(0))
         } else {
             None
         };
@@ -734,7 +741,7 @@ async fn handle_status_request(
     }
 
     // Create daemon health info
-    let uptime = start_time.elapsed();
+    let uptime = params.start_time.elapsed();
     let mut issues = Vec::new();
 
     // Check if we have any failed mounts

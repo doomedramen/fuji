@@ -330,6 +330,9 @@ impl Default for MountPointValidator {
 mod tests {
     #[cfg(target_os = "linux")]
     use crate::platform::linux::LinuxPlatform;
+    #[cfg(target_os = "linux")]
+    use crate::mount::point::MountPointValidator;
+    use std::path::Path;
 
     #[cfg(target_os = "linux")]
     #[tokio::test]

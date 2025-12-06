@@ -14,6 +14,12 @@ pub struct MountMonitor {
     health_states: Arc<RwLock<HashMap<String, MountState>>>,
 }
 
+impl Default for MountMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MountMonitor {
     /// Create a new mount monitor
     pub fn new() -> Self {

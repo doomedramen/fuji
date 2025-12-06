@@ -317,7 +317,7 @@ impl Config {
     /// Get socket path based on configuration and platform defaults
     pub fn get_socket_path(&self, platform: &dyn Platform) -> Result<PathBuf> {
         // Pass the custom path from config to platform (or None if not set)
-        let config_path = self.platform.socket_path.as_ref().map(|p| p.as_path());
+        let config_path = self.platform.socket_path.as_deref();
         Ok(platform.get_socket_path(config_path))
     }
 

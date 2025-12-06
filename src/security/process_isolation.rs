@@ -9,16 +9,15 @@
 use anyhow::{anyhow, Result};
 use std::fs;
 #[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tokio::process::Command as TokioCommand;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 // Use libc types for cross-platform compatibility
 #[cfg(unix)]
-use libc::{gid_t, sethostname, uid_t};
+use libc::{gid_t, uid_t};
 
 // Conditional compilation for namespace support
 #[cfg(target_os = "linux")]
@@ -250,7 +249,7 @@ impl ProcessIsolator {
             Err(e) => {
                 // Clean up the boxed config
                 unsafe {
-                    Box::from_raw(process_data_ptr);
+                    let _ = Box::from_raw(process_data_ptr);
                 }
                 Err(anyhow!("Failed to create isolated process: {}", e))
             }

@@ -9,7 +9,7 @@
 
 // use crate::error::DaemonError; // Commented out since we don't need it for validation
 use anyhow::{anyhow, Result};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
