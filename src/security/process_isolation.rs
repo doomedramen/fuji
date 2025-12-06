@@ -199,7 +199,7 @@ impl ProcessIsolator {
                         .unwrap_or(Path::new(&cmd)),
                 );
 
-                command.args(&process_args);
+                command.args(process_args);
                 command.stdout(Stdio::inherit());
                 command.stderr(Stdio::inherit());
                 command.stdin(Stdio::inherit());
@@ -227,10 +227,10 @@ impl ProcessIsolator {
 
         match unsafe {
             clone(
+                Box::new(|| isolated_process_main(process_data_ptr as *mut libc::c_void) as isize),
+                stack,
                 clone_flags,
-                isolated_process_main as extern "C" fn(*mut libc::c_void) -> c_int,
-                stack.as_mut_ptr() as *mut _,
-                process_data_ptr as *mut _,
+                Some(libc::SIGCHLD),
             )
         } {
             Ok(pid) => {
@@ -238,14 +238,14 @@ impl ProcessIsolator {
 
                 // Track the isolated process
                 let process = IsolatedProcess {
-                    pid: pid as u32,
+                    pid: pid.as_raw() as u32,
                     config: self.config.clone(),
                     created_at: chrono::Utc::now(),
                     status: ProcessStatus::Running,
                 };
 
                 self.isolated_processes.lock().unwrap().push(process);
-                Ok(pid as u32)
+                Ok(pid.as_raw() as u32)
             }
             Err(e) => {
                 // Clean up the boxed config

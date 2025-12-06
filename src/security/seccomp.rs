@@ -16,9 +16,7 @@ use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
 
 #[cfg(target_os = "linux")]
-use libc::{
-    c_void, PR_SET_NO_NEW_PRIVS, PR_SET_SECCOMP, SECCOMP_MODE_FILTER, SECCOMP_SET_MODE_FILTER,
-};
+use libc::{__NR_seccomp, PR_SET_NO_NEW_PRIVS, SECCOMP_SET_MODE_FILTER};
 
 /// System call numbers for filtering
 #[cfg(target_os = "linux")]
@@ -395,9 +393,6 @@ impl SeccompFilterBuilder {
     }
 
     fn build(&mut self) -> Result<Vec<sock_filter>> {
-        use seccomp_actions::*;
-        use syscall_numbers::*;
-
         // Load architecture
         self.instructions.push(sock_filter {
             code: 0x20, // BPF_LD | BPF_W | BPF_ABS
@@ -1030,10 +1025,6 @@ impl SyscallFilter {
     #[cfg(target_os = "linux")]
     #[allow(dead_code)]
     fn setup_real_seccomp(&self) -> Result<()> {
-        use libc::{prctl, SECCOMP_MODE_FILTER};
-        use seccomp_actions::*;
-        use syscall_numbers::*;
-
         // Build the BPF filter program
         let mut builder = SeccompFilterBuilder::new(self.profile.get_default_action());
 
