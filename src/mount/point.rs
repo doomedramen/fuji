@@ -333,7 +333,6 @@ mod tests {
     #[cfg(target_os = "linux")]
     use crate::platform::linux::LinuxPlatform;
     use std::path::Path;
-    #[cfg(test)]
     use tempfile::TempDir;
 
     #[cfg(target_os = "linux")]

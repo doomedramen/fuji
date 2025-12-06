@@ -242,7 +242,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_audit_monitor() -> Result<()> {
-        let mut monitor = SimpleAuditMonitor::new();
+        let monitor = SimpleAuditMonitor::new();
 
         // Create a channel directly for testing
         let (sender, mut receiver) = mpsc::unbounded_channel::<AuditEvent>();

@@ -389,10 +389,12 @@ async fn handle_request(
 struct MountRequestParams {
     url: String,
     mount_point: Option<String>,
-    options: Option<Vec<String>>, // TODO: Integrate options into MountType
+    #[allow(dead_code)] // TODO: Integrate options into MountType
+    options: Option<Vec<String>>,
     disable: bool,
     dry_run: bool,
-    progress: bool, // TODO: Implement progress reporting
+    #[allow(dead_code)] // TODO: Implement progress reporting
+    progress: bool,
     config: Arc<RwLock<Config>>,
     path_security: Arc<PathSecurityValidator>,
     resource_limits: Arc<ResourceLimitsManager>,
@@ -673,7 +675,9 @@ async fn handle_unmount_request(
 /// Parameters for status requests
 struct StatusRequestParams {
     verbose: bool,
+    #[allow(dead_code)] // TODO: Implement watch functionality
     watch: bool,
+    #[allow(dead_code)] // TODO: Implement JSON output
     json: bool,
     filter_url: Option<String>,
     filter_type: Option<String>,
