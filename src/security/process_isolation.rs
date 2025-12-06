@@ -8,7 +8,7 @@
 
 use anyhow::{anyhow, Result};
 use std::fs;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use std::os::unix::fs::PermissionsExt;
 #[cfg(unix)]
 use std::path::{Path, PathBuf};

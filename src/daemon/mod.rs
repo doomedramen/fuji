@@ -1169,14 +1169,10 @@ async fn attempt_reconnections(config: Arc<RwLock<Config>>) -> Result<()> {
             .filter(|m| {
                 // Check if we should attempt reconnection based on backoff
                 let delay = cfg.get_reconnection_delay(m.reconnect_attempts);
-                let time_since_last_attempt = match m.updated_at {
-                    updated => {
-                        let now = Utc::now();
-                        let duration = now.signed_duration_since(updated);
-                        duration.num_milliseconds() as u64 >= delay.num_milliseconds() as u64
-                    }
-                };
-                time_since_last_attempt
+                let updated = m.updated_at;
+                let now = Utc::now();
+                let duration = now.signed_duration_since(updated);
+                duration.num_milliseconds() as u64 >= delay.num_milliseconds() as u64
             })
             .cloned()
             .collect()

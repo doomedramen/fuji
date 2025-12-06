@@ -332,7 +332,9 @@ mod tests {
     use crate::mount::point::MountPointValidator;
     #[cfg(target_os = "linux")]
     use crate::platform::linux::LinuxPlatform;
+    #[cfg(target_os = "linux")]
     use std::path::Path;
+    #[cfg(target_os = "linux")]
     use tempfile::TempDir;
 
     #[cfg(target_os = "linux")]
