@@ -1,3 +1,6 @@
+// Allow dead code - mount infrastructure
+#![allow(dead_code)]
+
 //! Mount type abstraction
 //!
 //! This module provides an interface for different types of network file systems.

@@ -1,3 +1,6 @@
+// Allow dead code - retry strategies for future use
+#![allow(dead_code)]
+
 //! Exponential backoff retry logic
 //!
 //! Provides configurable retry mechanisms with exponential backoff

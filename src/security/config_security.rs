@@ -1,3 +1,6 @@
+// Allow dead code - secure config features for future integration
+#![allow(dead_code)]
+
 //! Secure configuration management system
 //!
 //! This module provides comprehensive security for configuration management including:

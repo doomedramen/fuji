@@ -10,8 +10,8 @@ use anyhow::{Context, Result};
 use regex;
 use shlex;
 use std::process::Command;
-use std::sync::{Arc, Mutex};
-use tracing::{debug, trace};
+use std::sync::{Arc, Mutex, PoisonError};
+use tracing::{debug, trace, warn};
 
 /// Builder for secure command execution
 #[derive(Debug, Clone)]
@@ -29,16 +29,27 @@ lazy_static::lazy_static! {
     static ref COMMAND_ALLOWLIST: Arc<Mutex<Option<MountCommandsAllowlist>>> = Arc::new(Mutex::new(None));
 }
 
+/// Helper to handle poisoned mutex - recovers the inner data
+fn recover_from_poison<T>(result: Result<T, PoisonError<T>>) -> T {
+    match result {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            warn!("Mutex was poisoned, recovering inner data");
+            poisoned.into_inner()
+        }
+    }
+}
+
 /// Initialize the global command allowlist
 pub fn initialize_command_allowlist(allowlist: MountCommandsAllowlist) {
-    let mut global_allowlist = COMMAND_ALLOWLIST.lock().unwrap();
+    let mut global_allowlist = recover_from_poison(COMMAND_ALLOWLIST.lock());
     *global_allowlist = Some(allowlist);
     debug!("Global command allowlist initialized");
 }
 
 /// Get the global command allowlist
 pub fn get_command_allowlist() -> Result<MountCommandsAllowlist> {
-    let global_allowlist = COMMAND_ALLOWLIST.lock().unwrap();
+    let global_allowlist = recover_from_poison(COMMAND_ALLOWLIST.lock());
     match global_allowlist.as_ref() {
         Some(allowlist) => Ok(allowlist.clone()),
         None => {
@@ -116,7 +127,7 @@ impl SecureCommand {
 
         // Initialize seccomp if profile is set
         if let Some(profile) = self.seccomp_profile {
-            let mut executor = SECCOMP_EXECUTOR.lock().unwrap();
+            let mut executor = recover_from_poison(SECCOMP_EXECUTOR.lock());
             if executor.is_none() {
                 *executor = Some(SecureExecutor::new(profile)?);
             }

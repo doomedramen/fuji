@@ -1,3 +1,6 @@
+// Allow dead code - state machine infrastructure for future use
+#![allow(dead_code)]
+
 //! Mount state machine implementation
 //!
 //! Provides a state machine for managing mount lifecycle with proper state transitions

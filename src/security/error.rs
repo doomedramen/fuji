@@ -1,3 +1,6 @@
+// Allow dead code - error types and extensions for future security features
+#![allow(dead_code)]
+
 //! Comprehensive Security Error Types
 //!
 //! This module defines standardized error types for all security-related operations

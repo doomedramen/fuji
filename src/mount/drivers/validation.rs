@@ -1,3 +1,6 @@
+// Allow dead code - URL validation utilities
+#![allow(dead_code)]
+
 //! Mount URL validation and sanitization
 //!
 //! This module provides validation functions for mount URLs to prevent

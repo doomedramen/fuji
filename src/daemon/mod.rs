@@ -21,6 +21,11 @@ use tokio::sync::{oneshot, RwLock};
 use tokio::time::{interval, Duration};
 use tracing::{error, info, warn};
 
+lazy_static::lazy_static! {
+    /// A fallback regex that matches nothing - used when user-provided regex is invalid
+    static ref EMPTY_REGEX: regex::Regex = regex::Regex::new("^$").expect("Empty regex is always valid");
+}
+
 pub mod error;
 pub mod monitor;
 
@@ -673,10 +678,13 @@ async fn handle_status_request(
     for mount in cfg.get_all_mounts() {
         // Apply filters
         if let Some(ref filter_url) = filter_url {
-            let regex = regex::Regex::new(filter_url).unwrap_or_else(|_| {
-                warn!("Invalid URL filter regex: {}", filter_url);
-                regex::Regex::new("^$").unwrap()
-            });
+            let regex = match regex::Regex::new(filter_url) {
+                Ok(r) => r,
+                Err(_) => {
+                    warn!("Invalid URL filter regex: {}", filter_url);
+                    EMPTY_REGEX.clone()
+                }
+            };
             if !regex.is_match(&mount.url) {
                 continue;
             }
@@ -694,10 +702,13 @@ async fn handle_status_request(
 
         if let Some(ref filter_point) = filter_point {
             let mount_point_str = mount.mount_point.to_string_lossy();
-            let regex = regex::Regex::new(filter_point).unwrap_or_else(|_| {
-                warn!("Invalid mount point filter regex: {}", filter_point);
-                regex::Regex::new("^$").unwrap()
-            });
+            let regex = match regex::Regex::new(filter_point) {
+                Ok(r) => r,
+                Err(_) => {
+                    warn!("Invalid mount point filter regex: {}", filter_point);
+                    EMPTY_REGEX.clone()
+                }
+            };
             if !regex.is_match(&mount_point_str) {
                 continue;
             }
@@ -776,10 +787,13 @@ async fn handle_list_request(
         .filter(|m| {
             // Apply URL filter
             if let Some(ref filter_url) = filter_url {
-                let regex = regex::Regex::new(filter_url).unwrap_or_else(|_| {
-                    warn!("Invalid URL filter regex: {}", filter_url);
-                    regex::Regex::new("^$").unwrap()
-                });
+                let regex = match regex::Regex::new(filter_url) {
+                    Ok(r) => r,
+                    Err(_) => {
+                        warn!("Invalid URL filter regex: {}", filter_url);
+                        EMPTY_REGEX.clone()
+                    }
+                };
                 regex.is_match(&m.url)
             } else {
                 true
@@ -801,10 +815,13 @@ async fn handle_list_request(
             // Apply mount point filter
             if let Some(ref filter_point) = filter_point {
                 let mount_point_str = m.mount_point.to_string_lossy();
-                let regex = regex::Regex::new(filter_point).unwrap_or_else(|_| {
-                    warn!("Invalid mount point filter regex: {}", filter_point);
-                    regex::Regex::new("^$").unwrap()
-                });
+                let regex = match regex::Regex::new(filter_point) {
+                    Ok(r) => r,
+                    Err(_) => {
+                        warn!("Invalid mount point filter regex: {}", filter_point);
+                        EMPTY_REGEX.clone()
+                    }
+                };
                 regex.is_match(&mount_point_str)
             } else {
                 true

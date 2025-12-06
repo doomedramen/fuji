@@ -1,3 +1,6 @@
+// Allow dead code - platform utilities for future use
+#![allow(dead_code)]
+
 //! Platform abstraction layer
 //!
 //! This module provides a platform-independent interface for OS-specific operations.

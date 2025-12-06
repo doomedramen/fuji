@@ -1,3 +1,6 @@
+// Allow dead code - advanced key derivation for future features
+#![allow(dead_code)]
+
 //! Advanced key derivation functions for secure credential storage
 //!
 //! This module provides memory-hard key derivation functions including

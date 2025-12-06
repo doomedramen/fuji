@@ -1,3 +1,6 @@
+// Allow dead code in this module - contains utilities for future features and API completeness
+#![allow(dead_code)]
+
 //! # Advanced Cryptographic Encryption Module
 //!
 //! This module provides enterprise-grade cryptographic services supporting multiple authenticated
@@ -153,7 +156,7 @@ use crate::{
 };
 use aes_gcm::{
     aead::{Aead, KeyInit},
-    Aes256Gcm as AesGcm, Key as AesKey, Nonce as AesNonce,
+    Aes256Gcm as AesGcm, Nonce as AesNonce,
 };
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use rand::{rngs::OsRng, RngCore};

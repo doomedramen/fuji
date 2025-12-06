@@ -1,3 +1,6 @@
+// Allow dead code - infrastructure for future features
+#![allow(dead_code)]
+
 //! Hardware Security Module (HSM) and advanced credential storage
 //!
 //! This module provides hardware-backed key storage, key rotation,

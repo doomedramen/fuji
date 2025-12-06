@@ -1,3 +1,6 @@
+// Allow dead code - some connection metrics and handlers are for future monitoring features
+#![allow(dead_code)]
+
 //! Unix socket communication between CLI and daemon
 //!
 //! This module provides the communication layer for Fuji with connection limiting
@@ -384,8 +387,8 @@ impl SocketServer {
                             "unknown-{}",
                             SystemTime::now()
                                 .duration_since(UNIX_EPOCH)
-                                .unwrap()
-                                .as_secs()
+                                .map(|d| d.as_secs())
+                                .unwrap_or(0)
                         )
                     });
 
@@ -459,8 +462,8 @@ impl SocketServer {
                         // Final fallback to a timestamp-based ID
                         let ts = SystemTime::now()
                             .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs();
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
                         Ok(format!("anon-{}", ts))
                     }
                 }

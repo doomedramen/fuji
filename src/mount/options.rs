@@ -1,3 +1,6 @@
+// Allow dead code - comprehensive mount options infrastructure
+#![allow(dead_code)]
+
 //! Mount options parsing and validation
 //!
 //! Provides comprehensive mount option parsing and validation for different filesystem types.

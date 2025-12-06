@@ -1,3 +1,6 @@
+// Allow dead code - encryption provider with multiple constructors
+#![allow(dead_code)]
+
 //! Enhanced encrypted file credential provider with multi-algorithm support
 //!
 //! Stores credentials in an encrypted file using configurable encryption algorithms:
@@ -138,9 +141,16 @@ impl FileCredentialProvider {
         Self::with_path_and_config(path, EncryptionConfig::security_optimized())
     }
 
-    /// Derive master encryption key from system sources using HKDF with proper salt
+    /// Derive master encryption key from system sources using HKDF with deterministic salt
+    ///
+    /// The master key must be deterministic across provider instances so that credentials
+    /// stored by one instance can be retrieved by another instance on the same machine.
+    /// The key is derived from:
+    /// - System-specific identifiers (USER, HOME, HOSTNAME, UID, GID)
+    /// - A deterministic salt based on the same identifiers
+    /// - HKDF-SHA256 for key expansion
     fn derive_master_key() -> Result<[u8; MASTER_KEY_LENGTH]> {
-        // Collect system entropy sources
+        // Collect system entropy sources deterministically
         let mut entropy_sources = Vec::new();
 
         // Add username if available
@@ -173,38 +183,40 @@ impl FileCredentialProvider {
             entropy_sources.extend_from_slice(gid.as_bytes());
         }
 
-        // If we don't have enough entropy, add some randomness
+        // If we don't have enough entropy, use a fallback marker
+        // NOTE: This makes the key less secure but at least deterministic
         if entropy_sources.is_empty() {
-            let mut random_bytes = [0u8; 64];
-            rand::thread_rng().fill_bytes(&mut random_bytes);
-            entropy_sources.extend_from_slice(&random_bytes);
+            warn!("No system entropy sources available, using fallback key derivation");
+            entropy_sources.extend_from_slice(b"fuji-fallback-entropy-marker");
         }
 
-        // Generate a proper random HKDF salt instead of using a static one
-        let mut hkdf_salt_bytes = [0u8; HKDF_SALT_LENGTH];
-        rand::thread_rng().fill_bytes(&mut hkdf_salt_bytes);
-
-        // Use system-specific data to create a deterministic but unique salt
+        // Create a deterministic HKDF salt from system-specific data
+        // This ensures the same salt is generated each time on the same machine
         let mut salt_context = Vec::new();
+        salt_context.extend_from_slice(b"fuji-master-key-salt-v3");
         if let Ok(username) = std::env::var("USER") {
             salt_context.extend_from_slice(username.as_bytes());
+        }
+        if let Ok(home) = std::env::var("HOME") {
+            salt_context.extend_from_slice(home.as_bytes());
         }
         #[cfg(unix)]
         {
             let uid = nix::unistd::getuid().to_string();
             salt_context.extend_from_slice(uid.as_bytes());
+            let gid = nix::unistd::getgid().to_string();
+            salt_context.extend_from_slice(gid.as_bytes());
+        }
+        // Add test key to salt if present (for testing)
+        if let Ok(test_key) = std::env::var("TEST_FUJI_DIFFERENT_KEY") {
+            salt_context.extend_from_slice(test_key.as_bytes());
         }
 
-        // Combine random salt with system context for HKDF salt
-        let mut hkdf_salt = Vec::new();
-        hkdf_salt.extend_from_slice(&hkdf_salt_bytes);
-        hkdf_salt.extend_from_slice(&salt_context);
-
         let mut master_key = [0u8; MASTER_KEY_LENGTH];
-        let hkdf = hkdf::Salt::new(hkdf::HKDF_SHA256, &hkdf_salt);
+        let hkdf = hkdf::Salt::new(hkdf::HKDF_SHA256, &salt_context);
         let prk = hkdf.extract(&entropy_sources);
         let okm = prk
-            .expand(&[b"fuji-credential-master-key-v2"], hkdf::HKDF_SHA256)
+            .expand(&[b"fuji-credential-master-key-v3"], hkdf::HKDF_SHA256)
             .map_err(|e| anyhow!("HKDF expansion for master key failed: {:?}", e))?;
         okm.fill(&mut master_key)
             .map_err(|e| anyhow!("Failed to fill master key: {:?}", e))?;
@@ -672,7 +684,6 @@ mod tests {
     use tempfile::TempDir;
 
     #[tokio::test]
-    #[ignore] // TODO: Fix key derivation issue - salts are regenerated on each save
     async fn test_file_provider_encryption_chacha20() {
         // Set a test environment variable to ensure consistent key derivation
         std::env::set_var("TEST_FUJI_DIFFERENT_KEY", "test-key-chacha20");
@@ -726,7 +737,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // TODO: Fix key derivation issue - salts are regenerated on each save
     async fn test_file_provider_encryption_aes256() {
         // Set a test environment variable to ensure consistent key derivation
         std::env::set_var("TEST_FUJI_DIFFERENT_KEY", "test-key-aes256");

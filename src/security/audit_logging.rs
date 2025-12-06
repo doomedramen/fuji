@@ -1,3 +1,6 @@
+// Allow dead code - comprehensive audit logging for future compliance features
+#![allow(dead_code)]
+
 //! # Tamper-Evident Audit Logging System
 //!
 //! This module provides enterprise-grade, cryptographically secure audit logging for all security

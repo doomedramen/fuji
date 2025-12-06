@@ -1,3 +1,6 @@
+// Allow dead code - infrastructure for future features
+#![allow(dead_code)]
+
 //! Real-time audit monitoring and anomaly detection
 //!
 //! This module provides real-time monitoring of audit events, pattern detection,

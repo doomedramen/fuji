@@ -1,3 +1,6 @@
+// Allow dead code - infrastructure for future features
+#![allow(dead_code)]
+
 //! Comprehensive resource limits management for Fuji daemon
 //!
 //! This module provides configurable resource limits to prevent resource exhaustion attacks

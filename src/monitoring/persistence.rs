@@ -1,3 +1,6 @@
+// Allow dead code - persistence layer for future use
+#![allow(dead_code)]
+
 //! Mount state persistence using SQLite
 //!
 //! Provides persistent storage for mount states that survives daemon restarts.

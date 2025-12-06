@@ -1,3 +1,6 @@
+// Allow dead code - infrastructure for future features
+#![allow(dead_code)]
+
 //! Secure system call implementation with validation and filtering
 //!
 //! This module provides comprehensive seccomp filtering to restrict operations

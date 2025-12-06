@@ -1,3 +1,6 @@
+// Allow dead code - dashboard infrastructure for future UI
+#![allow(dead_code)]
+
 //! Security Monitoring Dashboard
 //!
 //! Comprehensive security monitoring and reporting system that provides visibility

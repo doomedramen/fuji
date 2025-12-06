@@ -1,3 +1,6 @@
+// Allow dead code - error types for future features
+#![allow(dead_code)]
+
 //! Custom error types for the Fuji daemon
 //!
 //! This module defines comprehensive error types using thiserror for better

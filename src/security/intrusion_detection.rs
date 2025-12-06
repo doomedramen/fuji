@@ -1,3 +1,6 @@
+// Allow dead code - infrastructure for future features
+#![allow(dead_code)]
+
 //! # Advanced Intrusion Detection and Prevention System
 //!
 //! This module provides enterprise-grade intrusion detection and prevention capabilities using

@@ -1,3 +1,6 @@
+// Allow dead code - infrastructure for future features
+#![allow(dead_code)]
+
 //! Health check strategies for monitoring mount points
 //!
 //! Implements various health check types including ping, file access,

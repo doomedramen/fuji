@@ -1,3 +1,6 @@
+// Allow dead code - permission utilities for future features
+#![allow(dead_code)]
+
 //! Mount point permission management
 //!
 //! Manages permissions and ownership of mount points with proper UID/GID mapping.

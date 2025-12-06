@@ -1,3 +1,6 @@
+// Allow dead code - dependency graph features for future mount ordering
+#![allow(dead_code)]
+
 //! Dependency graph management using petgraph
 //!
 //! Manages mount dependencies and provides ordered startup/shutdown sequences.

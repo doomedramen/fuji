@@ -1,3 +1,6 @@
+// Allow dead code - allowlist infrastructure for command validation
+#![allow(dead_code)]
+
 //! Mount commands allowlist system
 //!
 //! This module provides a comprehensive allowlist system for mount-related commands

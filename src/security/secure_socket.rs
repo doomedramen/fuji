@@ -1,3 +1,6 @@
+// Allow dead code - infrastructure for future features
+#![allow(dead_code)]
+
 //! Enhanced secure socket operations with encryption and authentication
 //!
 //! This module provides comprehensive security for Unix socket communications including:

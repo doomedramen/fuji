@@ -1,3 +1,6 @@
+// Allow dead code - secure update infrastructure
+#![allow(dead_code)]
+
 //! Secure Update System
 //!
 //! This module provides comprehensive secure update functionality with:
@@ -15,7 +18,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::fs;
 use tokio::sync::{Mutex, RwLock};
 use tracing::{error, info, instrument, warn};
 

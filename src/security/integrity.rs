@@ -1,3 +1,6 @@
+// Allow dead code - infrastructure for future features
+#![allow(dead_code)]
+
 //! Runtime integrity verification system
 //!
 //! This module provides comprehensive integrity checking capabilities including:

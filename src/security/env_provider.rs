@@ -1,3 +1,6 @@
+// Allow dead code - credential provider methods
+#![allow(dead_code)]
+
 //! Environment variable credential provider
 //!
 //! Reads credentials from environment variables with the FUJI_MOUNT_ prefix.

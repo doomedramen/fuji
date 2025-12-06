@@ -1,3 +1,6 @@
+// Allow dead code - socket security utilities
+#![allow(dead_code)]
+
 //! Unix socket security manager
 //!
 //! Manages Unix domain socket creation with proper permissions and ownership.

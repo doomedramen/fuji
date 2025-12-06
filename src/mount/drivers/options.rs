@@ -1,3 +1,6 @@
+// Allow dead code - mount options validation infrastructure
+#![allow(dead_code)]
+
 //! Mount options validation and allowlist management
 //!
 //! This module provides validation for mount options to ensure only

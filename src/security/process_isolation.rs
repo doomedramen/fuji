@@ -1,3 +1,6 @@
+// Allow dead code - Linux namespace features not yet integrated but designed for future use
+#![allow(dead_code)]
+
 //! Process isolation and namespace management
 //!
 //! This module provides comprehensive process isolation using Linux namespaces

@@ -1,3 +1,6 @@
+// Allow dead code - infrastructure for future features
+#![allow(dead_code)]
+
 //! Enhanced path security module for runtime validation and monitoring
 //!
 //! This module provides advanced path security features including runtime validation,

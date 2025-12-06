@@ -132,10 +132,7 @@ pub mod security_dashboard;
 pub mod socket;
 
 // Re-export commonly used error types for convenience
-pub use error::SecurityErrorMetrics;
-pub use error::{
-    IntoSecurityError, PolicySeverity, SecurityError, SecurityResult, SecurityResultExt,
-};
+pub use error::{IntoSecurityError, SecurityError, SecurityResult, SecurityResultExt};
 
 /// Credential information for network mounts
 #[derive(Debug, Clone, Serialize, Deserialize)]
