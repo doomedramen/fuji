@@ -12,18 +12,18 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tokio::process::Command as TokioCommand;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 // Use libc types for cross-platform compatibility
 #[cfg(unix)]
-use libc::{gid_t, uid_t};
+use libc::{gid_t, sethostname, uid_t};
 
 // Conditional compilation for namespace support
 #[cfg(target_os = "linux")]
 use libc::c_int;
 
 #[cfg(target_os = "linux")]
-use nix::unistd::{chroot, getgid, getuid, setgid, setuid};
+use nix::unistd::{chroot, setgid, setuid};
 
 #[cfg(target_os = "linux")]
 use nix::sched::{clone, CloneFlags};
@@ -161,14 +161,25 @@ impl ProcessIsolator {
         // Setup stack for cloned process
         let stack = &mut [0u8; 1024 * 1024]; // 1MB stack
 
-        // Create callback for the isolated process
-        let config = self.config.clone();
-        let cmd = command.to_string();
-        let process_args = args.clone();
+        // Create a struct to hold all data needed by the isolated process
+        struct ProcessData {
+            config: NamespaceConfig,
+            cmd: String,
+            args: Vec<String>,
+        }
+
+        let process_data = Box::new(ProcessData {
+            config: self.config.clone(),
+            cmd: command.to_string(),
+            args,
+        });
 
         extern "C" fn isolated_process_main(arg: *mut libc::c_void) -> c_int {
             unsafe {
-                let config = Box::from_raw(arg as *mut NamespaceConfig);
+                let process_data = Box::from_raw(arg as *mut ProcessData);
+                let config = &process_data.config;
+                let cmd = &process_data.cmd;
+                let process_args = &process_data.args;
 
                 // Setup namespaces
                 if let Err(e) = setup_namespaces(&config) {
@@ -210,15 +221,14 @@ impl ProcessIsolator {
         }
 
         // Clone the process with isolation
-        let config_box = Box::new(self.config.clone());
-        let config_ptr = Box::into_raw(config_box);
+        let process_data_ptr = Box::into_raw(process_data);
 
         match unsafe {
             clone(
                 clone_flags,
                 isolated_process_main as extern "C" fn(*mut libc::c_void) -> c_int,
                 stack.as_mut_ptr() as *mut _,
-                config_ptr as *mut _,
+                process_data_ptr as *mut _,
             )
         } {
             Ok(pid) => {
@@ -460,7 +470,10 @@ fn setup_namespaces(config: &NamespaceConfig) -> Result<()> {
     // Setup UTS namespace (hostname)
     if config.uts_namespace {
         if let Some(ref hostname) = config.hostname {
-            nix::unistd::sethostname(hostname)?;
+            let result = unsafe { sethostname(hostname.as_ptr(), hostname.len() as libc::size_t) };
+            if result != 0 {
+                return Err(anyhow!("Failed to set hostname"));
+            }
             debug!("Set hostname to: {}", hostname);
         }
     }

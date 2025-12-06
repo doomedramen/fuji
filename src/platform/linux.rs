@@ -3,6 +3,7 @@
 use super::{MountInfo, Platform, Signal};
 use crate::mount::MountType;
 use anyhow::{anyhow, Result};
+use nix::unistd::{self, Pid};
 use std::fs;
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
@@ -157,7 +158,7 @@ impl Platform for LinuxPlatform {
             Signal::Reload => NixSignal::SIGUSR1,
         };
 
-        kill(unistd::Pid::from_raw(pid as i32), Some(nix_signal))
+        kill(Pid::from_raw(pid as i32), Some(nix_signal))
             .map_err(|e| anyhow!("Failed to send signal to process {}: {}", pid, e))?;
 
         Ok(())

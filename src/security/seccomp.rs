@@ -9,7 +9,7 @@
 
 // use crate::error::DaemonError; // Commented out since we don't need it for validation
 use anyhow::{anyhow, Result};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -17,8 +17,7 @@ use tracing::{debug, info, warn};
 
 #[cfg(target_os = "linux")]
 use libc::{
-    __NR_prctl, __NR_seccomp, c_void, size_t, sock_fprog, PR_SET_NO_NEW_PRIVS, PR_SET_SECCOMP,
-    SECCOMP_MODE_FILTER, SECCOMP_SET_MODE_FILTER,
+    c_void, PR_SET_NO_NEW_PRIVS, PR_SET_SECCOMP, SECCOMP_MODE_FILTER, SECCOMP_SET_MODE_FILTER,
 };
 
 /// System call numbers for filtering
@@ -183,6 +182,7 @@ mod syscall_numbers {
     pub const _SYSCTL: i32 = 156;
     pub const PRCTL: i32 = 157;
     pub const ARCH_PRCTL: i32 = 158;
+    pub const SECCOMP: i32 = 317;
     pub const ADJTIMEX: i32 = 159;
     pub const SETRLIMIT: i32 = 160;
     pub const CHROOT: i32 = 161;
@@ -314,7 +314,7 @@ mod syscall_numbers {
     pub const TIMERFD_GETTIME: i32 = 287;
     pub const ACCEPT4: i32 = 288;
     pub const SIGNALED: i32 = 289;
-    pub const TIMERFD_CREATE: i32 = 290;
+    pub const TIMERFD_CREATE2: i32 = 290;
     pub const EVENTFD2: i32 = 291;
     pub const EPOLL_CREATE1: i32 = 292;
     pub const DUP3: i32 = 293;
@@ -365,7 +365,7 @@ struct sock_filter {
 
 #[cfg(target_os = "linux")]
 #[repr(C)]
-struct sock_fprog {
+struct sock_fprog_struct {
     len: u16,
     filter: *const sock_filter,
 }
@@ -748,7 +748,7 @@ impl SeccompProfile {
                     SCHED_GET_PRIORITY_MAX,
                     SCHED_GET_PRIORITY_MIN,
                     SCHED_RR_GET_INTERVAL,
-                    SET_FSUID,
+                    SETFSUID,
                     SETFSGID,
                     INOTIFY_INIT,
                     INOTIFY_ADD_WATCH,

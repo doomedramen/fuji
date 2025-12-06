@@ -956,9 +956,9 @@ pub mod control_flow_integrity {
         }
 
         /// Verify indirect call target
-        pub fn verify_indirect_call(&self, caller: usize, target: usize) -> Result<bool> {
+        pub async fn verify_indirect_call(&self, caller: usize, target: usize) -> Result<bool> {
             // Check if target is in expected forward edge set
-            let forward_edges = self.forward_edges.read().unwrap();
+            let forward_edges = self.forward_edges.read().await;
 
             if let Some(valid_targets) = forward_edges.get(&caller) {
                 Ok(valid_targets.contains(&target))
@@ -968,14 +968,15 @@ pub mod control_flow_integrity {
         }
 
         /// Push return address to shadow stack
-        pub fn push_return_address(&self, addr: usize) -> Result<()> {
-            self.shadow_stack.write().unwrap().push(addr);
+        pub async fn push_return_address(&self, addr: usize) -> Result<()> {
+            let mut shadow_stack = self.shadow_stack.write().await;
+            shadow_stack.push(addr);
             Ok(())
         }
 
         /// Verify return address against shadow stack
-        pub fn verify_return_address(&self, addr: usize) -> Result<bool> {
-            let mut shadow_stack = self.shadow_stack.write().unwrap();
+        pub async fn verify_return_address(&self, addr: usize) -> Result<bool> {
+            let mut shadow_stack = self.shadow_stack.write().await;
 
             if let Some(expected_addr) = shadow_stack.pop() {
                 Ok(expected_addr == addr)
