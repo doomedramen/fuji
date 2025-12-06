@@ -11,7 +11,7 @@ use backoff::{ExponentialBackoff, backoff::Backoff};
 use chrono;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::Duration as StdDuration;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
@@ -29,9 +29,9 @@ pub struct RetryHandler {
 #[derive(Debug, Clone)]
 pub struct RetryPolicy {
     /// Initial delay between retries
-    pub initial_delay: Duration,
+    pub initial_delay: StdDuration,
     /// Maximum delay between retries
-    pub max_delay: Duration,
+    pub max_delay: StdDuration,
     /// Multiplier for exponential backoff
     pub multiplier: f64,
     /// Jitter to add to delay (0.0 to 1.0)
@@ -39,18 +39,18 @@ pub struct RetryPolicy {
     /// Maximum number of retry attempts
     pub max_attempts: u32,
     /// Base delay after which to reset failure count
-    pub reset_after: Duration,
+    pub reset_after: StdDuration,
 }
 
 impl Default for RetryPolicy {
     fn default() -> Self {
         Self {
-            initial_delay: Duration::from_secs(1),
-            max_delay: Duration::from_secs(300), // 5 minutes
+            initial_delay: StdDuration::from_secs(1),
+            max_delay: StdDuration::from_secs(300), // 5 minutes
             multiplier: 2.0,
             jitter: 0.1,
             max_attempts: 5,
-            reset_after: Duration::from_secs(300), // 5 minutes
+            reset_after: StdDuration::from_secs(300), // 5 minutes
         }
     }
 }
@@ -69,12 +69,12 @@ pub struct CircuitBreakerState {
     /// Threshold for opening circuit
     pub failure_threshold: u32,
     /// Time to keep circuit open before trying again
-    pub open_timeout: Duration,
+    pub open_timeout: StdDuration,
 }
 
 impl CircuitBreakerState {
     /// Create a new circuit breaker state
-    pub fn new(failure_threshold: u32, open_timeout: Duration) -> Self {
+    pub fn new(failure_threshold: u32, open_timeout: StdDuration) -> Self {
         Self {
             failure_count: 0,
             last_failure: None,
@@ -115,7 +115,7 @@ impl CircuitBreakerState {
 
         if let Some(opened_at) = self.opened_at {
             let elapsed = chrono::Utc::now() - opened_at;
-            if elapsed.to_std().unwrap_or(Duration::MAX) >= self.open_timeout {
+            if elapsed.to_std().unwrap_or(StdDuration::MAX) >= self.open_timeout {
                 info!("Circuit breaker timeout elapsed, allowing attempt");
                 return true;
             }
@@ -125,14 +125,14 @@ impl CircuitBreakerState {
     }
 
     /// Get time until circuit closes
-    pub fn time_until_close(&self) -> Option<Duration> {
+    pub fn time_until_close(&self) -> Option<StdDuration> {
         if !self.is_open {
             return None;
         }
 
         if let Some(opened_at) = self.opened_at {
             let elapsed = chrono::Utc::now() - opened_at;
-            let elapsed_std = elapsed.to_std().unwrap_or(Duration::MAX);
+            let elapsed_std = elapsed.to_std().unwrap_or(StdDuration::MAX);
 
             if elapsed_std < self.open_timeout {
                 Some(self.open_timeout - elapsed_std)
@@ -153,7 +153,7 @@ pub struct RetryResult<T> {
     /// Number of attempts made
     pub attempts: u32,
     /// Total time spent retrying
-    pub total_time: Duration,
+    pub total_time: StdDuration,
     /// Last error encountered
     pub last_error: Option<String>,
 }
@@ -192,7 +192,7 @@ impl RetryHandler {
             let policy = self.get_policy(mount_id).await;
             breakers.insert(
                 mount_id.to_string(),
-                CircuitBreakerState::new(policy.max_attempts, Duration::from_secs(60)),
+                CircuitBreakerState::new(policy.max_attempts, StdDuration::from_secs(60)),
             );
         }
 
@@ -231,7 +231,7 @@ impl RetryHandler {
         backoff.initial_interval = policy.initial_delay;
         backoff.max_interval = policy.max_delay;
         backoff.multiplier = policy.multiplier;
-        backoff.max_elapsed_time = Some(Duration::from_secs(3600)); // 1 hour max
+        backoff.max_elapsed_time = Some(StdDuration::from_secs(3600)); // 1 hour max
         backoff.start_time = std::time::Instant::now();
         // Note: jitter is handled differently in newer backoff versions
 
@@ -362,7 +362,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_circuit_breaker_state() {
-        let mut state = CircuitBreakerState::new(3, Duration::from_secs(60));
+        let mut state = CircuitBreakerState::new(3, StdDuration::from_secs(60));
 
         // Initially closed
         assert!(!state.is_open);
@@ -410,7 +410,7 @@ mod tests {
         // Set a small max attempts for testing
         let mut policy = RetryPolicy::default();
         policy.max_attempts = 3;
-        policy.initial_delay = Duration::from_millis(10);
+        policy.initial_delay = StdDuration::from_millis(10);
         handler.set_policy("test", policy).await;
 
         let attempt_count = Arc::new(RwLock::new(0));

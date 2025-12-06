@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{RwLock, oneshot};
-use tokio::time::{Duration, interval};
+use tokio::time::{Duration as StdDuration, interval};
 use tracing::{error, info, warn};
 
 lazy_static::lazy_static! {
@@ -1069,7 +1069,7 @@ async fn run_monitoring_loop(
     }
 
     // Start health checking
-    let mut interval = interval(Duration::from_secs(30));
+    let mut interval = interval(StdDuration::from_secs(30));
     interval.tick().await; // Skip first immediate tick
 
     loop {
@@ -1123,7 +1123,7 @@ async fn auto_mount_enabled_shares(config: Arc<RwLock<Config>>) -> Result<()> {
                     info!("Successfully auto-mounted {}", mount.id);
 
                     // Stagger mounts to avoid overwhelming network
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    tokio::time::sleep(StdDuration::from_secs(1)).await;
                 }
                 Err(e) => {
                     error!("Failed to auto-mount {}: {}", mount.id, e);

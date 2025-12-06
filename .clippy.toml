@@ -1,7 +1,7 @@
 # Clippy configuration for Fuji
 # Enterprise security rules enabled
 
-msrv = "1.70.0"
+msrv = "1.80.0"
 
 # Security-focused lints
 disallowed-names = ["foo", "bar", "baz"]

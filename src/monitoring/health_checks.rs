@@ -9,7 +9,7 @@
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::Duration as StdDuration;
 use tokio::fs;
 use tokio::sync::Semaphore;
 use tracing::{debug, warn};
@@ -34,8 +34,8 @@ pub trait HealthCheck: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Get the default timeout for this check
-    fn default_timeout(&self) -> Duration {
-        Duration::from_secs(10)
+    fn default_timeout(&self) -> StdDuration {
+        StdDuration::from_secs(10)
     }
 }
 
@@ -215,7 +215,7 @@ impl HealthCheck for PingHealthCheck {
 
         // Use tokio::task::spawn_blocking with timeout and proper error handling
         let output = tokio::time::timeout(
-            Duration::from_secs(10),
+            StdDuration::from_secs(10),
             tokio::task::spawn_blocking(move || {
                 std::process::Command::new("ping")
                     .arg("-c")
@@ -349,8 +349,8 @@ impl HealthCheck for ProtocolHealthCheck {
         "protocol"
     }
 
-    fn default_timeout(&self) -> Duration {
-        Duration::from_secs(30)
+    fn default_timeout(&self) -> StdDuration {
+        StdDuration::from_secs(30)
     }
 }
 

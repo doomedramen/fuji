@@ -263,7 +263,7 @@ impl DependencyGraph {
             .collect();
 
         // Determine parallel groups
-        let parallel_groups = self.determine_parallel_groups(&*graph, &mount_ids).await;
+        let parallel_groups = self.determine_parallel_groups(&graph, &mount_ids).await;
 
         Ok(Sequence {
             mounts: mount_ids,
@@ -405,7 +405,7 @@ impl DependencyGraph {
         for node_index in graph.node_indices() {
             if !visited.contains(&node_index) {
                 if let Some(cycle) = Self::dfs_find_cycle(
-                    &*graph,
+                    &graph,
                     &reverse_index,
                     node_index,
                     &mut visited,

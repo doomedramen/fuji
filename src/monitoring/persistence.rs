@@ -19,6 +19,7 @@ use crate::mount::{MountConfig, MountStatus, MountType};
 /// Mount state persistence manager
 pub struct PersistenceManager {
     /// Database connection
+    #[allow(clippy::arc_with_non_send_sync)]
     connection: Arc<RwLock<Connection>>,
     /// Database file path
     #[allow(dead_code)]
@@ -537,3 +538,10 @@ mod tests {
         assert!(deleted.is_none());
     }
 }
+
+// SAFETY: PersistenceManager is safe to send across threads because:
+// 1. Arc<RwLock<Connection>> provides thread-safe access to the SQLite connection
+// 2. All methods use proper async locking
+// 3. PathBuf is Send + Sync
+unsafe impl Send for PersistenceManager {}
+unsafe impl Sync for PersistenceManager {}

@@ -2,6 +2,7 @@
 name = "fuji"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.80.0"
 authors = ["Martin Page <m@rtin.page>"]
 description = "A network file system mount manager with daemon-based architecture"
 license = "ISC"
