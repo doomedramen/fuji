@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use url::Url;
 
 pub mod drivers;
@@ -124,13 +124,13 @@ pub trait MountHandler: Send + Sync {
     async fn discover_shares(&self, host: &str) -> Result<Vec<String>>;
 
     /// Mount a share
-    async fn mount(&self, config: &MountConfig, mount_point: &PathBuf) -> Result<()>;
+    async fn mount(&self, config: &MountConfig, mount_point: &Path) -> Result<()>;
 
     /// Unmount a share
-    async fn unmount(&self, mount_point: &PathBuf) -> Result<()>;
+    async fn unmount(&self, mount_point: &Path) -> Result<()>;
 
     /// Check if a mount is healthy
-    async fn check_health(&self, mount_point: &PathBuf) -> Result<MountState>;
+    async fn check_health(&self, mount_point: &Path) -> Result<MountState>;
 
     /// Get default mount options for this type
     fn get_default_options(&self) -> Vec<String>;

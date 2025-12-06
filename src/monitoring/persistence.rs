@@ -19,7 +19,6 @@ use crate::mount::{MountConfig, MountStatus, MountType};
 /// Mount state persistence manager
 pub struct PersistenceManager {
     /// Database connection
-    #[allow(clippy::arc_with_non_send_sync)]
     connection: Arc<RwLock<Connection>>,
     /// Database file path
     #[allow(dead_code)]

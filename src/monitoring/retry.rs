@@ -226,13 +226,15 @@ impl RetryHandler {
         Fut: std::future::Future<Output = Result<T>>,
     {
         let policy = self.get_policy(mount_id).await;
-        let mut backoff = ExponentialBackoff::default();
-        backoff.current_interval = policy.initial_delay;
-        backoff.initial_interval = policy.initial_delay;
-        backoff.max_interval = policy.max_delay;
-        backoff.multiplier = policy.multiplier;
-        backoff.max_elapsed_time = Some(StdDuration::from_secs(3600)); // 1 hour max
-        backoff.start_time = std::time::Instant::now();
+        let mut backoff = ExponentialBackoff {
+            current_interval: policy.initial_delay,
+            initial_interval: policy.initial_delay,
+            max_interval: policy.max_delay,
+            multiplier: policy.multiplier,
+            max_elapsed_time: Some(StdDuration::from_secs(3600)), // 1 hour max
+            start_time: std::time::Instant::now(),
+            ..Default::default()
+        };
         // Note: jitter is handled differently in newer backoff versions
 
         let start_time = std::time::Instant::now();

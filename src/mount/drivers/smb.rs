@@ -6,12 +6,18 @@ use crate::mount::drivers::{
 use crate::mount::{MountConfig, MountHandler, MountState, MountType};
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 use tracing::{debug, error, info, warn};
 use url::Url;
 
 pub struct SmbHandler;
+
+impl Default for SmbHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SmbHandler {
     pub fn new() -> Self {
@@ -122,7 +128,7 @@ impl MountHandler for SmbHandler {
         Ok(shares)
     }
 
-    async fn mount(&self, config: &MountConfig, mount_point: &PathBuf) -> Result<()> {
+    async fn mount(&self, config: &MountConfig, mount_point: &Path) -> Result<()> {
         self.validate_config(config)?;
 
         match &config.mount_type {
@@ -197,7 +203,7 @@ impl MountHandler for SmbHandler {
         }
     }
 
-    async fn unmount(&self, mount_point: &PathBuf) -> Result<()> {
+    async fn unmount(&self, mount_point: &Path) -> Result<()> {
         info!("Unmounting SMB share at {}", mount_point.display());
 
         // Create secure unmount command
@@ -226,7 +232,7 @@ impl MountHandler for SmbHandler {
         Ok(())
     }
 
-    async fn check_health(&self, mount_point: &PathBuf) -> Result<MountState> {
+    async fn check_health(&self, mount_point: &Path) -> Result<MountState> {
         // Similar to NFS health check
         if !mount_point.exists() {
             return Ok(MountState {

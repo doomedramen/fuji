@@ -373,8 +373,8 @@ impl MountOptionParser {
                 );
             }
             "fmode" | "file_mode" => {
-                let mode = if value.starts_with('0') {
-                    u32::from_str_radix(&value[1..], 8)
+                let mode = if let Some(stripped) = value.strip_prefix('0') {
+                    u32::from_str_radix(stripped, 8)
                         .map_err(|_| anyhow!("Invalid file mode: {}", value))?
                 } else {
                     value
@@ -384,8 +384,8 @@ impl MountOptionParser {
                 security.fmode = Some(mode);
             }
             "dmode" | "dir_mode" => {
-                let mode = if value.starts_with('0') {
-                    u32::from_str_radix(&value[1..], 8)
+                let mode = if let Some(stripped) = value.strip_prefix('0') {
+                    u32::from_str_radix(stripped, 8)
                         .map_err(|_| anyhow!("Invalid dir mode: {}", value))?
                 } else {
                     value
@@ -603,7 +603,7 @@ impl MountOptionParser {
         // Validate NFS-specific options
         if fs_type == "nfs" {
             if let Some(nfsvers) = performance.nfsvers {
-                if nfsvers < 3 || nfsvers > 4 {
+                if !(3..=4).contains(&nfsvers) {
                     bail!("Unsupported NFS version: {}", nfsvers);
                 }
             }
@@ -629,7 +629,7 @@ impl MountOptionParser {
 
             // Validate timeout
             if let Some(timeo) = performance.timeo {
-                if timeo < 1 || timeo > 3600 {
+                if !(1..=3600).contains(&timeo) {
                     bail!("Invalid timeout: {} (must be 1-3600 seconds)", timeo);
                 }
             }

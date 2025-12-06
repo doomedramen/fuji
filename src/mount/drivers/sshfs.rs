@@ -6,11 +6,17 @@ use crate::mount::drivers::{
 use crate::mount::{MountConfig, MountHandler, MountState, MountType};
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 use tracing::{debug, error, info, warn};
 
 pub struct SshfsHandler;
+
+impl Default for SshfsHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SshfsHandler {
     pub fn new() -> Self {
@@ -103,7 +109,7 @@ impl MountHandler for SshfsHandler {
         Ok(vec![])
     }
 
-    async fn mount(&self, config: &MountConfig, mount_point: &PathBuf) -> Result<()> {
+    async fn mount(&self, config: &MountConfig, mount_point: &Path) -> Result<()> {
         self.validate_config(config)?;
 
         match &config.mount_type {
@@ -162,7 +168,7 @@ impl MountHandler for SshfsHandler {
         }
     }
 
-    async fn unmount(&self, mount_point: &PathBuf) -> Result<()> {
+    async fn unmount(&self, mount_point: &Path) -> Result<()> {
         info!("Unmounting SSHFS at {}", mount_point.display());
 
         // Try fusermount first (preferred for SSHFS)
@@ -200,7 +206,7 @@ impl MountHandler for SshfsHandler {
         Ok(())
     }
 
-    async fn check_health(&self, mount_point: &PathBuf) -> Result<MountState> {
+    async fn check_health(&self, mount_point: &Path) -> Result<MountState> {
         // Similar to NFS/SMB health check
         if !mount_point.exists() {
             return Ok(MountState {

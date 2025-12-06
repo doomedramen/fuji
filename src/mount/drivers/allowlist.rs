@@ -487,19 +487,21 @@ impl MountCommandsAllowlist {
         option_name: &str,
         value: &str,
     ) -> Result<()> {
-        if let Some(pattern) = command.allowed_options.get(option_name) {
-            if let Some(regex_str) = pattern {
-                let regex = regex::Regex::new(regex_str)
-                    .with_context(|| format!("Invalid regex pattern: {}", regex_str))?;
+        if let Some(regex_str) = command
+            .allowed_options
+            .get(option_name)
+            .and_then(|p| p.as_ref())
+        {
+            let regex = regex::Regex::new(regex_str)
+                .with_context(|| format!("Invalid regex pattern: {}", regex_str))?;
 
-                if !regex.is_match(value) {
-                    return Err(anyhow::anyhow!(
-                        "Option value '{}' doesn't match pattern '{}' for option '{}'",
-                        value,
-                        regex_str,
-                        option_name
-                    ));
-                }
+            if !regex.is_match(value) {
+                return Err(anyhow::anyhow!(
+                    "Option value '{}' doesn't match pattern '{}' for option '{}'",
+                    value,
+                    regex_str,
+                    option_name
+                ));
             }
         }
         Ok(())
@@ -584,22 +586,21 @@ impl MountCommandsAllowlist {
                 let arg_name = &arg[..eq_pos];
                 let arg_value = &arg[eq_pos + 1..];
 
-                if let Some(pattern) = command
+                if let Some(regex_str) = command
                     .allowed_options
                     .get(arg_name.trim_start_matches('-'))
+                    .and_then(|p| p.as_ref())
                 {
-                    if let Some(regex_str) = pattern {
-                        let regex = regex::Regex::new(regex_str)
-                            .with_context(|| format!("Invalid regex pattern: {}", regex_str))?;
+                    let regex = regex::Regex::new(regex_str)
+                        .with_context(|| format!("Invalid regex pattern: {}", regex_str))?;
 
-                        if !regex.is_match(arg_value) {
-                            return Err(anyhow::anyhow!(
-                                "Argument value '{}' doesn't match pattern '{}' for option '{}'",
-                                arg_value,
-                                regex_str,
-                                arg_name
-                            ));
-                        }
+                    if !regex.is_match(arg_value) {
+                        return Err(anyhow::anyhow!(
+                            "Argument value '{}' doesn't match pattern '{}' for option '{}'",
+                            arg_value,
+                            regex_str,
+                            arg_name
+                        ));
                     }
                 }
             }
@@ -671,7 +672,7 @@ impl MountCommandsAllowlist {
 
     /// Export the allowlist for inspection or backup
     pub fn export_allowlist(&self) -> serde_json::Value {
-        serde_json::to_value(&self.commands).unwrap_or_else(|_| serde_json::Value::Null)
+        serde_json::to_value(&self.commands).unwrap_or(serde_json::Value::Null)
     }
 
     /// Import allowlist from external source (with validation)

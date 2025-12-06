@@ -55,6 +55,12 @@ pub struct HealthCheckResult {
 /// File access health check
 pub struct FileAccessHealthCheck;
 
+impl Default for FileAccessHealthCheck {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FileAccessHealthCheck {
     /// Create a new file access health check
     #[allow(dead_code)]
@@ -174,6 +180,12 @@ impl HealthCheck for FileAccessHealthCheck {
 /// Network ping health check
 pub struct PingHealthCheck;
 
+impl Default for PingHealthCheck {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PingHealthCheck {
     /// Create a new ping health check
     pub fn new() -> Self {
@@ -278,6 +290,12 @@ impl HealthCheck for PingHealthCheck {
 /// Protocol-specific health check
 pub struct ProtocolHealthCheck;
 
+impl Default for ProtocolHealthCheck {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProtocolHealthCheck {
     /// Create a new protocol health check
     #[allow(dead_code)]
@@ -357,6 +375,12 @@ impl HealthCheck for ProtocolHealthCheck {
 /// Registry of health checks
 pub struct HealthCheckRegistry {
     checks: std::collections::HashMap<String, Box<dyn HealthCheck>>,
+}
+
+impl Default for HealthCheckRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HealthCheckRegistry {

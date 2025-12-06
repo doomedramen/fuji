@@ -6,12 +6,18 @@ use crate::mount::drivers::{
 use crate::mount::{MountConfig, MountHandler, MountState, MountType};
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 use tracing::{debug, error, info, warn};
 use url::Url;
 
 pub struct NfsHandler;
+
+impl Default for NfsHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl NfsHandler {
     pub fn new() -> Self {
@@ -107,7 +113,7 @@ impl MountHandler for NfsHandler {
         Ok(shares)
     }
 
-    async fn mount(&self, config: &MountConfig, mount_point: &PathBuf) -> Result<()> {
+    async fn mount(&self, config: &MountConfig, mount_point: &Path) -> Result<()> {
         self.validate_config(config)?;
 
         match &config.mount_type {
@@ -169,7 +175,7 @@ impl MountHandler for NfsHandler {
         }
     }
 
-    async fn unmount(&self, mount_point: &PathBuf) -> Result<()> {
+    async fn unmount(&self, mount_point: &Path) -> Result<()> {
         info!("Unmounting NFS share at {}", mount_point.display());
 
         // Create secure unmount command
@@ -198,7 +204,7 @@ impl MountHandler for NfsHandler {
         Ok(())
     }
 
-    async fn check_health(&self, mount_point: &PathBuf) -> Result<MountState> {
+    async fn check_health(&self, mount_point: &Path) -> Result<MountState> {
         // Check if mount point exists
         if !mount_point.exists() {
             return Ok(MountState {

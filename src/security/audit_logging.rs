@@ -145,10 +145,13 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::Duration as StdDuration;
 use tokio::sync::{RwLock, Semaphore};
 use tracing::{error, info};
 use uuid::Uuid;
+
+/// Type alias for custom filter functions to reduce type complexity
+pub type CustomFilterFn = Box<dyn Fn(&AuditEvent) -> bool + Send + Sync>;
 
 /// Audit event types for security monitoring
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -378,7 +381,7 @@ pub struct AuditConfig {
     /// Enable encryption of sensitive data
     pub enable_encryption: bool,
     /// Retention period for audit logs
-    pub retention_period: Duration,
+    pub retention_period: StdDuration,
     /// Maximum log file size before rotation
     pub max_file_size: u64,
     /// Number of backup files to keep
@@ -397,8 +400,8 @@ impl Default for AuditConfig {
             enable_signing: true,
             enable_chaining: true,
             enable_encryption: true,
-            retention_period: Duration::from_secs(365 * 24 * 60 * 60), // 1 year
-            max_file_size: 100 * 1024 * 1024,                          // 100 MB
+            retention_period: StdDuration::from_secs(365 * 24 * 60 * 60), // 1 year
+            max_file_size: 100 * 1024 * 1024,                             // 100 MB
             backup_count: 10,
             enable_real_time: true,
             min_severity: AuditSeverity::Low,
@@ -441,7 +444,7 @@ pub struct AuditEventFilter {
     /// Source filters
     pub source_filters: Vec<String>,
     /// Custom filter function (not cloneable)
-    pub custom_filter: Option<Box<dyn Fn(&AuditEvent) -> bool + Send + Sync>>,
+    pub custom_filter: Option<CustomFilterFn>,
 }
 
 impl std::fmt::Debug for AuditEventFilter {
@@ -900,11 +903,11 @@ impl AuditLogger {
             let old_path = self
                 .config
                 .log_file_path
-                .with_extension(&format!("log.{}", i));
+                .with_extension(format!("log.{}", i));
             let new_path = self
                 .config
                 .log_file_path
-                .with_extension(&format!("log.{}", i + 1));
+                .with_extension(format!("log.{}", i + 1));
             if old_path.exists() {
                 std::fs::rename(&old_path, &new_path)?;
             }
@@ -919,7 +922,7 @@ impl AuditLogger {
             let old_path = self
                 .config
                 .log_file_path
-                .with_extension(&format!("log.{}", i));
+                .with_extension(format!("log.{}", i));
             if old_path.exists() {
                 let _ = std::fs::remove_file(&old_path);
             }
