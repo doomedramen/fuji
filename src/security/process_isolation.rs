@@ -248,7 +248,7 @@ impl ProcessIsolator {
             Err(e) => {
                 // Clean up the boxed config
                 unsafe {
-                    Box::from_raw(config_ptr);
+                    Box::from_raw(process_data_ptr);
                 }
                 Err(anyhow!("Failed to create isolated process: {}", e))
             }

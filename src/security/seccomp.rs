@@ -1044,7 +1044,7 @@ impl SyscallFilter {
         let filter_program = builder.build()?;
 
         // Create sock_fprog structure
-        let prog = sock_fprog {
+        let prog = sock_fprog_struct {
             len: filter_program.len() as u16,
             filter: filter_program.as_ptr(),
         };
