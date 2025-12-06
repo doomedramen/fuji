@@ -11,7 +11,7 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 #[cfg(target_os = "linux")]
-mod linux;
+pub mod linux;
 #[cfg(target_os = "linux")]
 use linux as platform_impl;
 

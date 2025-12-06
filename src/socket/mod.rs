@@ -607,10 +607,7 @@ impl SocketClient {
 
     /// Check if the daemon is running
     pub async fn is_daemon_running(&self) -> bool {
-        match UnixStream::connect(&self.socket_path).await {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        UnixStream::connect(&self.socket_path).await.is_ok()
     }
 }
 

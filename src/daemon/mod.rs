@@ -5,7 +5,6 @@
 use crate::config::Config;
 use crate::mount::{get_mount_handler, MountConfig, MountState, MountStatus};
 use crate::platform::Platform;
-use std::path::Path;
 use crate::security::path_security::{
     IntegrityStatus, PathSecurityEvent, PathSecurityValidator, SecurityProfile,
 };
@@ -15,6 +14,7 @@ use crate::socket::{MountStatusInfo, Request, Response, SocketServer};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use regex;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -438,7 +438,11 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
     };
 
     // Validate mount point path security using enhanced path security validator
-    match params.path_security.validate_mount_point(&mount_point).await {
+    match params
+        .path_security
+        .validate_mount_point(&mount_point)
+        .await
+    {
         Ok(validation_result) => {
             if !validation_result.is_safe {
                 error!(
@@ -543,7 +547,8 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
     }
 
     // Register mount with path security validator for ongoing monitoring
-    if let Err(e) = params.path_security
+    if let Err(e) = params
+        .path_security
         .register_mount(
             mount_id.clone(),
             mount_point.clone(),
@@ -598,7 +603,8 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
         if let Err(e) = mount_result {
             error!("Failed to mount {}: {}", mount_id, e);
             if let Err(status_err) =
-                Daemon::update_mount_status(params.config.clone(), &mount_id, MountStatus::Failed).await
+                Daemon::update_mount_status(params.config.clone(), &mount_id, MountStatus::Failed)
+                    .await
             {
                 error!("Failed to update mount status: {}", status_err);
             }
@@ -721,7 +727,13 @@ async fn handle_status_request(params: StatusRequestParams) -> Response {
             }
         }
         let health_score = if params.verbose {
-            Some(params.monitor.get_health_score(&mount.id).await.unwrap_or(0))
+            Some(
+                params
+                    .monitor
+                    .get_health_score(&mount.id)
+                    .await
+                    .unwrap_or(0),
+            )
         } else {
             None
         };

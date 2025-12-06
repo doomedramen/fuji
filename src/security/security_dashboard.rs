@@ -547,9 +547,10 @@ impl SecurityDashboard {
             RiskLevel::Critical
         } else if event.severity == AuditSeverity::High {
             RiskLevel::High
-        } else if event.severity == AuditSeverity::Medium {
-            RiskLevel::Medium
-        } else if event.outcome == AuditOutcome::Failure || event.outcome == AuditOutcome::Error {
+        } else if event.severity == AuditSeverity::Medium
+            || event.outcome == AuditOutcome::Failure
+            || event.outcome == AuditOutcome::Error
+        {
             RiskLevel::Medium
         } else {
             RiskLevel::Low
@@ -708,10 +709,7 @@ impl SecurityDashboard {
         metrics.total_events += 1;
 
         // Update event type counts
-        *metrics
-            .events_by_type
-            .entry(event.event_type.clone())
-            .or_insert(0) += 1;
+        *metrics.events_by_type.entry(event.event_type).or_insert(0) += 1;
 
         // Update severity counts
         *metrics
@@ -917,7 +915,7 @@ impl SecurityDashboard {
 
         score = score.saturating_sub((unhealthy_components * 15) as u8);
 
-        Ok(score.max(0))
+        Ok(score)
     }
 
     /// Export dashboard data
@@ -1365,7 +1363,7 @@ impl SecurityDashboard {
 
         score = score.saturating_sub((unhealthy_components * 15) as u8);
 
-        score.max(0)
+        score
     }
 
     /// Cleanup old historical data

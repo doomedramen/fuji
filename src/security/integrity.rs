@@ -1231,12 +1231,12 @@ mod tests {
         let cfi = ControlFlowIntegrity::new();
 
         // Test shadow stack
-        cfi.push_return_address(0x12345678)?;
-        let verified = cfi.verify_return_address(0x12345678)?;
+        cfi.push_return_address(0x12345678).await?;
+        let verified = cfi.verify_return_address(0x12345678).await?;
         assert!(verified);
 
         // Test failed verification
-        let verified = cfi.verify_return_address(0x87654321)?;
+        let verified = cfi.verify_return_address(0x87654321).await?;
         assert!(!verified);
 
         Ok(())
