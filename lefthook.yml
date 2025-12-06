@@ -25,9 +25,9 @@ pre-push:
       run: cargo check --all-targets --all-features
       glob: "*.rs"
 
-    # Run clippy with stricter settings (closer to CI)
+    # Run clippy with warnings allowed (CI will enforce strict checks)
     clippy:
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --all-targets --all-features --quiet
       glob: "*.rs"
 
     # Run all tests (same as CI)
