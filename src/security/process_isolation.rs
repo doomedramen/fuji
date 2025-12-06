@@ -472,7 +472,12 @@ fn setup_namespaces(config: &NamespaceConfig) -> Result<()> {
     // Setup UTS namespace (hostname)
     if config.uts_namespace {
         if let Some(ref hostname) = config.hostname {
-            let result = unsafe { sethostname(hostname.as_ptr(), hostname.len() as libc::size_t) };
+            let result = unsafe {
+                sethostname(
+                    hostname.as_ptr() as *const libc::c_char,
+                    hostname.len() as libc::size_t,
+                )
+            };
             if result != 0 {
                 return Err(anyhow!("Failed to set hostname"));
             }
@@ -589,9 +594,9 @@ fn create_mount_point(mount: &MountPoint) -> Result<()> {
     nix::mount::mount(
         Some(&mount.source),
         &mount.target,
-        Some(&mount.fs_type),
+        Some(mount.fs_type.as_str()),
         flags,
-        Some(&options_str),
+        Some(options_str.as_str()),
     )?;
 
     info!(
