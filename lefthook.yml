@@ -20,21 +20,27 @@ pre-commit:
 
 pre-push:
   commands:
-    # Quick check for compilation errors
+    # Full compilation check (equivalent to CI Build job)
     check:
-      run: cargo check --all-features
+      run: cargo check --all-targets --all-features
       glob: "*.rs"
 
-    # Run clippy with relaxed settings for speed
+    # Run clippy with stricter settings (closer to CI)
     clippy:
-      run: cargo clippy --all-targets --all-features -- -A dead_code -A unused_imports -A unused-variables -A warnings
+      run: cargo clippy --all-targets --all-features -- -D warnings
       glob: "*.rs"
 
-    # Run a quick subset of tests instead of full test suite
+    # Run all tests (same as CI)
     test:
-      run: cargo test --lib --bins  # Skip integration tests for speed
+      run: cargo test --all-features
       glob: "*.rs"
-      timeout: 300  # 5 minute timeout
+      timeout: 600  # 10 minute timeout
+
+    # Build in release mode to catch release build issues
+    build-release:
+      run: cargo build --release
+      glob: "*.rs"
+      timeout: 300
 
 # CI-specific configuration
 ci:
