@@ -1128,7 +1128,7 @@ impl AuditLogger {
         let mut wtr = csv::Writer::from_writer(vec![]);
 
         // Write header
-        wtr.write_record(&[
+        wtr.write_record([
             "id",
             "timestamp",
             "event_type",
@@ -1140,7 +1140,7 @@ impl AuditLogger {
 
         // Write records
         for event in events {
-            wtr.write_record(&[
+            wtr.write_record([
                 &event.id,
                 &event.timestamp.to_rfc3339(),
                 &format!("{:?}", event.event_type),
@@ -1197,13 +1197,13 @@ impl AuditLogger {
             };
 
             let cef_line = format!(
-                "CEF:0|Fuji|{}|{}|{}|{}|{}|{}",
+                "CEF:0|Fuji|{}|{}|{}|{}|{}|src={}",
                 env!("CARGO_PKG_VERSION"),
                 event.event_type.category(),
                 event.event_type.category(),
                 event.description,
                 severity,
-                format!("src={}", event.source.identifier)
+                event.source.identifier
             );
 
             output.extend_from_slice(cef_line.as_bytes());
