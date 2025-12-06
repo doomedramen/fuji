@@ -3,11 +3,13 @@
 
 pre-commit:
   commands:
-    # Fast format check
+    # Auto-format and stage changes
     format:
-      run: cargo fmt --all -- --check
+      run: |
+        cargo fmt --all
+        git add -u '*.rs'
       glob: "*.rs"
-      fail_text: "Code is not formatted. Run 'cargo fmt' to fix."
+      fail_text: "Code formatting failed."
 
     # Quick compilation check
     check:
