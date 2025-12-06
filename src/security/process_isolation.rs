@@ -9,6 +9,8 @@
 use anyhow::{anyhow, Result};
 use std::fs;
 #[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -21,7 +23,7 @@ use libc::{gid_t, uid_t};
 
 // Conditional compilation for namespace support
 #[cfg(target_os = "linux")]
-use libc::c_int;
+use libc::{c_int, sethostname};
 
 #[cfg(target_os = "linux")]
 use nix::unistd::{chroot, setgid, setuid};
