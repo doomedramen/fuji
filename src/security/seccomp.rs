@@ -16,7 +16,9 @@ use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
 
 #[cfg(target_os = "linux")]
-use libc::{__NR_seccomp, PR_SET_NO_NEW_PRIVS, SECCOMP_SET_MODE_FILTER};
+use libc::{
+    __NR_seccomp, prctl, PR_SET_NO_NEW_PRIVS, SECCOMP_MODE_FILTER, SECCOMP_SET_MODE_FILTER,
+};
 
 /// System call numbers for filtering
 #[cfg(target_os = "linux")]
