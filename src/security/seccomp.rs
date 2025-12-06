@@ -356,6 +356,7 @@ mod seccomp_actions {
 /// Seccomp filter structure for real system call filtering
 #[cfg(target_os = "linux")]
 #[repr(C)]
+#[derive(Clone)]
 struct sock_filter {
     code: u16,
     jt: u8,
