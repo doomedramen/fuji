@@ -1,0 +1,46 @@
+# Clippy configuration for Fuji
+# Enterprise security rules enabled
+
+msrv = "1.70.0"
+
+# Security-focused lints
+disallowed-names = ["foo", "bar", "baz"]
+too-many-arguments-threshold = 7
+type-complexity-threshold = 250
+
+# Enforce docs on public items
+missing-docs-in-crate-items = true
+
+# Performance rules for file system operations
+cognitive-complexity-threshold = 30
+
+# Arithmetic and numeric checks
+arithmetic-side-effects-allowed = ["std::time::Duration::new", "std::time::Duration::from_secs"]
+allow-expect-in-tests = true
+allow-unwrap-in-tests = true
+
+# Standard library overrides
+enforced-import-renames = [
+    { path = "std::time::Duration", rename = "StdDuration" }
+]
+
+standard-macro-braces = [
+    { name = "assert", brace = "(" },
+    { name = "assert_eq", brace = "(" },
+    { name = "assert_ne", brace = "(" },
+    { name = "debug_assert", brace = "(" },
+    { name = "debug_assert_eq", brace = "(" },
+    { name = "debug_assert_ne", brace = "(" },
+    { name = "format", brace = "(" },
+    { name = "write", brace = "(" },
+    { name = "writeln", brace = "(" },
+    { name = "print", brace = "(" },
+    { name = "println", brace = "(" },
+    { name = "eprint", brace = "(" },
+    { name = "eprintln", brace = "(" },
+    { name = "format_args", brace = "(" },
+    { name = "panic", brace = "(" },
+    { name = "unreachable", brace = "(" },
+    { name = "unimplemented", brace = "(" },
+    { name = "vec", brace = "[" }
+]

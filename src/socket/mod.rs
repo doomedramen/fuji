@@ -6,7 +6,7 @@
 //! This module provides the communication layer for Fuji with connection limiting
 //! to prevent resource exhaustion attacks.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -14,7 +14,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{Mutex, Semaphore};
-use tokio::time::{interval, timeout, Duration};
+use tokio::time::{Duration, interval, timeout};
 use tracing::{debug, error, info, warn};
 
 /// Socket communication protocol

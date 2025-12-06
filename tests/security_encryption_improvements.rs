@@ -72,12 +72,16 @@ async fn test_salt_quality_validation() {
     // Should be proper base64 (divisible by 4, valid chars)
     assert!(pbkdf2_salt.len() % 4 == 0);
     assert!(hkdf_salt.len() % 4 == 0);
-    assert!(pbkdf2_salt
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '='));
-    assert!(hkdf_salt
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '='));
+    assert!(
+        pbkdf2_salt
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=')
+    );
+    assert!(
+        hkdf_salt
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=')
+    );
 
     // Should be reasonable length for 32-byte salts when base64 encoded
     assert_eq!(pbkdf2_salt.len(), 44); // 32 bytes = 44 base64 chars

@@ -7,7 +7,7 @@
 //! symlink attack protection, mount integrity verification, and security event logging.
 //! It extends the existing static validation with dynamic runtime checks.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
@@ -740,7 +740,11 @@ impl PathSecurityValidator {
         events.push(event.clone());
 
         match &event {
-            PathSecurityEvent::PathValidation { result, path, .. } => match &result.status {
+            PathSecurityEvent::PathValidation {
+                result,
+                path,
+                ..
+            } => match &result.status {
                 ValidationStatus::Blocked(reason) => {
                     warn!("Path blocked: {} - {}", path, reason);
                 }
@@ -814,7 +818,10 @@ impl PathSecurityValidator {
 
         for event in events.iter() {
             match event {
-                PathSecurityEvent::PathValidation { result, .. } => {
+                PathSecurityEvent::PathValidation {
+                    result,
+                    ..
+                } => {
                     validation_events += 1;
                     match &result.status {
                         ValidationStatus::Blocked(_) => blocked_paths += 1,
@@ -822,9 +829,15 @@ impl PathSecurityValidator {
                         _ => {}
                     }
                 }
-                PathSecurityEvent::MountIntegrityCheck { .. } => integrity_events += 1,
-                PathSecurityEvent::SymlinkAttack { .. } => symlink_events += 1,
-                PathSecurityEvent::RuntimeValidation { .. } => runtime_events += 1,
+                PathSecurityEvent::MountIntegrityCheck {
+                    ..
+                } => integrity_events += 1,
+                PathSecurityEvent::SymlinkAttack {
+                    ..
+                } => symlink_events += 1,
+                PathSecurityEvent::RuntimeValidation {
+                    ..
+                } => runtime_events += 1,
             }
         }
 

@@ -19,7 +19,7 @@ use fuji::security::intrusion_detection::{
     IntrusionDetectionEngine, IntrusionReport, MLModel, RuleType, SimpleMLModel,
 };
 use std::collections::HashMap;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 #[tokio::test]
 async fn test_intrusion_detection_engine_creation() -> Result<()> {

@@ -226,12 +226,14 @@ async fn test_download_update() -> Result<()> {
     let local_path = manager.download_update(&package_id, download_url).await?;
 
     assert!(local_path.exists());
-    assert!(local_path
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .contains("download-test-001"));
+    assert!(
+        local_path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("download-test-001")
+    );
 
     // Verify update status after download
     let active_updates = manager.get_active_updates().await?;
@@ -533,7 +535,11 @@ async fn test_cancel_update() -> Result<()> {
     assert_eq!(active_updates.len(), 1);
 
     let update = &active_updates[0];
-    if let UpdateStatus::Failed { error_code, .. } = &update.status {
+    if let UpdateStatus::Failed {
+        error_code,
+        ..
+    } = &update.status
+    {
         assert_eq!(error_code, "CANCELLED");
     }
 

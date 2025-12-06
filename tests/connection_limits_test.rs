@@ -97,10 +97,12 @@ async fn test_connection_limiter_global_limit() {
     // Third connection should fail due to global limit
     let permit3 = limiter.acquire_connection("client3").await;
     assert!(permit3.is_err());
-    assert!(permit3
-        .unwrap_err()
-        .to_string()
-        .contains("Failed to acquire connection permit"));
+    assert!(
+        permit3
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to acquire connection permit")
+    );
 
     // Drop a permit and try again
     drop(permit1);

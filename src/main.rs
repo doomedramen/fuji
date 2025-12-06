@@ -13,7 +13,7 @@ mod socket;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{run, Cli};
+use cli::{Cli, run};
 use platform::get_platform;
 use tracing_subscriber::EnvFilter;
 

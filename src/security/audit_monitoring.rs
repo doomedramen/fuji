@@ -6,12 +6,12 @@
 //! This module provides real-time monitoring of audit events, pattern detection,
 //! and automated security response capabilities.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc};
 use tracing::{error, info, warn};
 
 use crate::security::audit_logging::{AuditEvent, AuditEventType, AuditOutcome, AuditSeverity};
@@ -623,7 +623,10 @@ impl PatternDetector for SuspiciousIPDetector {
                         meta.insert("ip_address".to_string(), ip);
                         meta.insert("event_count".to_string(), ip_events.len().to_string());
                         meta.insert("failed_attempts".to_string(), failed_attempts.to_string());
-                        meta.insert("security_violations".to_string(), security_violations.to_string());
+                        meta.insert(
+                            "security_violations".to_string(),
+                            security_violations.to_string(),
+                        );
                         meta
                     },
                 };
@@ -948,7 +951,9 @@ pub struct LogAlertHandler {
 
 impl LogAlertHandler {
     pub fn new() -> Self {
-        Self { _private: () }
+        Self {
+            _private: (),
+        }
     }
 }
 
@@ -986,7 +991,9 @@ pub struct SystemResponseHandler {
 
 impl SystemResponseHandler {
     pub fn new() -> Self {
-        Self { _private: () }
+        Self {
+            _private: (),
+        }
     }
 }
 

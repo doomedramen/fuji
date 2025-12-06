@@ -12,7 +12,7 @@
 //! - Rollback and recovery mechanisms
 //! - Update audit logging
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -177,7 +177,9 @@ pub enum SignatureAlgorithm {
     /// Edwards-curve Digital Signature Algorithm
     Ed25519,
     /// Elliptic Curve Digital Signature Algorithm
-    ECDSA { curve: String },
+    ECDSA {
+        curve: String,
+    },
     /// RSA with SHA-256
     RSA256,
     /// RSA with SHA-512
@@ -897,7 +899,9 @@ impl SecureUpdateManager {
                     // RSA verification would go here
                     info!("Verifying RSA signature from key: {}", signature.key_id);
                 }
-                SignatureAlgorithm::ECDSA { curve: _ } => {
+                SignatureAlgorithm::ECDSA {
+                    curve: _,
+                } => {
                     // ECDSA verification would go here
                     info!("Verifying ECDSA signature from key: {}", signature.key_id);
                 }
@@ -960,7 +964,10 @@ impl SecureUpdateManager {
                         stage.completion_time = Some(Utc::now());
                         stage.progress = 100;
                     }
-                    UpdateStatus::Failed { error_message, .. } => {
+                    UpdateStatus::Failed {
+                        error_message,
+                        ..
+                    } => {
                         stage.error = Some(error_message);
                     }
                     _ => {}

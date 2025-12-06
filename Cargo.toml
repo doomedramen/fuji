@@ -6,6 +6,7 @@ authors = ["Martin Page <m@rtin.page>"]
 description = "A network file system mount manager with daemon-based architecture"
 license = "ISC"
 repository = "https://github.com/DoomedRamen/fuji"
+homepage = "https://github.com/DoomedRamen/fuji"
 
 [lib]
 name = "fuji"

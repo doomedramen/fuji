@@ -374,16 +374,18 @@ mod tests {
         assert!(validate_command_allowlist("sshfs", &[]).is_ok());
         assert!(validate_command_allowlist("mkdir", &[]).is_ok());
 
-        assert!(validate_command_allowlist(
-            "mount",
-            &[
-                "-t".to_string(),
-                "nfs".to_string(),
-                "server:/export".to_string(),
-                "/mnt/nfs".to_string()
-            ]
-        )
-        .is_ok());
+        assert!(
+            validate_command_allowlist(
+                "mount",
+                &[
+                    "-t".to_string(),
+                    "nfs".to_string(),
+                    "server:/export".to_string(),
+                    "/mnt/nfs".to_string()
+                ]
+            )
+            .is_ok()
+        );
 
         assert!(validate_command_allowlist("rm", &["-rf".to_string()]).is_err());
         assert!(validate_command_allowlist("sh", &[]).is_err());

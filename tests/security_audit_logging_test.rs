@@ -127,15 +127,21 @@ async fn test_comprehensive_audit_logging() -> Result<()> {
     // Test audit statistics
     let stats = logger.get_statistics().await?;
     assert_eq!(stats.total_events, 3);
-    assert!(stats
-        .events_by_type
-        .contains_key(&AuditEventType::Authentication));
-    assert!(stats
-        .events_by_type
-        .contains_key(&AuditEventType::CredentialManagement));
-    assert!(stats
-        .events_by_type
-        .contains_key(&AuditEventType::SecurityViolation));
+    assert!(
+        stats
+            .events_by_type
+            .contains_key(&AuditEventType::Authentication)
+    );
+    assert!(
+        stats
+            .events_by_type
+            .contains_key(&AuditEventType::CredentialManagement)
+    );
+    assert!(
+        stats
+            .events_by_type
+            .contains_key(&AuditEventType::SecurityViolation)
+    );
 
     Ok(())
 }

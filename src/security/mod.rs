@@ -195,7 +195,9 @@ impl CredentialManager {
         // Add keyring provider (lowest priority, but most secure)
         providers.push(Box::new(keyring_provider::KeyringCredentialProvider::new()));
 
-        Self { providers }
+        Self {
+            providers,
+        }
     }
 
     /// Add a custom credential provider

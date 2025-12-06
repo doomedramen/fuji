@@ -1,59 +1,70 @@
 # Lefthook configuration for Fuji
-# https://github.com/evilmartians/lefthook
+# Enterprise-grade security and quality checks
 
 pre-commit:
   commands:
-    # Check code formatting
+    # Fast format check
     format:
-      run: cargo fmt -- --check
+      run: cargo fmt --all -- --check
       glob: "*.rs"
+      fail_text: "Code is not formatted. Run 'cargo fmt' to fix."
 
-    # Run clippy (same as CI)
-    clippy:
-      run: cargo clippy --all-targets --all-features
-      glob: "*.rs"
-
-    # Run tests with coverage (disabled for local development)
-    # test-coverage:
-    #   run: ./scripts/generate-coverage.sh
-    #   glob: "*.rs"
-
-pre-push:
-  commands:
-    # Full compilation check (equivalent to CI Build job)
+    # Quick compilation check
     check:
       run: cargo check --all-targets --all-features
       glob: "*.rs"
+      fail_text: "Code has compilation errors."
 
-    # Run clippy (same as CI)
+    # Critical security checks only
+    security-quick:
+      run: cargo test security_command_injection security_path_traversal --lib --no-fail-fast
+      glob: "src/security/**/*.rs"
+      fail_text: "Critical security checks failed."
+
+pre-push:
+  commands:
+    # Full clippy with strict rules
     clippy:
-      run: cargo clippy --all-targets --all-features
+      run: cargo clippy --all-targets --all-features -- -D warnings
       glob: "*.rs"
+      fail_text: "Clippy found issues. Fix them before pushing."
+      timeout: 120
 
-    # Run all tests (same as CI)
-    test:
-      run: cargo test --all-features
+    # All unit tests
+    test-unit:
+      run: cargo test --lib --bins --all-features --no-fail-fast
       glob: "*.rs"
-      timeout: 600  # 10 minute timeout
+      fail_text: "Unit tests failed."
+      timeout: 300
 
-    # Build in release mode to catch release build issues
+    # Security test suite
+    test-security:
+      run: cargo test security_* --all-features --no-fail-fast
+      glob: "src/security/**/*.rs"
+      fail_text: "Security tests failed."
+      timeout: 240
+
+    # Build verification
     build-release:
       run: cargo build --release
       glob: "*.rs"
-      timeout: 300
+      fail_text: "Release build failed."
+      timeout: 180
 
-# CI-specific configuration
-ci:
-  pre-commit:
-    commands:
-      # Run clippy (same as CI)
-      clippy:
-        run: cargo clippy --all-targets --all-features
+  # Execute commands in parallel where safe
+  parallel: true
 
-      # Run all tests
-      test:
-        run: cargo test --all-features
+# Global settings
+skip_output:
+  - meta
+  - success
 
-      # Generate coverage report
-      coverage:
-        run: cargo tarpaulin --out Xml --output-dir target/coverage
+# Skip patterns for faster execution
+skip_glob:
+  - "docs/**/*"
+  - "scripts/**/*"
+  - "*.md"
+  - "*.yml"
+  - "*.yaml"
+  - "target/**/*"
+  - ".github/**/*"

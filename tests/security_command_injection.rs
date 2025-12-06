@@ -3,11 +3,11 @@
 //! These tests ensure that the mount drivers are properly protected against
 //! command injection attacks through malicious URLs and mount options.
 
-use fuji::mount::drivers::{
-    create_secure_mount_command, MountOptionsValidator, MountUrlValidator, NfsHandler,
-    SecureCommand, SmbHandler, SshfsHandler,
-};
 use fuji::mount::MountHandler;
+use fuji::mount::drivers::{
+    MountOptionsValidator, MountUrlValidator, NfsHandler, SecureCommand, SmbHandler, SshfsHandler,
+    create_secure_mount_command,
+};
 
 #[test]
 fn test_command_injection_in_nfs_url() {
@@ -253,26 +253,38 @@ fn test_numeric_validation_in_options() {
     let validator = MountOptionsValidator::new().unwrap();
 
     // Valid numeric values should pass
-    assert!(validator
-        .validate_options("smb", &["uid=1000".to_string()])
-        .is_ok());
-    assert!(validator
-        .validate_options("smb", &["gid=1000".to_string()])
-        .is_ok());
+    assert!(
+        validator
+            .validate_options("smb", &["uid=1000".to_string()])
+            .is_ok()
+    );
+    assert!(
+        validator
+            .validate_options("smb", &["gid=1000".to_string()])
+            .is_ok()
+    );
 
     // Invalid numeric values should fail
-    assert!(validator
-        .validate_options("smb", &["uid=abc".to_string()])
-        .is_err());
-    assert!(validator
-        .validate_options("smb", &["uid=-1".to_string()])
-        .is_err());
-    assert!(validator
-        .validate_options("smb", &["port=0".to_string()])
-        .is_err());
-    assert!(validator
-        .validate_options("smb", &["port=99999".to_string()])
-        .is_err());
+    assert!(
+        validator
+            .validate_options("smb", &["uid=abc".to_string()])
+            .is_err()
+    );
+    assert!(
+        validator
+            .validate_options("smb", &["uid=-1".to_string()])
+            .is_err()
+    );
+    assert!(
+        validator
+            .validate_options("smb", &["port=0".to_string()])
+            .is_err()
+    );
+    assert!(
+        validator
+            .validate_options("smb", &["port=99999".to_string()])
+            .is_err()
+    );
 }
 
 #[test]
@@ -280,20 +292,28 @@ fn test_mode_validation_in_options() {
     let validator = MountOptionsValidator::new().unwrap();
 
     // Valid mode values should pass
-    assert!(validator
-        .validate_options("sshfs", &["file_mode=0644".to_string()])
-        .is_ok());
-    assert!(validator
-        .validate_options("sshfs", &["dir_mode=0755".to_string()])
-        .is_ok());
+    assert!(
+        validator
+            .validate_options("sshfs", &["file_mode=0644".to_string()])
+            .is_ok()
+    );
+    assert!(
+        validator
+            .validate_options("sshfs", &["dir_mode=0755".to_string()])
+            .is_ok()
+    );
 
     // Invalid mode values should fail
-    assert!(validator
-        .validate_options("sshfs", &["file_mode=7777".to_string()])
-        .is_err());
-    assert!(validator
-        .validate_options("sshfs", &["file_mode=abc".to_string()])
-        .is_err());
+    assert!(
+        validator
+            .validate_options("sshfs", &["file_mode=7777".to_string()])
+            .is_err()
+    );
+    assert!(
+        validator
+            .validate_options("sshfs", &["file_mode=abc".to_string()])
+            .is_err()
+    );
 }
 
 #[tokio::test]

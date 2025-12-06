@@ -155,16 +155,16 @@ use crate::{
     security_crypto_error, security_validation_error,
 };
 use aes_gcm::{
-    aead::{Aead, KeyInit},
     Aes256Gcm as AesGcm, Nonce as AesNonce,
+    aead::{Aead, KeyInit},
 };
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
-use rand::{rngs::OsRng, RngCore};
+use rand::{RngCore, rngs::OsRng};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 
 /// Supported encryption algorithms
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

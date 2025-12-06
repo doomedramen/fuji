@@ -103,7 +103,11 @@ fn test_unmount_command_parsing() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Unmount { mount_id, force } = cli.command {
+    if let Commands::Unmount {
+        mount_id,
+        force,
+    } = cli.command
+    {
         assert_eq!(mount_id, "mount_id_123");
         assert!(force);
     } else {
@@ -119,8 +123,14 @@ fn test_daemon_start_command() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Daemon { command } = cli.command {
-        if let DaemonCommand::Start { no_automount } = command {
+    if let Commands::Daemon {
+        command,
+    } = cli.command
+    {
+        if let DaemonCommand::Start {
+            no_automount,
+        } = command
+        {
             assert!(no_automount);
         } else {
             panic!("Expected daemon start command");
@@ -138,7 +148,10 @@ fn test_daemon_stop_command() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Daemon { command } = cli.command {
+    if let Commands::Daemon {
+        command,
+    } = cli.command
+    {
         if let DaemonCommand::Stop = command {
             // Stop command has no additional arguments
             assert!(true);
@@ -158,8 +171,14 @@ fn test_daemon_logs_command() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Daemon { command } = cli.command {
-        if let DaemonCommand::Logs { lines } = command {
+    if let Commands::Daemon {
+        command,
+    } = cli.command
+    {
+        if let DaemonCommand::Logs {
+            lines,
+        } = command
+        {
             assert_eq!(lines, Some(50));
         } else {
             panic!("Expected daemon logs command");
@@ -177,8 +196,14 @@ fn test_config_list_command() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Config { command } = cli.command {
-        if let ConfigCommand::List { json } = command {
+    if let Commands::Config {
+        command,
+    } = cli.command
+    {
+        if let ConfigCommand::List {
+            json,
+        } = command
+        {
             assert!(!json);
         } else {
             panic!("Expected config list command");
@@ -196,8 +221,14 @@ fn test_config_list_json_command() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Config { command } = cli.command {
-        if let ConfigCommand::List { json } = command {
+    if let Commands::Config {
+        command,
+    } = cli.command
+    {
+        if let ConfigCommand::List {
+            json,
+        } = command
+        {
             assert!(json);
         } else {
             panic!("Expected config list command with json");
@@ -215,8 +246,15 @@ fn test_config_get_command() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Config { command } = cli.command {
-        if let ConfigCommand::Get { key, json } = command {
+    if let Commands::Config {
+        command,
+    } = cli.command
+    {
+        if let ConfigCommand::Get {
+            key,
+            json,
+        } = command
+        {
             assert_eq!(key, "daemon.mount_dir");
             assert!(!json);
         } else {
@@ -235,8 +273,15 @@ fn test_config_set_command() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Config { command } = cli.command {
-        if let ConfigCommand::Set { key, value } = command {
+    if let Commands::Config {
+        command,
+    } = cli.command
+    {
+        if let ConfigCommand::Set {
+            key,
+            value,
+        } = command
+        {
             assert_eq!(key, "daemon.mount_dir");
             assert_eq!(value, "/mnt/fuji");
         } else {
@@ -255,8 +300,14 @@ fn test_config_show_command() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Config { command } = cli.command {
-        if let ConfigCommand::Show { json } = command {
+    if let Commands::Config {
+        command,
+    } = cli.command
+    {
+        if let ConfigCommand::Show {
+            json,
+        } = command
+        {
             assert!(json);
         } else {
             panic!("Expected config show command");
@@ -376,7 +427,10 @@ fn test_discover_command() {
     assert!(cli.is_ok());
     let cli = cli.unwrap();
 
-    if let Commands::Discover { url } = cli.command {
+    if let Commands::Discover {
+        url,
+    } = cli.command
+    {
         assert_eq!(url, "nfs://192.168.1.1/");
     } else {
         panic!("Expected discover command");

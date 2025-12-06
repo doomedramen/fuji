@@ -129,7 +129,10 @@ pub enum SecurityError {
 
     /// Timeout errors for security operations
     #[error("Security operation timeout: {operation} after {duration_ms}ms")]
-    TimeoutError { operation: String, duration_ms: u64 },
+    TimeoutError {
+        operation: String,
+        duration_ms: u64,
+    },
 
     /// Hardware security module errors
     #[error("HSM error: {module} - {reason}")]
@@ -336,7 +339,10 @@ impl Clone for SecurityError {
                 reason: reason.clone(),
                 severity: *severity,
             },
-            SecurityError::Generic { context, source } => {
+            SecurityError::Generic {
+                context,
+                source,
+            } => {
                 SecurityError::Generic {
                     context: context.clone(),
                     source: anyhow::anyhow!(source.to_string()), // Create new anyhow::Error from string
@@ -425,7 +431,10 @@ pub trait SecurityResultExt<T> {
 impl<T> SecurityResultExt<T> for SecurityResult<T> {
     fn with_credential_context(self, operation: &str, credential_type: &str) -> SecurityResult<T> {
         self.map_err(|e| match e {
-            SecurityError::Generic { context, source: _ } => SecurityError::CredentialError {
+            SecurityError::Generic {
+                context,
+                source: _,
+            } => SecurityError::CredentialError {
                 operation: operation.to_string(),
                 reason: context,
                 credential_type: credential_type.to_string(),
@@ -451,7 +460,8 @@ impl<T> SecurityResultExt<T> for SecurityResult<T> {
     fn with_auth_context(self, details: &str, user_id: Option<&str>) -> SecurityResult<T> {
         self.map_err(|e| match e {
             SecurityError::Generic {
-                context: _context, ..
+                context: _context,
+                ..
             } => SecurityError::AuthenticationFailed {
                 details: details.to_string(),
                 user_id: user_id.map(|u| u.to_string()),
@@ -464,7 +474,8 @@ impl<T> SecurityResultExt<T> for SecurityResult<T> {
     fn with_audit_context(self, operation: &str, reason: &str) -> SecurityResult<T> {
         self.map_err(|e| match e {
             SecurityError::Generic {
-                context: _context, ..
+                context: _context,
+                ..
             } => SecurityError::AuditError {
                 operation: operation.to_string(),
                 reason: reason.to_string(),
@@ -593,25 +604,63 @@ impl SecurityErrorMetrics {
     /// Get the category of an error
     fn error_category(&self, error: &SecurityError) -> String {
         match error {
-            SecurityError::CryptographicError { .. } => "cryptographic".to_string(),
-            SecurityError::AuthenticationFailed { .. } => "authentication".to_string(),
-            SecurityError::AccessDenied { .. } => "authorization".to_string(),
-            SecurityError::CredentialError { .. } => "credential".to_string(),
-            SecurityError::EncryptionError { .. } => "encryption".to_string(),
-            SecurityError::KeyManagementError { .. } => "key_management".to_string(),
-            SecurityError::AuditError { .. } => "audit".to_string(),
-            SecurityError::IntrusionDetectionError { .. } => "intrusion_detection".to_string(),
-            SecurityError::SystemSecurityError { .. } => "system_security".to_string(),
-            SecurityError::ConfigurationError { .. } => "configuration".to_string(),
-            SecurityError::NetworkSecurityError { .. } => "network_security".to_string(),
-            SecurityError::FileSystemSecurityError { .. } => "file_system_security".to_string(),
-            SecurityError::ValidationError { .. } => "validation".to_string(),
-            SecurityError::ResourceLimitExceeded { .. } => "resource_limit".to_string(),
-            SecurityError::TimeoutError { .. } => "timeout".to_string(),
-            SecurityError::HsmError { .. } => "hsm".to_string(),
-            SecurityError::SecureUpdateError { .. } => "secure_update".to_string(),
-            SecurityError::PolicyViolation { .. } => "policy_violation".to_string(),
-            SecurityError::Generic { .. } => "generic".to_string(),
+            SecurityError::CryptographicError {
+                ..
+            } => "cryptographic".to_string(),
+            SecurityError::AuthenticationFailed {
+                ..
+            } => "authentication".to_string(),
+            SecurityError::AccessDenied {
+                ..
+            } => "authorization".to_string(),
+            SecurityError::CredentialError {
+                ..
+            } => "credential".to_string(),
+            SecurityError::EncryptionError {
+                ..
+            } => "encryption".to_string(),
+            SecurityError::KeyManagementError {
+                ..
+            } => "key_management".to_string(),
+            SecurityError::AuditError {
+                ..
+            } => "audit".to_string(),
+            SecurityError::IntrusionDetectionError {
+                ..
+            } => "intrusion_detection".to_string(),
+            SecurityError::SystemSecurityError {
+                ..
+            } => "system_security".to_string(),
+            SecurityError::ConfigurationError {
+                ..
+            } => "configuration".to_string(),
+            SecurityError::NetworkSecurityError {
+                ..
+            } => "network_security".to_string(),
+            SecurityError::FileSystemSecurityError {
+                ..
+            } => "file_system_security".to_string(),
+            SecurityError::ValidationError {
+                ..
+            } => "validation".to_string(),
+            SecurityError::ResourceLimitExceeded {
+                ..
+            } => "resource_limit".to_string(),
+            SecurityError::TimeoutError {
+                ..
+            } => "timeout".to_string(),
+            SecurityError::HsmError {
+                ..
+            } => "hsm".to_string(),
+            SecurityError::SecureUpdateError {
+                ..
+            } => "secure_update".to_string(),
+            SecurityError::PolicyViolation {
+                ..
+            } => "policy_violation".to_string(),
+            SecurityError::Generic {
+                ..
+            } => "generic".to_string(),
         }
     }
 }

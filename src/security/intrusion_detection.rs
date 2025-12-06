@@ -221,7 +221,7 @@ use chrono::{DateTime, Datelike, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::time::Duration;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc};
 use tokio::time::{interval, sleep};
 use tracing::{debug, error, info, instrument, warn};
 
@@ -1365,16 +1365,18 @@ mod tests {
         let config = IntrusionDetectionConfig::default();
         let engine = IntrusionDetectionEngine::new(config).await.unwrap();
 
-        assert!(engine
-            .create_alert(
-                AlertSource::UserReport,
-                AlertSeverity::High,
-                "Test Alert",
-                "Test description",
-                vec!["event_1".to_string()],
-            )
-            .await
-            .is_ok());
+        assert!(
+            engine
+                .create_alert(
+                    AlertSource::UserReport,
+                    AlertSeverity::High,
+                    "Test Alert",
+                    "Test description",
+                    vec!["event_1".to_string()],
+                )
+                .await
+                .is_ok()
+        );
     }
 
     #[tokio::test]
@@ -1404,10 +1406,12 @@ mod tests {
             event_hash: "test_hash_001".to_string(),
         };
 
-        assert!(engine
-            .update_user_pattern("test_user", &event)
-            .await
-            .is_ok());
+        assert!(
+            engine
+                .update_user_pattern("test_user", &event)
+                .await
+                .is_ok()
+        );
     }
 
     #[tokio::test]

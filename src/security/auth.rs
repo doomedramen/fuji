@@ -6,8 +6,8 @@ use crate::{
     security::{IntoSecurityError, SecurityError, SecurityResult},
     security_auth_error, security_crypto_error, security_validation_error,
 };
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;

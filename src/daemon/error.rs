@@ -13,11 +13,15 @@ use thiserror::Error;
 pub enum DaemonError {
     /// Mount-related errors
     #[error("Mount error: {message}")]
-    MountError { message: String },
+    MountError {
+        message: String,
+    },
 
     /// Configuration errors
     #[error("Configuration error: {message}")]
-    ConfigError { message: String },
+    ConfigError {
+        message: String,
+    },
 
     /// I/O related errors
     #[error("I/O error: {0}")]
@@ -25,19 +29,27 @@ pub enum DaemonError {
 
     /// Network-related errors
     #[error("Network error: {message}")]
-    NetworkError { message: String },
+    NetworkError {
+        message: String,
+    },
 
     /// Protocol parsing errors
     #[error("Invalid protocol in URL: {url}")]
-    InvalidProtocol { url: String },
+    InvalidProtocol {
+        url: String,
+    },
 
     /// Mount not found errors
     #[error("Mount '{mount_id}' not found")]
-    MountNotFound { mount_id: String },
+    MountNotFound {
+        mount_id: String,
+    },
 
     /// Mount operation conflicts
     #[error("Mount operation conflict: {message}")]
-    MountConflict { message: String },
+    MountConflict {
+        message: String,
+    },
 
     /// Regex compilation errors
     #[error("Failed to compile regex pattern '{pattern}': {source}")]
@@ -57,55 +69,83 @@ pub enum DaemonError {
 
     /// Socket/communication errors
     #[error("Socket error: {message}")]
-    SocketError { message: String },
+    SocketError {
+        message: String,
+    },
 
     /// Platform-specific errors
     #[error("Platform error: {message}")]
-    PlatformError { message: String },
+    PlatformError {
+        message: String,
+    },
 
     /// Permission errors
     #[error("Permission denied: {operation}")]
-    PermissionDenied { operation: String },
+    PermissionDenied {
+        operation: String,
+    },
 
     /// Resource not found errors
     #[error("Resource not found: {resource}")]
-    ResourceNotFound { resource: String },
+    ResourceNotFound {
+        resource: String,
+    },
 
     /// Invalid operation errors
     #[error("Invalid operation: {operation}")]
-    InvalidOperation { operation: String },
+    InvalidOperation {
+        operation: String,
+    },
 
     /// Timeout errors
     #[error("Operation timed out: {operation}")]
-    Timeout { operation: String },
+    Timeout {
+        operation: String,
+    },
 
     /// State errors
     #[error("Invalid state: {message}")]
-    StateError { message: String },
+    StateError {
+        message: String,
+    },
 
     /// System errors
     #[error("System error: {message}")]
-    SystemError { message: String },
+    SystemError {
+        message: String,
+    },
 
     /// Signal handling errors
     #[error("Signal error: {message}")]
-    SignalError { message: String },
+    SignalError {
+        message: String,
+    },
 
     /// PID file errors
     #[error("PID file error: {message}")]
-    PidFileError { message: String },
+    PidFileError {
+        message: String,
+    },
 
     /// Lock acquisition errors
     #[error("Failed to acquire lock: {lock_name}")]
-    LockError { lock_name: String },
+    LockError {
+        lock_name: String,
+    },
 
     /// Health check errors
     #[error("Health check failed for mount '{mount_id}': {reason}")]
-    HealthCheckError { mount_id: String, reason: String },
+    HealthCheckError {
+        mount_id: String,
+        reason: String,
+    },
 
     /// Reconnection errors
     #[error("Reconnection failed for mount '{mount_id}': {reason}")]
-    ReconnectionError { mount_id: String, reason: String },
+    ReconnectionError {
+        mount_id: String,
+        reason: String,
+    },
 
     /// Generic errors with context
     #[error("{context}: {source}")]
@@ -260,16 +300,34 @@ impl DaemonError {
     /// Check if this error is recoverable
     pub fn is_recoverable(&self) -> bool {
         match self {
-            Self::NetworkError { .. }
-            | Self::MountError { .. }
-            | Self::HealthCheckError { .. }
-            | Self::ReconnectionError { .. }
-            | Self::Timeout { .. } => true,
+            Self::NetworkError {
+                ..
+            }
+            | Self::MountError {
+                ..
+            }
+            | Self::HealthCheckError {
+                ..
+            }
+            | Self::ReconnectionError {
+                ..
+            }
+            | Self::Timeout {
+                ..
+            } => true,
 
-            Self::PermissionDenied { .. }
-            | Self::InvalidProtocol { .. }
-            | Self::MountNotFound { .. }
-            | Self::InvalidOperation { .. }
+            Self::PermissionDenied {
+                ..
+            }
+            | Self::InvalidProtocol {
+                ..
+            }
+            | Self::MountNotFound {
+                ..
+            }
+            | Self::InvalidOperation {
+                ..
+            }
             | Self::Deserialization(_)
             | Self::Serialization(_) => false,
 
@@ -281,29 +339,71 @@ impl DaemonError {
     /// Get the error category for logging/metrics
     pub fn category(&self) -> &'static str {
         match self {
-            Self::MountError { .. } => "mount",
-            Self::ConfigError { .. } => "config",
+            Self::MountError {
+                ..
+            } => "mount",
+            Self::ConfigError {
+                ..
+            } => "config",
             Self::Io(_) => "io",
-            Self::NetworkError { .. } => "network",
-            Self::InvalidProtocol { .. } => "protocol",
-            Self::MountNotFound { .. } => "not_found",
-            Self::MountConflict { .. } => "conflict",
-            Self::RegexError { .. } => "regex",
+            Self::NetworkError {
+                ..
+            } => "network",
+            Self::InvalidProtocol {
+                ..
+            } => "protocol",
+            Self::MountNotFound {
+                ..
+            } => "not_found",
+            Self::MountConflict {
+                ..
+            } => "conflict",
+            Self::RegexError {
+                ..
+            } => "regex",
             Self::Serialization(_) | Self::Deserialization(_) => "serialization",
-            Self::SocketError { .. } => "socket",
-            Self::PlatformError { .. } => "platform",
-            Self::PermissionDenied { .. } => "permission",
-            Self::ResourceNotFound { .. } => "resource",
-            Self::InvalidOperation { .. } => "operation",
-            Self::Timeout { .. } => "timeout",
-            Self::StateError { .. } => "state",
-            Self::SystemError { .. } => "system",
-            Self::SignalError { .. } => "signal",
-            Self::PidFileError { .. } => "pidfile",
-            Self::LockError { .. } => "lock",
-            Self::HealthCheckError { .. } => "health",
-            Self::ReconnectionError { .. } => "reconnection",
-            Self::Generic { .. } => "generic",
+            Self::SocketError {
+                ..
+            } => "socket",
+            Self::PlatformError {
+                ..
+            } => "platform",
+            Self::PermissionDenied {
+                ..
+            } => "permission",
+            Self::ResourceNotFound {
+                ..
+            } => "resource",
+            Self::InvalidOperation {
+                ..
+            } => "operation",
+            Self::Timeout {
+                ..
+            } => "timeout",
+            Self::StateError {
+                ..
+            } => "state",
+            Self::SystemError {
+                ..
+            } => "system",
+            Self::SignalError {
+                ..
+            } => "signal",
+            Self::PidFileError {
+                ..
+            } => "pidfile",
+            Self::LockError {
+                ..
+            } => "lock",
+            Self::HealthCheckError {
+                ..
+            } => "health",
+            Self::ReconnectionError {
+                ..
+            } => "reconnection",
+            Self::Generic {
+                ..
+            } => "generic",
         }
     }
 }
@@ -351,10 +451,12 @@ mod tests {
         assert!(DaemonError::health_check_error("test", "test").is_recoverable());
 
         assert!(!DaemonError::permission_denied("test").is_recoverable());
-        assert!(!DaemonError::InvalidProtocol {
-            url: "test://".to_string()
-        }
-        .is_recoverable());
+        assert!(
+            !DaemonError::InvalidProtocol {
+                url: "test://".to_string()
+            }
+            .is_recoverable()
+        );
     }
 
     #[test]
@@ -381,7 +483,9 @@ mod tests {
         // Test creating a PermissionDenied error directly
         let permission_err = DaemonError::permission_denied("test operation");
         match permission_err {
-            DaemonError::PermissionDenied { operation } => {
+            DaemonError::PermissionDenied {
+                operation,
+            } => {
                 assert_eq!(operation, "test operation");
             }
             _ => panic!("Expected PermissionDenied error"),

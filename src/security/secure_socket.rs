@@ -15,7 +15,7 @@ use crate::security::encryption::{
     ChaCha20Poly1305Encryptor, EncryptedData, EncryptionAlgorithm, Encryptor,
 };
 use crate::security::seccomp::{SeccompProfile, SecureExecutor};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -257,7 +257,10 @@ impl SocketSecurityContext {
         // Sign the message
         let mac = self.calculate_message_mac(&message)?;
 
-        Ok(SecureMessage { mac, ..message })
+        Ok(SecureMessage {
+            mac,
+            ..message
+        })
     }
 
     /// Verify and decrypt a message
@@ -1265,7 +1268,7 @@ impl SocketSecurityValidator {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
 
     #[tokio::test]
     async fn test_secure_socket_factory_validation() {

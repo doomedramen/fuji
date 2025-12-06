@@ -12,8 +12,8 @@ use fuji::monitoring::{
 use fuji::mount::{MountConfig, MountType};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::sync::RwLock;
@@ -413,10 +413,12 @@ async fn test_health_check_run_check_by_name() {
     // Test invalid check name
     let result = run_check("test_mount", "invalid_check").await;
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Unknown health check"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Unknown health check")
+    );
 }
 
 #[test]

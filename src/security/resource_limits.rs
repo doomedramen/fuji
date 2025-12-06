@@ -7,7 +7,7 @@
 //! and ensure stable daemon operation. It includes memory limits, CPU throttling, file descriptor
 //! limits, and comprehensive resource monitoring with automatic enforcement.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -904,16 +904,20 @@ mod tests {
         let manager = ResourceLimitsManager::with_defaults();
 
         // Should be within limits
-        assert!(manager
-            .check_operation_limit(ResourceType::ConcurrentOperations, 5)
-            .await
-            .is_ok());
+        assert!(
+            manager
+                .check_operation_limit(ResourceType::ConcurrentOperations, 5)
+                .await
+                .is_ok()
+        );
 
         // Should exceed limits
-        assert!(manager
-            .check_operation_limit(ResourceType::ConcurrentOperations, 15)
-            .await
-            .is_err());
+        assert!(
+            manager
+                .check_operation_limit(ResourceType::ConcurrentOperations, 15)
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]

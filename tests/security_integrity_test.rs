@@ -130,7 +130,11 @@ async fn test_integrity_violation_creation() -> Result<()> {
     assert_eq!(violation.source_process.pid, 1234);
     assert_eq!(violation.context.get("user"), Some(&"testuser".to_string()));
 
-    if let IntegrityViolationType::DataCorruption { file_path, .. } = violation.violation_type {
+    if let IntegrityViolationType::DataCorruption {
+        file_path,
+        ..
+    } = violation.violation_type
+    {
         assert_eq!(file_path, PathBuf::from("/etc/fuji/config.toml"));
     } else {
         panic!("Expected DataCorruption violation type");
@@ -726,12 +730,16 @@ async fn test_config_customization() -> Result<()> {
     assert_eq!(config.check_interval, 600);
     assert_eq!(config.alert_threshold, 5);
     assert!(!config.enable_code_integrity);
-    assert!(config
-        .monitored_paths
-        .contains(&PathBuf::from("/custom/path")));
-    assert!(config
-        .critical_libraries
-        .contains(&"custom_lib.so".to_string()));
+    assert!(
+        config
+            .monitored_paths
+            .contains(&PathBuf::from("/custom/path"))
+    );
+    assert!(
+        config
+            .critical_libraries
+            .contains(&"custom_lib.so".to_string())
+    );
 
     println!("✓ Config customization test passed");
     Ok(())

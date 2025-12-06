@@ -12,7 +12,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::{NamedTempFile, TempDir};
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 #[tokio::test]
 async fn test_config_security_config_default_values() -> Result<()> {

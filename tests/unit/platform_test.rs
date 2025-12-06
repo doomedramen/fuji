@@ -4,7 +4,7 @@
 //! and platform-specific mount operations.
 
 use fuji::mount::MountType;
-use fuji::platform::{get_platform, Signal};
+use fuji::platform::{Signal, get_platform};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 

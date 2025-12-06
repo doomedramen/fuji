@@ -7,16 +7,16 @@
 //! - Credential backup and recovery
 
 use anyhow::Result;
+use fuji::security::Credential;
 use fuji::security::credential_backup::{BackupStrategy, CredentialBackupManager, RecoveryKey};
 use fuji::security::hardware_credential_provider::{
     EnhancedCredential, HardwareCredentialProvider, KeyRotationConfig, SecurityPolicy,
 };
 use fuji::security::key_derivation::{KeyDerivationFunction, KeyDerivationManager, SecurityLevel};
-use fuji::security::Credential;
 use rand::RngCore;
 use std::collections::HashMap;
 use std::time::SystemTime;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 /// Test hardware-backed credential storage
 #[tokio::test]
@@ -82,10 +82,12 @@ async fn test_security_policy_enforcement() -> Result<()> {
     };
 
     // Should succeed
-    assert!(provider
-        .store_enhanced_credential("valid_test", &valid_credential)
-        .await
-        .is_ok());
+    assert!(
+        provider
+            .store_enhanced_credential("valid_test", &valid_credential)
+            .await
+            .is_ok()
+    );
 
     // Test invalid password (too short)
     let invalid_credential = Credential {
@@ -96,10 +98,12 @@ async fn test_security_policy_enforcement() -> Result<()> {
     };
 
     // Should fail
-    assert!(provider
-        .store_enhanced_credential("invalid_test", &invalid_credential)
-        .await
-        .is_err());
+    assert!(
+        provider
+            .store_enhanced_credential("invalid_test", &invalid_credential)
+            .await
+            .is_err()
+    );
 
     Ok(())
 }

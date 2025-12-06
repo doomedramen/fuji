@@ -75,7 +75,9 @@ impl MountUrlValidator {
 
     /// Create a new validator with custom configuration
     pub fn with_config(config: ValidationConfig) -> Result<Self> {
-        Ok(Self { config })
+        Ok(Self {
+            config,
+        })
     }
 
     /// Validate a mount URL
@@ -567,18 +569,22 @@ mod tests {
     #[test]
     fn test_valid_nfs_url() {
         let validator = create_test_validator();
-        assert!(validator
-            .validate_url("nfs://server.example.com/export/path")
-            .is_ok());
+        assert!(
+            validator
+                .validate_url("nfs://server.example.com/export/path")
+                .is_ok()
+        );
         assert!(validator.validate_url("nfs://192.168.1.100/data").is_ok());
     }
 
     #[test]
     fn test_valid_smb_url() {
         let validator = create_test_validator();
-        assert!(validator
-            .validate_url("smb://server.example.com/share")
-            .is_ok());
+        assert!(
+            validator
+                .validate_url("smb://server.example.com/share")
+                .is_ok()
+        );
         assert!(validator.validate_url("cifs://fileserver/docs").is_ok());
     }
 
@@ -607,52 +613,68 @@ mod tests {
     #[test]
     fn test_shell_injection() {
         let validator = create_test_validator();
-        assert!(validator
-            .validate_url("nfs://server.example.com/export; rm -rf /")
-            .is_err());
-        assert!(validator
-            .validate_url("nfs://server.example.com/export|cat /etc/passwd")
-            .is_err());
-        assert!(validator
-            .validate_url("nfs://server.example.com/export`whoami`")
-            .is_err());
+        assert!(
+            validator
+                .validate_url("nfs://server.example.com/export; rm -rf /")
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate_url("nfs://server.example.com/export|cat /etc/passwd")
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate_url("nfs://server.example.com/export`whoami`")
+                .is_err()
+        );
     }
 
     #[test]
     fn test_blocked_hostname() {
         let validator = create_test_validator();
-        assert!(validator
-            .validate_url("nfs://malicious.com/export")
-            .is_err());
+        assert!(
+            validator
+                .validate_url("nfs://malicious.com/export")
+                .is_err()
+        );
         assert!(validator.validate_url("nfs://localhost/data").is_err());
     }
 
     #[test]
     fn test_blocked_path() {
         let validator = create_test_validator();
-        assert!(validator
-            .validate_url("nfs://server.example.com/secret/data")
-            .is_err());
-        assert!(validator
-            .validate_url("nfs://server.example.com/etc/passwd")
-            .is_err());
+        assert!(
+            validator
+                .validate_url("nfs://server.example.com/secret/data")
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate_url("nfs://server.example.com/etc/passwd")
+                .is_err()
+        );
     }
 
     #[test]
     fn test_path_traversal() {
         let validator = create_test_validator();
-        assert!(validator
-            .validate_url("nfs://server.example.com/../../../etc")
-            .is_err());
+        assert!(
+            validator
+                .validate_url("nfs://server.example.com/../../../etc")
+                .is_err()
+        );
     }
 
     #[test]
     fn test_too_long_hostname() {
         let validator = create_test_validator();
         let long_hostname = "a".repeat(300);
-        assert!(validator
-            .validate_url(&format!("nfs://{}.com/export", long_hostname))
-            .is_err());
+        assert!(
+            validator
+                .validate_url(&format!("nfs://{}.com/export", long_hostname))
+                .is_err()
+        );
     }
 
     #[test]
@@ -670,21 +692,31 @@ mod tests {
     #[test]
     fn test_validate_mount_path() {
         let validator = create_test_validator();
-        assert!(validator
-            .validate_mount_path(Path::new("/mnt/data"))
-            .is_ok());
-        assert!(validator
-            .validate_mount_path(Path::new("/media/backup"))
-            .is_ok());
-        assert!(validator
-            .validate_mount_path(Path::new("relative/path"))
-            .is_err());
-        assert!(validator
-            .validate_mount_path(Path::new("/mnt/../etc"))
-            .is_err());
-        assert!(validator
-            .validate_mount_path(Path::new("/etc/passwd"))
-            .is_err());
+        assert!(
+            validator
+                .validate_mount_path(Path::new("/mnt/data"))
+                .is_ok()
+        );
+        assert!(
+            validator
+                .validate_mount_path(Path::new("/media/backup"))
+                .is_ok()
+        );
+        assert!(
+            validator
+                .validate_mount_path(Path::new("relative/path"))
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate_mount_path(Path::new("/mnt/../etc"))
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate_mount_path(Path::new("/etc/passwd"))
+                .is_err()
+        );
     }
 
     #[test]
@@ -693,17 +725,21 @@ mod tests {
 
         // Valid paths should pass
         assert!(validator.sanitize_path_component("/export/data").is_ok());
-        assert!(validator
-            .sanitize_path_component("/share/documents")
-            .is_ok());
+        assert!(
+            validator
+                .sanitize_path_component("/share/documents")
+                .is_ok()
+        );
         assert!(validator.sanitize_path_component("/").is_ok());
         assert!(validator.sanitize_path_component("").is_ok());
 
         // Path traversal should be blocked
         assert!(validator.sanitize_path_component("../../../etc").is_err());
-        assert!(validator
-            .sanitize_path_component("data/../../root")
-            .is_err());
+        assert!(
+            validator
+                .sanitize_path_component("data/../../root")
+                .is_err()
+        );
         assert!(validator.sanitize_path_component("path/../etc").is_err());
 
         // Dangerous components should be blocked
@@ -713,29 +749,39 @@ mod tests {
         assert!(validator.sanitize_path_component("/bin/sh").is_err());
 
         // Multiple slashes should be rejected (they create empty segments)
-        assert!(validator
-            .sanitize_path_component("//export//data//")
-            .is_err());
+        assert!(
+            validator
+                .sanitize_path_component("//export//data//")
+                .is_err()
+        );
 
         // Case variations of dangerous components should be blocked
         assert!(validator.sanitize_path_component("/ETC/passwd").is_err());
         assert!(validator.sanitize_path_component("/Root/.SSH").is_err());
-        assert!(validator
-            .sanitize_path_component("/home/.SSH/id_rsa")
-            .is_err());
+        assert!(
+            validator
+                .sanitize_path_component("/home/.SSH/id_rsa")
+                .is_err()
+        );
 
         // Dangerous files with extensions should be blocked
-        assert!(validator
-            .sanitize_path_component("/share/malware.exe")
-            .is_err());
-        assert!(validator
-            .sanitize_path_component("/docs/script.js")
-            .is_err());
+        assert!(
+            validator
+                .sanitize_path_component("/share/malware.exe")
+                .is_err()
+        );
+        assert!(
+            validator
+                .sanitize_path_component("/docs/script.js")
+                .is_err()
+        );
 
         // Development directories should be blocked
         assert!(validator.sanitize_path_component("/project/.git").is_err());
-        assert!(validator
-            .sanitize_path_component("/app/node_modules")
-            .is_err());
+        assert!(
+            validator
+                .sanitize_path_component("/app/node_modules")
+                .is_err()
+        );
     }
 }

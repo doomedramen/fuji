@@ -5,12 +5,12 @@
 //!
 //! Manages mount dependencies and provides ordered startup/shutdown sequences.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use petgraph::{
+    EdgeDirection::{Incoming, Outgoing},
     algo::toposort,
     graph::{DiGraph, NodeIndex},
     visit::EdgeRef,
-    EdgeDirection::{Incoming, Outgoing},
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -39,20 +39,15 @@ pub struct DependencyEdge {
 }
 
 /// Types of dependencies between mounts
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum DependencyType {
     /// Hard dependency - dependent cannot work without this dependency
     Hard,
     /// Soft dependency - dependent prefers this dependency to be available
+    #[default]
     Soft,
     /// Order preference - startup order preference but not required
     Order,
-}
-
-impl Default for DependencyType {
-    fn default() -> Self {
-        DependencyType::Soft
-    }
 }
 
 /// Dependency validation result
@@ -409,7 +404,7 @@ impl DependencyGraph {
 
         for node_index in graph.node_indices() {
             if !visited.contains(&node_index) {
-                if let Some(cycle) = self.dfs_find_cycle(
+                if let Some(cycle) = Self::dfs_find_cycle(
                     &*graph,
                     &reverse_index,
                     node_index,
@@ -426,7 +421,6 @@ impl DependencyGraph {
 
     /// DFS helper to find cycles
     fn dfs_find_cycle(
-        &self,
         graph: &DiGraph<(), DependencyEdge>,
         reverse_index: &HashMap<NodeIndex, String>,
         node: NodeIndex,
@@ -455,7 +449,8 @@ impl DependencyGraph {
 
         // Visit neighbors
         for neighbor in graph.neighbors(node) {
-            if let Some(cycle) = self.dfs_find_cycle(graph, reverse_index, neighbor, visited, stack)
+            if let Some(cycle) =
+                Self::dfs_find_cycle(graph, reverse_index, neighbor, visited, stack)
             {
                 return Some(cycle);
             }
@@ -550,11 +545,13 @@ mod tests {
         );
 
         assert!(graph.add_mount(&config).await.is_ok());
-        assert!(graph
-            .mounts
-            .read()
-            .await
-            .contains_key("example.com_test_share"));
+        assert!(
+            graph
+                .mounts
+                .read()
+                .await
+                .contains_key("example.com_test_share")
+        );
     }
 
     #[tokio::test]
@@ -684,12 +681,16 @@ mod tests {
         assert_eq!(sequence.mounts[0], "example1.com_nfs_share");
 
         // The other two should come after (order between them doesn't matter)
-        assert!(sequence
-            .mounts
-            .contains(&"example2.com_smb_share".to_string()));
-        assert!(sequence
-            .mounts
-            .contains(&"example3.com_nfs_share".to_string()));
+        assert!(
+            sequence
+                .mounts
+                .contains(&"example2.com_smb_share".to_string())
+        );
+        assert!(
+            sequence
+                .mounts
+                .contains(&"example3.com_nfs_share".to_string())
+        );
 
         // Verify that example1.com_nfs_share only appears once
         assert_eq!(

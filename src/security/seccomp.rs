@@ -8,7 +8,7 @@
 //! attack surface. Uses real Linux seccomp system calls when available.
 
 // use crate::error::DaemonError; // Commented out since we don't need it for validation
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 #[cfg(target_os = "linux")]
 use std::collections::HashSet;
@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 use tracing::{debug, info, warn};
 
 #[cfg(target_os = "linux")]
-use libc::{prctl, SYS_seccomp, PR_SET_NO_NEW_PRIVS, SECCOMP_MODE_FILTER, SECCOMP_SET_MODE_FILTER};
+use libc::{PR_SET_NO_NEW_PRIVS, SECCOMP_MODE_FILTER, SECCOMP_SET_MODE_FILTER, SYS_seccomp, prctl};
 
 /// System call numbers for filtering
 #[cfg(target_os = "linux")]

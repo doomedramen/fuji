@@ -7,7 +7,7 @@
 //! for failed operations and reconnection attempts.
 
 use anyhow::Result;
-use backoff::{backoff::Backoff, ExponentialBackoff};
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use chrono;
 use std::collections::HashMap;
 use std::sync::Arc;

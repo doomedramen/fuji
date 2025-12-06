@@ -2,7 +2,7 @@
 
 use super::{MountInfo, Platform, Signal};
 use crate::mount::MountType;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use nix::unistd::{self, Pid};
 use std::fs;
 use std::os::linux::fs::MetadataExt;
@@ -105,7 +105,9 @@ impl Platform for LinuxPlatform {
             "Built-in daemonization not supported. See documentation for proper daemon management."
         );
 
-        Err(anyhow!("Built-in daemonization is not supported. Use nohup, systemd, or other service manager instead."))
+        Err(anyhow!(
+            "Built-in daemonization is not supported. Use nohup, systemd, or other service manager instead."
+        ))
     }
 
     fn write_pid_file(&self, pid_file: &Path) -> Result<()> {
@@ -149,7 +151,7 @@ impl Platform for LinuxPlatform {
     }
 
     fn send_signal(&self, pid: u32, signal: Signal) -> Result<()> {
-        use nix::sys::signal::{kill, Signal as NixSignal};
+        use nix::sys::signal::{Signal as NixSignal, kill};
 
         let nix_signal = match signal {
             Signal::Terminate => NixSignal::SIGTERM,
@@ -181,7 +183,9 @@ impl Platform for LinuxPlatform {
                 cmd.push(format!("{}:{}", host, share));
                 Ok(cmd)
             }
-            MountType::SMB { .. } => Err(anyhow!("SMB/CIFS not yet implemented")),
+            MountType::SMB {
+                ..
+            } => Err(anyhow!("SMB/CIFS not yet implemented")),
         }
     }
 

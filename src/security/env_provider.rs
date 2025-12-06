@@ -6,7 +6,7 @@
 //! Reads credentials from environment variables with the FUJI_MOUNT_ prefix.
 //! Supports both simple format and JSON format for complex credentials.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use serde_json;
 use std::collections::HashMap;

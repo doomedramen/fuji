@@ -22,7 +22,10 @@ pub enum Request {
     },
 
     /// Unmount a share
-    Unmount { mount_id: String, force: bool },
+    Unmount {
+        mount_id: String,
+        force: bool,
+    },
 
     /// Get current status
     Status {
@@ -48,22 +51,34 @@ pub enum Request {
     StopDaemon,
 
     /// Get daemon logs
-    GetLogs { lines: Option<usize> },
+    GetLogs {
+        lines: Option<usize>,
+    },
 
     /// Discover shares on a server
-    Discover { url: String },
+    Discover {
+        url: String,
+    },
 
     /// Enable a mount
-    Enable { mount_id: String },
+    Enable {
+        mount_id: String,
+    },
 
     /// Disable a mount
-    Disable { mount_id: String },
+    Disable {
+        mount_id: String,
+    },
 
     /// Remove a mount completely
-    Remove { mount_id: String },
+    Remove {
+        mount_id: String,
+    },
 
     /// Force reconnection of a mount
-    Remount { mount_id: String },
+    Remount {
+        mount_id: String,
+    },
 
     /// Get configuration
     GetConfig,
@@ -98,13 +113,20 @@ pub enum Response {
     },
 
     /// List of mounts
-    MountList { mounts: Vec<MountConfig> },
+    MountList {
+        mounts: Vec<MountConfig>,
+    },
 
     /// Log lines
-    Logs { lines: Vec<String> },
+    Logs {
+        lines: Vec<String>,
+    },
 
     /// Discovered shares
-    DiscoveredShares { url: String, shares: Vec<String> },
+    DiscoveredShares {
+        url: String,
+        shares: Vec<String>,
+    },
 
     /// Configuration data
     Config {

@@ -3,7 +3,7 @@
 //! Provides functionality for validating mount points, creating directories,
 //! and managing permissions.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use nix::unistd::{getgid, getuid};
 use std::path::Path;
 use tracing::{debug, info, warn};
@@ -349,9 +349,11 @@ mod tests {
         assert!(validator.validate_path(Path::new("mnt/test")).is_err());
 
         // Valid absolute path with subdirectories
-        assert!(validator
-            .validate_path(Path::new("/mnt/fuji/share"))
-            .is_ok());
+        assert!(
+            validator
+                .validate_path(Path::new("/mnt/fuji/share"))
+                .is_ok()
+        );
     }
 
     #[cfg(target_os = "linux")]

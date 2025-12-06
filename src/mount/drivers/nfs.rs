@@ -1,10 +1,10 @@
 //! NFS mount handler implementation
 
 use crate::mount::drivers::{
-    create_secure_mount_command, MountOptionsValidator, MountUrlValidator, SecureCommand,
+    MountOptionsValidator, MountUrlValidator, SecureCommand, create_secure_mount_command,
 };
 use crate::mount::{MountConfig, MountHandler, MountState, MountType};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use std::path::PathBuf;
 use tokio::fs;
@@ -66,7 +66,10 @@ impl MountHandler for NfsHandler {
 
     fn validate_config(&self, config: &MountConfig) -> Result<()> {
         match &config.mount_type {
-            MountType::NFS { host, .. } => {
+            MountType::NFS {
+                host,
+                ..
+            } => {
                 if host.is_empty() {
                     return Err(anyhow!("NFS host cannot be empty"));
                 }

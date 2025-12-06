@@ -5,7 +5,7 @@
 
 use crate::mount::{MountConfig, MountStatus};
 use crate::platform::Platform;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::Duration;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

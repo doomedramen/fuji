@@ -9,7 +9,7 @@
 //!
 //! Features PBKDF2 key derivation (120,000+ iterations) and HKDF-SHA256 for secure local storage.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
@@ -24,10 +24,10 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{debug, info, warn};
 
 use super::{
-    encryption::{create_encryptor, EncryptedData, EncryptionAlgorithm, EncryptionConfig},
     Credential, CredentialProvider,
+    encryption::{EncryptedData, EncryptionAlgorithm, EncryptionConfig, create_encryptor},
 };
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use serde::{Deserialize, Serialize};
 
 /// Number of PBKDF2 iterations - OWASP recommends at least 120,000 for PBKDF2-HMAC-SHA256

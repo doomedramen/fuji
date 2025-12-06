@@ -384,55 +384,63 @@ mod tests {
         let validator = create_test_validator();
 
         // These should be valid
-        assert!(validator
-            .validate_options(
-                "nfs",
-                &vec![
-                    "ro".to_string(),
-                    "hard".to_string(),
-                    "proto=tcp".to_string(),
-                    "vers=4".to_string()
-                ]
-            )
-            .is_ok());
+        assert!(
+            validator
+                .validate_options(
+                    "nfs",
+                    &vec![
+                        "ro".to_string(),
+                        "hard".to_string(),
+                        "proto=tcp".to_string(),
+                        "vers=4".to_string()
+                    ]
+                )
+                .is_ok()
+        );
 
-        assert!(validator
-            .validate_options("nfs", &["defaults".to_string()])
-            .is_ok());
+        assert!(
+            validator
+                .validate_options("nfs", &["defaults".to_string()])
+                .is_ok()
+        );
     }
 
     #[test]
     fn test_valid_smb_options() {
         let validator = create_test_validator();
 
-        assert!(validator
-            .validate_options(
-                "smb",
-                &vec![
-                    "ro".to_string(),
-                    "username=user".to_string(),
-                    "password=pass".to_string(),
-                    "uid=1000".to_string()
-                ]
-            )
-            .is_ok());
+        assert!(
+            validator
+                .validate_options(
+                    "smb",
+                    &vec![
+                        "ro".to_string(),
+                        "username=user".to_string(),
+                        "password=pass".to_string(),
+                        "uid=1000".to_string()
+                    ]
+                )
+                .is_ok()
+        );
     }
 
     #[test]
     fn test_valid_sshfs_options() {
         let validator = create_test_validator();
 
-        assert!(validator
-            .validate_options(
-                "sshfs",
-                &vec![
-                    "allow_other".to_string(),
-                    "uid=1000".to_string(),
-                    "file_mode=0644".to_string(),
-                    "reconnect".to_string()
-                ]
-            )
-            .is_ok());
+        assert!(
+            validator
+                .validate_options(
+                    "sshfs",
+                    &vec![
+                        "allow_other".to_string(),
+                        "uid=1000".to_string(),
+                        "file_mode=0644".to_string(),
+                        "reconnect".to_string()
+                    ]
+                )
+                .is_ok()
+        );
     }
 
     #[test]
@@ -440,12 +448,16 @@ mod tests {
         let validator = create_test_validator();
 
         // These should be rejected
-        assert!(validator
-            .validate_options("nfs", &["exec".to_string()])
-            .is_err());
-        assert!(validator
-            .validate_options("smb", &["suid".to_string()])
-            .is_err());
+        assert!(
+            validator
+                .validate_options("nfs", &["exec".to_string()])
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate_options("smb", &["suid".to_string()])
+                .is_err()
+        );
         // x-gvfs-show should now be allowed since it starts with x-
     }
 
@@ -454,14 +466,18 @@ mod tests {
         let validator = create_test_validator();
 
         // Custom option should be allowed
-        assert!(validator
-            .validate_options("nfs", &["test-option=value".to_string()])
-            .is_ok());
+        assert!(
+            validator
+                .validate_options("nfs", &["test-option=value".to_string()])
+                .is_ok()
+        );
 
         // X- options should be allowed
-        assert!(validator
-            .validate_options("nfs", &["x-custom=value".to_string()])
-            .is_ok());
+        assert!(
+            validator
+                .validate_options("nfs", &["x-custom=value".to_string()])
+                .is_ok()
+        );
     }
 
     #[test]
@@ -528,20 +544,28 @@ mod tests {
         let validator = create_test_validator();
 
         // Valid UIDs/GIDs
-        assert!(validator
-            .validate_options("smb", &["uid=1000".to_string()])
-            .is_ok());
-        assert!(validator
-            .validate_options("smb", &["gid=1000".to_string()])
-            .is_ok());
+        assert!(
+            validator
+                .validate_options("smb", &["uid=1000".to_string()])
+                .is_ok()
+        );
+        assert!(
+            validator
+                .validate_options("smb", &["gid=1000".to_string()])
+                .is_ok()
+        );
 
         // Invalid UIDs/GIDs
-        assert!(validator
-            .validate_options("smb", &["uid=abc".to_string()])
-            .is_err());
-        assert!(validator
-            .validate_options("smb", &["uid=-1".to_string()])
-            .is_err());
+        assert!(
+            validator
+                .validate_options("smb", &["uid=abc".to_string()])
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate_options("smb", &["uid=-1".to_string()])
+                .is_err()
+        );
     }
 
     #[test]
@@ -549,19 +573,27 @@ mod tests {
         let validator = create_test_validator();
 
         // Valid modes
-        assert!(validator
-            .validate_options("sshfs", &["file_mode=0644".to_string()])
-            .is_ok());
-        assert!(validator
-            .validate_options("sshfs", &["dir_mode=0755".to_string()])
-            .is_ok());
+        assert!(
+            validator
+                .validate_options("sshfs", &["file_mode=0644".to_string()])
+                .is_ok()
+        );
+        assert!(
+            validator
+                .validate_options("sshfs", &["dir_mode=0755".to_string()])
+                .is_ok()
+        );
 
         // Invalid modes
-        assert!(validator
-            .validate_options("sshfs", &["file_mode=7777".to_string()])
-            .is_err());
-        assert!(validator
-            .validate_options("sshfs", &["file_mode=abc".to_string()])
-            .is_err());
+        assert!(
+            validator
+                .validate_options("sshfs", &["file_mode=7777".to_string()])
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate_options("sshfs", &["file_mode=abc".to_string()])
+                .is_err()
+        );
     }
 }

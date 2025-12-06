@@ -3,7 +3,7 @@
 //! The daemon handles all mount operations, monitoring, and reconnection logic.
 
 use crate::config::Config;
-use crate::mount::{get_mount_handler, MountConfig, MountState, MountStatus};
+use crate::mount::{MountConfig, MountState, MountStatus, get_mount_handler};
 use crate::platform::Platform;
 use crate::security::path_security::{
     IntegrityStatus, PathSecurityEvent, PathSecurityValidator, SecurityProfile,
@@ -11,15 +11,15 @@ use crate::security::path_security::{
 use crate::security::resource_limits::ResourceLimitsManager;
 use crate::socket::protocol::DaemonHealthInfo;
 use crate::socket::{MountStatusInfo, Request, Response, SocketServer};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use regex;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::{oneshot, RwLock};
-use tokio::time::{interval, Duration};
+use tokio::sync::{RwLock, oneshot};
+use tokio::time::{Duration, interval};
 use tracing::{error, info, warn};
 
 lazy_static::lazy_static! {
@@ -316,9 +316,10 @@ async fn handle_request(
             .await
         }
 
-        Request::Unmount { mount_id, force } => {
-            handle_unmount_request(mount_id, force, config).await
-        }
+        Request::Unmount {
+            mount_id,
+            force,
+        } => handle_unmount_request(mount_id, force, config).await,
 
         Request::Status {
             verbose,
@@ -364,20 +365,34 @@ async fn handle_request(
 
         Request::StopDaemon => Response::Success,
 
-        Request::GetLogs { lines: _ } => {
+        Request::GetLogs {
+            lines: _,
+        } => {
             // TODO: Implement log retrieval
-            Response::Logs { lines: vec![] }
+            Response::Logs {
+                lines: vec![],
+            }
         }
 
-        Request::Discover { url } => handle_discover_request(url).await,
+        Request::Discover {
+            url,
+        } => handle_discover_request(url).await,
 
-        Request::Enable { mount_id } => handle_enable_request(mount_id, config).await,
+        Request::Enable {
+            mount_id,
+        } => handle_enable_request(mount_id, config).await,
 
-        Request::Disable { mount_id } => handle_disable_request(mount_id, config).await,
+        Request::Disable {
+            mount_id,
+        } => handle_disable_request(mount_id, config).await,
 
-        Request::Remove { mount_id } => handle_remove_request(mount_id, config).await,
+        Request::Remove {
+            mount_id,
+        } => handle_remove_request(mount_id, config).await,
 
-        Request::Remount { mount_id } => handle_remount_request(mount_id, config).await,
+        Request::Remount {
+            mount_id,
+        } => handle_remount_request(mount_id, config).await,
 
         Request::GetConfig => handle_get_config_request(config).await,
 
@@ -709,8 +724,12 @@ async fn handle_status_request(params: StatusRequestParams) -> Response {
 
         if let Some(ref filter_type) = params.filter_type {
             let mount_type_str = match &mount.mount_type {
-                crate::mount::MountType::NFS { .. } => "nfs",
-                crate::mount::MountType::SMB { .. } => "smb",
+                crate::mount::MountType::NFS {
+                    ..
+                } => "nfs",
+                crate::mount::MountType::SMB {
+                    ..
+                } => "smb",
             };
             if !filter_type.eq_ignore_ascii_case(mount_type_str) {
                 continue;
@@ -826,8 +845,12 @@ async fn handle_list_request(
             // Apply type filter
             if let Some(ref filter_type) = filter_type {
                 let mount_type_str = match &m.mount_type {
-                    crate::mount::MountType::NFS { .. } => "nfs",
-                    crate::mount::MountType::SMB { .. } => "smb",
+                    crate::mount::MountType::NFS {
+                        ..
+                    } => "nfs",
+                    crate::mount::MountType::SMB {
+                        ..
+                    } => "smb",
                 };
                 filter_type.eq_ignore_ascii_case(mount_type_str)
             } else {
@@ -853,7 +876,9 @@ async fn handle_list_request(
         .cloned()
         .collect();
 
-    Response::MountList { mounts }
+    Response::MountList {
+        mounts,
+    }
 }
 
 /// Handle discover request
@@ -870,12 +895,21 @@ async fn handle_discover_request(url: String) -> Response {
     };
 
     let host = match parsed {
-        crate::mount::MountType::NFS { host, .. } => host,
-        crate::mount::MountType::SMB { host, .. } => host,
+        crate::mount::MountType::NFS {
+            host,
+            ..
+        } => host,
+        crate::mount::MountType::SMB {
+            host,
+            ..
+        } => host,
     };
 
     match handler.discover_shares(&host).await {
-        Ok(shares) => Response::DiscoveredShares { url, shares },
+        Ok(shares) => Response::DiscoveredShares {
+            url,
+            shares,
+        },
         Err(e) => Response::Error(e.to_string()),
     }
 }
@@ -970,7 +1004,9 @@ async fn handle_remount_request(mount_id: String, config: Arc<RwLock<Config>>) -
 async fn handle_get_config_request(config: Arc<RwLock<Config>>) -> Response {
     let cfg = config.read().await;
     match toml::to_string_pretty(&*cfg) {
-        Ok(s) => Response::Config { config: s },
+        Ok(s) => Response::Config {
+            config: s,
+        },
         Err(e) => Response::Error(format!("Failed to serialize config: {}", e)),
     }
 }

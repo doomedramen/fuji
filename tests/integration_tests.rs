@@ -152,7 +152,7 @@ async fn test_daemon_lifecycle() -> Result<()> {
     // Send SIGTERM
     #[cfg(unix)]
     {
-        use nix::sys::signal::{kill, Signal};
+        use nix::sys::signal::{Signal, kill};
         use nix::unistd::Pid;
         kill(Pid::from_raw(child.id() as i32), Signal::SIGTERM)?;
     }

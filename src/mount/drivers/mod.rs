@@ -14,7 +14,7 @@ pub mod validation;
 pub use allowlist::MountCommandsAllowlist;
 pub use nfs::NfsHandler;
 pub use options::MountOptionsValidator;
-pub use secure_command::{create_secure_mount_command, SecureCommand};
+pub use secure_command::{SecureCommand, create_secure_mount_command};
 pub use smb::SmbHandler;
 pub use sshfs::SshfsHandler;
 pub use validation::MountUrlValidator;

@@ -6,7 +6,7 @@
 //! This module provides comprehensive process isolation using Linux namespaces
 //! and privilege separation techniques to enhance security.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::fs;
 #[cfg(target_os = "linux")]
 use std::os::unix::fs::PermissionsExt;
@@ -29,7 +29,7 @@ use libc::{c_int, sethostname};
 use nix::unistd::{chroot, setgid, setuid};
 
 #[cfg(target_os = "linux")]
-use nix::sched::{clone, CloneFlags};
+use nix::sched::{CloneFlags, clone};
 
 /// Namespace isolation configuration
 #[derive(Debug, Clone)]

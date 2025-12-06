@@ -3,11 +3,11 @@
 //! This module provides basic monitoring of audit events and simple pattern detection.
 //! It focuses on core functionality without complex dependencies.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc};
 use tracing::{error, info, warn};
 
 use crate::security::audit_logging::{AuditEvent, AuditEventType, AuditOutcome, AuditSeverity};

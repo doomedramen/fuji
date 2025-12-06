@@ -6,10 +6,10 @@
 //! This module provides hardware-backed key storage, key rotation,
 //! and advanced cryptographic operations for secure credential management.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chacha20poly1305::ChaCha20Poly1305;
 use pbkdf2::pbkdf2_hmac;
-use rand::{rngs::OsRng, RngCore};
+use rand::{RngCore, rngs::OsRng};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::collections::HashMap;
@@ -536,28 +536,32 @@ mod tests {
         let _policy = SecurityPolicy::default();
 
         // Valid password
-        assert!(HardwareCredentialProvider::new(Arc::new(SoftwareHSM {
-            key_store: Arc::new(RwLock::new(HashMap::new())),
-            master_key: Arc::new(RwLock::new(None)),
-            key_store_path: PathBuf::from("/tmp/test"),
-            encryptor: ChaCha20Poly1305Encryptor {
-                cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32]))
-            },
-        }))
-        .validate_password("SecurePass123!")
-        .is_ok());
+        assert!(
+            HardwareCredentialProvider::new(Arc::new(SoftwareHSM {
+                key_store: Arc::new(RwLock::new(HashMap::new())),
+                master_key: Arc::new(RwLock::new(None)),
+                key_store_path: PathBuf::from("/tmp/test"),
+                encryptor: ChaCha20Poly1305Encryptor {
+                    cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32]))
+                },
+            }))
+            .validate_password("SecurePass123!")
+            .is_ok()
+        );
 
         // Too short
-        assert!(HardwareCredentialProvider::new(Arc::new(SoftwareHSM {
-            key_store: Arc::new(RwLock::new(HashMap::new())),
-            master_key: Arc::new(RwLock::new(None)),
-            key_store_path: PathBuf::from("/tmp/test"),
-            encryptor: ChaCha20Poly1305Encryptor {
-                cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32]))
-            },
-        }))
-        .validate_password("short")
-        .is_err());
+        assert!(
+            HardwareCredentialProvider::new(Arc::new(SoftwareHSM {
+                key_store: Arc::new(RwLock::new(HashMap::new())),
+                master_key: Arc::new(RwLock::new(None)),
+                key_store_path: PathBuf::from("/tmp/test"),
+                encryptor: ChaCha20Poly1305Encryptor {
+                    cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32]))
+                },
+            }))
+            .validate_password("short")
+            .is_err()
+        );
     }
 
     #[test]

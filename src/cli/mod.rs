@@ -2,10 +2,10 @@
 
 use crate::platform::Platform;
 use crate::socket::{Request, Response, SocketClient};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 use std::path::Path;
 use std::process;
@@ -261,9 +261,10 @@ pub async fn run(cli: Cli, platform: Box<dyn Platform>) -> Result<()> {
             )
             .await
         }
-        Commands::Unmount { mount_id, force } => {
-            handle_unmount(mount_id, force, platform.as_ref()).await
-        }
+        Commands::Unmount {
+            mount_id,
+            force,
+        } => handle_unmount(mount_id, force, platform.as_ref()).await,
         Commands::Status {
             verbose,
             watch,
@@ -304,13 +305,27 @@ pub async fn run(cli: Cli, platform: Box<dyn Platform>) -> Result<()> {
             )
             .await
         }
-        Commands::Daemon { command } => handle_daemon(command, platform).await,
-        Commands::Discover { url } => handle_discover(url, platform.as_ref()).await,
-        Commands::Enable { mount_id } => handle_enable(mount_id, platform.as_ref()).await,
-        Commands::Disable { mount_id } => handle_disable(mount_id, platform.as_ref()).await,
-        Commands::Remove { mount_id } => handle_remove(mount_id, platform.as_ref()).await,
-        Commands::Remount { mount_id } => handle_remount(mount_id, platform.as_ref()).await,
-        Commands::Config { command } => handle_config(command, platform.as_ref()).await,
+        Commands::Daemon {
+            command,
+        } => handle_daemon(command, platform).await,
+        Commands::Discover {
+            url,
+        } => handle_discover(url, platform.as_ref()).await,
+        Commands::Enable {
+            mount_id,
+        } => handle_enable(mount_id, platform.as_ref()).await,
+        Commands::Disable {
+            mount_id,
+        } => handle_disable(mount_id, platform.as_ref()).await,
+        Commands::Remove {
+            mount_id,
+        } => handle_remove(mount_id, platform.as_ref()).await,
+        Commands::Remount {
+            mount_id,
+        } => handle_remount(mount_id, platform.as_ref()).await,
+        Commands::Config {
+            command,
+        } => handle_config(command, platform.as_ref()).await,
         Commands::Doctor => handle_doctor(platform.as_ref()).await,
         Commands::Batch {
             file,
@@ -373,7 +388,10 @@ async fn handle_mount(
 /// Handle unmount command
 async fn handle_unmount(mount_id: String, force: bool, platform: &dyn Platform) -> Result<()> {
     let mount_id_display = mount_id.clone();
-    let request = Request::Unmount { mount_id, force };
+    let request = Request::Unmount {
+        mount_id,
+        force,
+    };
 
     let client = create_socket_client(platform).await?;
     let response = client.send_request(request).await;
@@ -602,7 +620,9 @@ async fn handle_list(
     let response = client.send_request(request).await;
 
     match response {
-        Ok(Response::MountList { mounts }) => {
+        Ok(Response::MountList {
+            mounts,
+        }) => {
             if mounts.is_empty() {
                 println!("No mounts found");
                 return Ok(());
@@ -636,7 +656,9 @@ async fn handle_list(
 /// Handle daemon command
 async fn handle_daemon(command: DaemonCommand, platform: Box<dyn Platform>) -> Result<()> {
     match command {
-        DaemonCommand::Start { no_automount } => {
+        DaemonCommand::Start {
+            no_automount,
+        } => {
             // Start the daemon directly (not through socket)
             let mut daemon = crate::daemon::Daemon::new(platform).await?;
             daemon.start(None, false, no_automount).await
@@ -658,12 +680,20 @@ async fn handle_daemon(command: DaemonCommand, platform: Box<dyn Platform>) -> R
                 Err(e) => Err(e),
             }
         }
-        DaemonCommand::Logs { lines } => {
+        DaemonCommand::Logs {
+            lines,
+        } => {
             let client = create_socket_client(platform.as_ref()).await?;
-            let response = client.send_request(Request::GetLogs { lines }).await;
+            let response = client
+                .send_request(Request::GetLogs {
+                    lines,
+                })
+                .await;
 
             match response {
-                Ok(Response::Logs { lines: log_lines }) => {
+                Ok(Response::Logs {
+                    lines: log_lines,
+                }) => {
                     for line in log_lines {
                         println!("{}", line);
                     }
@@ -683,10 +713,17 @@ async fn handle_daemon(command: DaemonCommand, platform: Box<dyn Platform>) -> R
 /// Handle discover command
 async fn handle_discover(url: String, platform: &dyn Platform) -> Result<()> {
     let client = create_socket_client(platform).await?;
-    let response = client.send_request(Request::Discover { url }).await;
+    let response = client
+        .send_request(Request::Discover {
+            url,
+        })
+        .await;
 
     match response {
-        Ok(Response::DiscoveredShares { url, shares }) => {
+        Ok(Response::DiscoveredShares {
+            url,
+            shares,
+        }) => {
             println!("Available shares on {}:", url);
             if shares.is_empty() {
                 println!("  No shares found");
@@ -709,7 +746,11 @@ async fn handle_discover(url: String, platform: &dyn Platform) -> Result<()> {
 /// Handle enable command
 async fn handle_enable(mount_id: String, platform: &dyn Platform) -> Result<()> {
     let client = create_socket_client(platform).await?;
-    let response = client.send_request(Request::Enable { mount_id }).await;
+    let response = client
+        .send_request(Request::Enable {
+            mount_id,
+        })
+        .await;
 
     match response {
         Ok(Response::Success) => {
@@ -728,7 +769,11 @@ async fn handle_enable(mount_id: String, platform: &dyn Platform) -> Result<()> 
 /// Handle disable command
 async fn handle_disable(mount_id: String, platform: &dyn Platform) -> Result<()> {
     let client = create_socket_client(platform).await?;
-    let response = client.send_request(Request::Disable { mount_id }).await;
+    let response = client
+        .send_request(Request::Disable {
+            mount_id,
+        })
+        .await;
 
     match response {
         Ok(Response::Success) => {
@@ -747,7 +792,11 @@ async fn handle_disable(mount_id: String, platform: &dyn Platform) -> Result<()>
 /// Handle remove command
 async fn handle_remove(mount_id: String, platform: &dyn Platform) -> Result<()> {
     let client = create_socket_client(platform).await?;
-    let response = client.send_request(Request::Remove { mount_id }).await;
+    let response = client
+        .send_request(Request::Remove {
+            mount_id,
+        })
+        .await;
 
     match response {
         Ok(Response::Success) => {
@@ -766,7 +815,11 @@ async fn handle_remove(mount_id: String, platform: &dyn Platform) -> Result<()> 
 /// Handle remount command
 async fn handle_remount(mount_id: String, platform: &dyn Platform) -> Result<()> {
     let client = create_socket_client(platform).await?;
-    let response = client.send_request(Request::Remount { mount_id }).await;
+    let response = client
+        .send_request(Request::Remount {
+            mount_id,
+        })
+        .await;
 
     match response {
         Ok(Response::Success) => {
@@ -785,12 +838,16 @@ async fn handle_remount(mount_id: String, platform: &dyn Platform) -> Result<()>
 /// Handle config command
 async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Result<()> {
     match command {
-        ConfigCommand::Show { json } => {
+        ConfigCommand::Show {
+            json,
+        } => {
             let client = create_socket_client(platform).await?;
             let response = client.send_request(Request::GetConfig).await;
 
             match response {
-                Ok(Response::Config { config }) => {
+                Ok(Response::Config {
+                    config,
+                }) => {
                     if json {
                         // Parse TOML and convert to JSON
                         let parsed: toml::Value = toml::from_str(&config)
@@ -810,12 +867,17 @@ async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Resul
             }
         }
 
-        ConfigCommand::Get { key, json } => {
+        ConfigCommand::Get {
+            key,
+            json,
+        } => {
             let client = create_socket_client(platform).await?;
             let response = client.send_request(Request::GetConfig).await;
 
             match response {
-                Ok(Response::Config { config }) => {
+                Ok(Response::Config {
+                    config,
+                }) => {
                     let parsed: toml::Value = toml::from_str(&config)
                         .map_err(|e| anyhow!("Failed to parse config: {}", e))?;
 
@@ -838,7 +900,10 @@ async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Resul
             }
         }
 
-        ConfigCommand::Set { key, value } => {
+        ConfigCommand::Set {
+            key,
+            value,
+        } => {
             // Parse the value to determine its type
             let parsed_value = if value.to_lowercase() == "true" {
                 Value::Bool(true)
@@ -860,12 +925,16 @@ async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Resul
             Ok(())
         }
 
-        ConfigCommand::List { json } => {
+        ConfigCommand::List {
+            json,
+        } => {
             let client = create_socket_client(platform).await?;
             let response = client.send_request(Request::GetConfig).await;
 
             match response {
-                Ok(Response::Config { config }) => {
+                Ok(Response::Config {
+                    config,
+                }) => {
                     let parsed: toml::Value = toml::from_str(&config)
                         .map_err(|e| anyhow!("Failed to parse config: {}", e))?;
 
@@ -890,7 +959,9 @@ async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Resul
             }
         }
 
-        ConfigCommand::Reset { force } => {
+        ConfigCommand::Reset {
+            force,
+        } => {
             if !force {
                 println!("This will reset all configuration to defaults. Are you sure? [y/N]");
                 let mut input = String::new();
@@ -1116,9 +1187,13 @@ pub enum BatchOperation {
         mount_id: String,
     },
     /// Wait for specified seconds
-    Wait { seconds: u64 },
+    Wait {
+        seconds: u64,
+    },
     /// Print a message
-    Echo { message: String },
+    Echo {
+        message: String,
+    },
 }
 
 /// Handle batch command
@@ -1195,24 +1270,29 @@ async fn handle_batch(
                 )
                 .await
             }
-            BatchOperation::Unmount { mount_id, force } => {
-                handle_unmount(mount_id.clone(), *force, platform.as_ref()).await
-            }
-            BatchOperation::Enable { mount_id } => {
-                handle_enable(mount_id.clone(), platform.as_ref()).await
-            }
-            BatchOperation::Disable { mount_id } => {
-                handle_disable(mount_id.clone(), platform.as_ref()).await
-            }
-            BatchOperation::Remove { mount_id } => {
-                handle_remove(mount_id.clone(), platform.as_ref()).await
-            }
-            BatchOperation::Wait { seconds } => {
+            BatchOperation::Unmount {
+                mount_id,
+                force,
+            } => handle_unmount(mount_id.clone(), *force, platform.as_ref()).await,
+            BatchOperation::Enable {
+                mount_id,
+            } => handle_enable(mount_id.clone(), platform.as_ref()).await,
+            BatchOperation::Disable {
+                mount_id,
+            } => handle_disable(mount_id.clone(), platform.as_ref()).await,
+            BatchOperation::Remove {
+                mount_id,
+            } => handle_remove(mount_id.clone(), platform.as_ref()).await,
+            BatchOperation::Wait {
+                seconds,
+            } => {
                 println!("  Waiting {} seconds...", seconds);
                 tokio::time::sleep(tokio::time::Duration::from_secs(*seconds)).await;
                 Ok(())
             }
-            BatchOperation::Echo { message } => {
+            BatchOperation::Echo {
+                message,
+            } => {
                 println!("  {}", message);
                 Ok(())
             }

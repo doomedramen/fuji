@@ -11,14 +11,14 @@
 //! - Secure boot and measurement validation
 //! - Control flow integrity verification
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc};
 use tokio::time::interval;
 use tracing::{debug, error, info, instrument, warn};
 
@@ -990,7 +990,7 @@ pub mod control_flow_integrity {
 /// Memory protection and isolation
 pub mod memory_protection {
     use super::*;
-    use nix::sys::mman::{mprotect, ProtFlags};
+    use nix::sys::mman::{ProtFlags, mprotect};
 
     /// Memory protector
     pub struct MemoryProtector {
@@ -1184,7 +1184,11 @@ mod tests {
         assert_eq!(violation.severity, ViolationSeverity::High);
         assert_eq!(violation.status, ViolationStatus::New);
 
-        if let IntegrityViolationType::DataCorruption { file_path, .. } = violation.violation_type {
+        if let IntegrityViolationType::DataCorruption {
+            file_path,
+            ..
+        } = violation.violation_type
+        {
             assert_eq!(file_path, PathBuf::from("/test/file"));
         } else {
             panic!("Expected DataCorruption violation type");

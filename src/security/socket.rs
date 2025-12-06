@@ -5,7 +5,7 @@
 //!
 //! Manages Unix domain socket creation with proper permissions and ownership.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use libc::{chmod, chown, gid_t, uid_t};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;

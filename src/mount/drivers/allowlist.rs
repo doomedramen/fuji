@@ -7,7 +7,7 @@
 //! to ensure only approved commands and options can be executed, preventing command
 //! injection vulnerabilities.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{debug, trace, warn};
@@ -702,17 +702,19 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Valid mount command
-        assert!(allowlist
-            .validate_command(
-                "mount",
-                &[
-                    "-t".to_string(),
-                    "nfs".to_string(),
-                    "server:/export".to_string(),
-                    "/mnt/nfs".to_string()
-                ]
-            )
-            .is_ok());
+        assert!(
+            allowlist
+                .validate_command(
+                    "mount",
+                    &[
+                        "-t".to_string(),
+                        "nfs".to_string(),
+                        "server:/export".to_string(),
+                        "/mnt/nfs".to_string()
+                    ]
+                )
+                .is_ok()
+        );
     }
 
     #[test]
@@ -720,30 +722,34 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Valid sshfs command - typical format
-        assert!(allowlist
-            .validate_command(
-                "sshfs",
-                &[
-                    "user@server:/path".to_string(),
-                    "/mnt/sshfs".to_string(),
-                    "-o".to_string(),
-                    "allow_other".to_string()
-                ]
-            )
-            .is_ok());
+        assert!(
+            allowlist
+                .validate_command(
+                    "sshfs",
+                    &[
+                        "user@server:/path".to_string(),
+                        "/mnt/sshfs".to_string(),
+                        "-o".to_string(),
+                        "allow_other".to_string()
+                    ]
+                )
+                .is_ok()
+        );
 
         // Also test compound option format
-        assert!(allowlist
-            .validate_command(
-                "sshfs",
-                &[
-                    "user@server:/path".to_string(),
-                    "/mnt/sshfs".to_string(),
-                    "-o".to_string(),
-                    "allow_other,reconnect".to_string()
-                ]
-            )
-            .is_ok());
+        assert!(
+            allowlist
+                .validate_command(
+                    "sshfs",
+                    &[
+                        "user@server:/path".to_string(),
+                        "/mnt/sshfs".to_string(),
+                        "-o".to_string(),
+                        "allow_other,reconnect".to_string()
+                    ]
+                )
+                .is_ok()
+        );
     }
 
     #[test]
@@ -751,9 +757,11 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Blocked command
-        assert!(allowlist
-            .validate_command("rm", &["-rf".to_string(), "/".to_string()])
-            .is_err());
+        assert!(
+            allowlist
+                .validate_command("rm", &["-rf".to_string(), "/".to_string()])
+                .is_err()
+        );
     }
 
     #[test]
@@ -761,17 +769,19 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Command injection attempt
-        assert!(allowlist
-            .validate_command(
-                "mount",
-                &[
-                    "-t".to_string(),
-                    "nfs".to_string(),
-                    "server:/export; rm -rf /".to_string(),
-                    "/mnt/nfs".to_string()
-                ]
-            )
-            .is_err());
+        assert!(
+            allowlist
+                .validate_command(
+                    "mount",
+                    &[
+                        "-t".to_string(),
+                        "nfs".to_string(),
+                        "server:/export; rm -rf /".to_string(),
+                        "/mnt/nfs".to_string()
+                    ]
+                )
+                .is_err()
+        );
     }
 
     #[test]
@@ -788,16 +798,18 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Invalid option
-        assert!(allowlist
-            .validate_command(
-                "mount",
-                &[
-                    "--invalid-option".to_string(),
-                    "server:/export".to_string(),
-                    "/mnt/nfs".to_string()
-                ]
-            )
-            .is_err());
+        assert!(
+            allowlist
+                .validate_command(
+                    "mount",
+                    &[
+                        "--invalid-option".to_string(),
+                        "server:/export".to_string(),
+                        "/mnt/nfs".to_string()
+                    ]
+                )
+                .is_err()
+        );
     }
 
     #[test]
@@ -816,9 +828,11 @@ mod tests {
         };
 
         assert!(allowlist.add_command(custom_cmd).is_ok());
-        assert!(allowlist
-            .validate_command("test-mount", &["-o".to_string(), "test".to_string()])
-            .is_ok());
+        assert!(
+            allowlist
+                .validate_command("test-mount", &["-o".to_string(), "test".to_string()])
+                .is_ok()
+        );
     }
 
     #[test]
@@ -856,30 +870,34 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Invalid port number for sshfs
-        assert!(allowlist
-            .validate_command(
-                "sshfs",
-                &[
-                    "user@server:/path".to_string(),
-                    "/mnt/sshfs".to_string(),
-                    "-p".to_string(),
-                    "invalid_port".to_string()
-                ]
-            )
-            .is_err());
+        assert!(
+            allowlist
+                .validate_command(
+                    "sshfs",
+                    &[
+                        "user@server:/path".to_string(),
+                        "/mnt/sshfs".to_string(),
+                        "-p".to_string(),
+                        "invalid_port".to_string()
+                    ]
+                )
+                .is_err()
+        );
 
         // Valid port number
-        assert!(allowlist
-            .validate_command(
-                "sshfs",
-                &[
-                    "user@server:/path".to_string(),
-                    "/mnt/sshfs".to_string(),
-                    "-p".to_string(),
-                    "22".to_string()
-                ]
-            )
-            .is_ok());
+        assert!(
+            allowlist
+                .validate_command(
+                    "sshfs",
+                    &[
+                        "user@server:/path".to_string(),
+                        "/mnt/sshfs".to_string(),
+                        "-p".to_string(),
+                        "22".to_string()
+                    ]
+                )
+                .is_ok()
+        );
     }
 
     #[test]
@@ -887,42 +905,48 @@ mod tests {
         let allowlist = create_test_allowlist();
 
         // Valid paths
-        assert!(allowlist
-            .validate_command(
-                "mount",
-                &[
-                    "-t".to_string(),
-                    "nfs".to_string(),
-                    "server:/export/path".to_string(),
-                    "/mnt/nfs".to_string()
-                ]
-            )
-            .is_ok());
+        assert!(
+            allowlist
+                .validate_command(
+                    "mount",
+                    &[
+                        "-t".to_string(),
+                        "nfs".to_string(),
+                        "server:/export/path".to_string(),
+                        "/mnt/nfs".to_string()
+                    ]
+                )
+                .is_ok()
+        );
 
         // Path with dangerous characters
-        assert!(allowlist
-            .validate_command(
-                "mount",
-                &[
-                    "-t".to_string(),
-                    "nfs".to_string(),
-                    "server:/export;rm -rf /".to_string(),
-                    "/mnt/nfs".to_string()
-                ]
-            )
-            .is_err());
+        assert!(
+            allowlist
+                .validate_command(
+                    "mount",
+                    &[
+                        "-t".to_string(),
+                        "nfs".to_string(),
+                        "server:/export;rm -rf /".to_string(),
+                        "/mnt/nfs".to_string()
+                    ]
+                )
+                .is_err()
+        );
 
         // Path traversal
-        assert!(allowlist
-            .validate_command(
-                "mount",
-                &[
-                    "-t".to_string(),
-                    "nfs".to_string(),
-                    "server:/export".to_string(),
-                    "/mnt/../etc".to_string()
-                ]
-            )
-            .is_err());
+        assert!(
+            allowlist
+                .validate_command(
+                    "mount",
+                    &[
+                        "-t".to_string(),
+                        "nfs".to_string(),
+                        "server:/export".to_string(),
+                        "/mnt/../etc".to_string()
+                    ]
+                )
+                .is_err()
+        );
     }
 }

@@ -4,8 +4,8 @@
 //! supporting multiple backup strategies including encrypted local storage,
 //! remote backup services, and recovery key generation.
 
-use anyhow::{anyhow, Result};
-use base64::{engine::general_purpose, Engine as _};
+use anyhow::{Result, anyhow};
+use base64::{Engine as _, engine::general_purpose};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -17,14 +17,16 @@ use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 // Import encryption types and credential types
-use super::encryption::{create_encryptor, EncryptedData, EncryptionAlgorithm};
+use super::encryption::{EncryptedData, EncryptionAlgorithm, create_encryptor};
 use super::hardware_credential_provider::EnhancedCredential;
 
 /// Backup strategy for credential storage
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BackupStrategy {
     /// Local encrypted file backup
-    LocalEncrypted { path: PathBuf },
+    LocalEncrypted {
+        path: PathBuf,
+    },
     /// Remote backup service
     RemoteService {
         endpoint: String,
@@ -154,7 +156,9 @@ impl CredentialBackupManager {
 
         // Store backup based on strategy
         let backup_size = match &backup_strategy {
-            BackupStrategy::LocalEncrypted { path } => {
+            BackupStrategy::LocalEncrypted {
+                path,
+            } => {
                 self.store_local_encrypted_backup(path, &backup_id, &encrypted_data)
                     .await?
             }
@@ -242,7 +246,9 @@ impl CredentialBackupManager {
 
         // Retrieve encrypted backup data
         let encrypted_data = match &metadata.strategy {
-            BackupStrategy::LocalEncrypted { path } => {
+            BackupStrategy::LocalEncrypted {
+                path,
+            } => {
                 self.retrieve_local_encrypted_backup(path, backup_id)
                     .await?
             }
@@ -394,7 +400,9 @@ impl CredentialBackupManager {
 
         // Delete backup data based on strategy
         match &metadata.strategy {
-            BackupStrategy::LocalEncrypted { path } => {
+            BackupStrategy::LocalEncrypted {
+                path,
+            } => {
                 self.delete_local_encrypted_backup(path, backup_id).await?;
             }
             BackupStrategy::RemoteService {
@@ -444,7 +452,9 @@ impl CredentialBackupManager {
 
         // Retrieve backup data
         let encrypted_data = match &metadata.strategy {
-            BackupStrategy::LocalEncrypted { path } => {
+            BackupStrategy::LocalEncrypted {
+                path,
+            } => {
                 self.retrieve_local_encrypted_backup(path, backup_id)
                     .await?
             }
@@ -499,19 +509,30 @@ impl CredentialBackupManager {
 
     async fn get_backup_encryption_key(&self, strategy: &BackupStrategy) -> Result<Vec<u8>> {
         match strategy {
-            BackupStrategy::LocalEncrypted { .. } => {
+            BackupStrategy::LocalEncrypted {
+                ..
+            } => {
                 // Derive key from system-specific data
                 self.derive_system_key()
             }
-            BackupStrategy::RemoteService { auth_token, .. } => {
+            BackupStrategy::RemoteService {
+                auth_token,
+                ..
+            } => {
                 // Derive key from auth token
                 self.derive_key_from_token(auth_token)
             }
-            BackupStrategy::CloudStorage { credentials, .. } => {
+            BackupStrategy::CloudStorage {
+                credentials,
+                ..
+            } => {
                 // Derive key from cloud credentials
                 self.derive_key_from_token(credentials)
             }
-            BackupStrategy::RecoveryKey { key_id, .. } => {
+            BackupStrategy::RecoveryKey {
+                key_id,
+                ..
+            } => {
                 // Get recovery key
                 let recovery_key_store = self.recovery_keys.read().await;
                 if let Some(recovery_key) = recovery_key_store.get(key_id) {
@@ -538,12 +559,22 @@ impl CredentialBackupManager {
         // Group backups by strategy
         for (backup_id, metadata) in metadata_store.iter() {
             let strategy_key = match &metadata.strategy {
-                BackupStrategy::LocalEncrypted { path } => format!("local:{}", path.display()),
-                BackupStrategy::RemoteService { endpoint, .. } => format!("remote:{}", endpoint),
+                BackupStrategy::LocalEncrypted {
+                    path,
+                } => format!("local:{}", path.display()),
+                BackupStrategy::RemoteService {
+                    endpoint,
+                    ..
+                } => format!("remote:{}", endpoint),
                 BackupStrategy::CloudStorage {
-                    provider, bucket, ..
+                    provider,
+                    bucket,
+                    ..
                 } => format!("cloud:{}:{}", provider, bucket),
-                BackupStrategy::RecoveryKey { key_id, .. } => format!("recovery:{}", key_id),
+                BackupStrategy::RecoveryKey {
+                    key_id,
+                    ..
+                } => format!("recovery:{}", key_id),
             };
 
             backups_by_strategy
@@ -775,8 +806,8 @@ impl CredentialBackupManager {
 mod tests {
     use super::*;
     use crate::security::{
-        hardware_credential_provider::{EnhancedCredential, KeyDerivationParams, SecurityMetadata},
         Credential,
+        hardware_credential_provider::{EnhancedCredential, KeyDerivationParams, SecurityMetadata},
     };
     use std::collections::HashMap;
 

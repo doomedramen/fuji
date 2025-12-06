@@ -9,7 +9,7 @@
 
 use anyhow::Result;
 use pbkdf2::pbkdf2_hmac;
-use rand::{rngs::OsRng, RngCore};
+use rand::{RngCore, rngs::OsRng};
 use sha2::{Sha256, Sha512};
 use std::time::{Duration, SystemTime};
 use tracing::{debug, warn};

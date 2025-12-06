@@ -1,8 +1,8 @@
 //! Integration tests for path traversal protection in mount operations
 
+use fuji::mount::MountHandler;
 use fuji::mount::drivers::validation::MountUrlValidator;
 use fuji::mount::drivers::{NfsHandler, SmbHandler, SshfsHandler};
-use fuji::mount::MountHandler;
 
 #[test]
 fn test_nfs_path_traversal_protection() {

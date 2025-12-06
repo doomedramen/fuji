@@ -2,7 +2,7 @@
 //!
 //! Provides periodic health checks for mount points with configurable intervals.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -11,7 +11,7 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use super::{health_checks, HealthState, HealthStatus};
+use super::{HealthState, HealthStatus, health_checks};
 
 /// Health check scheduler
 pub struct HealthCheckScheduler {
@@ -406,13 +406,17 @@ impl HealthCheckScheduler {
 
         // Adjust interval based on mount type
         match &mount_config.mount_type {
-            crate::mount::MountType::NFS { .. } => {
+            crate::mount::MountType::NFS {
+                ..
+            } => {
                 // NFS mounts can be checked less frequently
                 if interval == self.default_interval {
                     interval = "*/60 * * * * *".to_string(); // Every minute
                 }
             }
-            crate::mount::MountType::SMB { .. } => {
+            crate::mount::MountType::SMB {
+                ..
+            } => {
                 // SMB mounts benefit from more frequent checks
                 if interval == self.default_interval {
                     interval = "*/15 * * * * *".to_string(); // Every 15 seconds

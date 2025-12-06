@@ -116,7 +116,10 @@ fn test_regex_error() {
     let daemon_err = DaemonError::from(regex_err);
 
     match daemon_err {
-        DaemonError::RegexError { pattern, source } => {
+        DaemonError::RegexError {
+            pattern,
+            source,
+        } => {
             assert_eq!(pattern, "unknown");
             assert!(matches!(source, regex::Error::Syntax(_)));
         }
@@ -150,7 +153,10 @@ fn test_anyhow_error_conversion() {
     let daemon_err = DaemonError::from(anyhow_err);
 
     match daemon_err {
-        DaemonError::Generic { context, source } => {
+        DaemonError::Generic {
+            context,
+            source,
+        } => {
             assert_eq!(context, "Unexpected error");
             assert_eq!(source.to_string(), "Some error");
         }

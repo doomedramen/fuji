@@ -5,8 +5,8 @@
 //!
 //! Manages permissions and ownership of mount points with proper UID/GID mapping.
 
-use anyhow::{anyhow, Result};
-use nix::unistd::{chown, Gid, Uid};
+use anyhow::{Result, anyhow};
+use nix::unistd::{Gid, Uid, chown};
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};

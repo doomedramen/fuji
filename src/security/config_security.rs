@@ -12,7 +12,7 @@
 //! - Rollback capabilities for invalid configurations
 //! - Secure configuration templates and defaults
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

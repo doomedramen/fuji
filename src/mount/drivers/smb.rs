@@ -1,10 +1,10 @@
 //! SMB/CIFS mount handler implementation
 
 use crate::mount::drivers::{
-    create_secure_mount_command, MountOptionsValidator, MountUrlValidator, SecureCommand,
+    MountOptionsValidator, MountUrlValidator, SecureCommand, create_secure_mount_command,
 };
 use crate::mount::{MountConfig, MountHandler, MountState, MountType};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use std::path::PathBuf;
 use tokio::fs;
@@ -66,7 +66,11 @@ impl MountHandler for SmbHandler {
 
     fn validate_config(&self, config: &MountConfig) -> Result<()> {
         match &config.mount_type {
-            MountType::SMB { host, share, .. } => {
+            MountType::SMB {
+                host,
+                share,
+                ..
+            } => {
                 if host.is_empty() {
                     return Err(anyhow!("SMB host cannot be empty"));
                 }

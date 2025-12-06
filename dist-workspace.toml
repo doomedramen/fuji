@@ -19,3 +19,9 @@ install-path = "CARGO_HOME"
 publish-jobs = ["homebrew"]
 # Whether to install an updater program
 install-updater = false
+# Only run full release builds on tags, not PRs (saves CI time)
+pr-run-mode = "skip"
+# Generate SHA256 checksums for release artifacts
+checksum = "sha256"
+# Include source tarball in releases
+source-tarball = true

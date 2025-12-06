@@ -6,11 +6,11 @@
 //! Provides a state machine for managing mount lifecycle with proper state transitions
 //! and notifications.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use tracing::{debug, error, info, warn};
 
 /// Mount states in the lifecycle
@@ -249,7 +249,7 @@ impl MountStateMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
 
     #[tokio::test]
     async fn test_state_transitions() {

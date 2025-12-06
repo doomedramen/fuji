@@ -5,7 +5,7 @@
 //! - Linux Secret Service (GNOME Keyring/KWallet)
 //! - Windows Credential Manager
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use keyring::{Entry, Error as KeyringError};
 use serde_json;

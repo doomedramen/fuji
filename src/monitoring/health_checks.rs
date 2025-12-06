@@ -6,7 +6,7 @@
 //! Implements various health check types including ping, file access,
 //! and protocol-specific checks.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,7 +14,7 @@ use tokio::fs;
 use tokio::sync::Semaphore;
 use tracing::{debug, warn};
 
-use crate::mount::{get_mount_handler, MountType};
+use crate::mount::{MountType, get_mount_handler};
 
 /// Semaphore to limit concurrent health check tasks
 static TASK_SEMAPHORE: std::sync::LazyLock<Arc<Semaphore>> =
@@ -183,8 +183,14 @@ impl PingHealthCheck {
     /// Extract host from mount configuration
     pub fn extract_host(&self, mount_config: &crate::mount::MountConfig) -> Result<String> {
         match &mount_config.mount_type {
-            MountType::NFS { host, .. } => Ok(host.clone()),
-            MountType::SMB { host, .. } => Ok(host.clone()),
+            MountType::NFS {
+                host,
+                ..
+            } => Ok(host.clone()),
+            MountType::SMB {
+                host,
+                ..
+            } => Ok(host.clone()),
         }
     }
 }
@@ -297,8 +303,12 @@ impl HealthCheck for ProtocolHealthCheck {
 
         // Get the appropriate handler for this mount type
         let protocol = match &mount_config.mount_type {
-            MountType::NFS { .. } => "nfs",
-            MountType::SMB { .. } => "smb",
+            MountType::NFS {
+                ..
+            } => "nfs",
+            MountType::SMB {
+                ..
+            } => "smb",
         };
 
         let handler = get_mount_handler(protocol)?;

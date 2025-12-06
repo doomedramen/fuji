@@ -5,7 +5,7 @@
 //!
 //! Provides comprehensive mount option parsing and validation for different filesystem types.
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use std::collections::{HashMap, HashSet};
 
 /// Parsed mount options with metadata
