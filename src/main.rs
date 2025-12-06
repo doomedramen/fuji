@@ -2,6 +2,8 @@
 //!
 //! A daemon-based tool that manages network file system mounts automatically.
 
+// Test comment for pre-commit hook formatting
+
 mod cli;
 mod config;
 mod daemon;
