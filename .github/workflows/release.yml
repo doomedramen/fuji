@@ -1,0 +1,207 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+
+          - target: x86_64-apple-darwin
+            os: macos-13
+
+          - target: aarch64-apple-darwin
+            os: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM)
+        if: matrix.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-release-
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Get version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create archive
+        shell: bash
+        run: |
+          mkdir -p dist
+          ARCHIVE_NAME="fuji-${{ steps.version.outputs.VERSION }}-${{ matrix.target }}"
+          mkdir -p "$ARCHIVE_NAME"
+          cp target/${{ matrix.target }}/release/fuji "$ARCHIVE_NAME/"
+          cp README.md "$ARCHIVE_NAME/" 2>/dev/null || true
+          cp LICENSE* "$ARCHIVE_NAME/" 2>/dev/null || true
+          tar -czvf "dist/${ARCHIVE_NAME}.tar.gz" "$ARCHIVE_NAME"
+          rm -rf "$ARCHIVE_NAME"
+
+      - name: Generate SHA256 checksum
+        shell: bash
+        run: |
+          cd dist
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            shasum -a 256 *.tar.gz > checksums.txt
+          else
+            sha256sum *.tar.gz > checksums.txt
+          fi
+          cat checksums.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuji-${{ matrix.target }}
+          path: dist/*
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -name "*.tar.gz" -exec cp {} release-assets/ \;
+
+          # Combine all checksums into single file
+          echo "# SHA256 Checksums for Fuji v${{ steps.version.outputs.VERSION }}" > release-assets/SHA256SUMS.txt
+          echo "" >> release-assets/SHA256SUMS.txt
+          for f in artifacts/*/checksums.txt; do
+            cat "$f" >> release-assets/SHA256SUMS.txt
+          done
+
+          echo "=== Release Assets ==="
+          ls -la release-assets/
+          echo ""
+          echo "=== Checksums ==="
+          cat release-assets/SHA256SUMS.txt
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            echo "Generating changelog from $PREV_TAG to ${{ github.ref_name }}"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD)
+          else
+            echo "No previous tag found, using recent commits"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" -20)
+          fi
+
+          # Save changelog to file
+          echo "$CHANGELOG" > changelog.txt
+
+      - name: Create release body
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          cat << 'HEADER' > release_body.md
+          ## Installation
+
+          ### macOS (Homebrew)
+          ```bash
+          brew tap doomedramen/fuji
+          brew install fuji
+          ```
+
+          ### Manual Installation
+          Download the appropriate binary for your platform, extract, and place in your PATH:
+          ```bash
+          tar -xzf fuji-VERSION-TARGET.tar.gz
+          sudo mv fuji-VERSION-TARGET/fuji /usr/local/bin/
+          ```
+
+          ### Verify Download
+          Compare the SHA256 checksum of your download with the values in `SHA256SUMS.txt`.
+
+          ## Changes
+          HEADER
+
+          cat changelog.txt >> release_body.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Fuji v${{ steps.version.outputs.VERSION }}
+          body_path: release_body.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            release-assets/*.tar.gz
+            release-assets/SHA256SUMS.txt
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger Homebrew update
+        if: ${{ !contains(github.ref_name, '-') }}
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          repository: doomedramen/homebrew-fuji
+          event-type: release-published
+          client-payload: |
+            {
+              "version": "${{ steps.version.outputs.VERSION }}",
+              "tag": "${{ github.ref_name }}"
+            }
