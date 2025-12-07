@@ -8,7 +8,6 @@
 use fuji::security::file_provider::FileCredentialProvider;
 use fuji::security::{Credential, CredentialManager, CredentialProvider};
 use serde_json;
-use std::collections::HashMap;
 use tempfile::TempDir;
 use tokio::fs;
 
@@ -23,10 +22,10 @@ async fn test_encryption_with_random_hkdf_salt() {
     let provider2 = FileCredentialProvider::with_path(file_path).unwrap();
 
     let credential = Credential {
-        username: "testuser".to_string(),
-        password: "testpass".to_string(),
-        domain: Some("TESTDOMAIN".to_string()),
-        metadata: Default::default(),
+        username: "testuser".to_string()
+        password: "testpass".to_string()
+        domain: Some("TESTDOMAIN".to_string())
+        metadata: Default::default()
     };
 
     // Store credential with first provider
@@ -50,10 +49,10 @@ async fn test_salt_quality_validation() {
     let provider = FileCredentialProvider::with_path(file_path.clone()).unwrap();
 
     let credential = Credential {
-        username: "testuser".to_string(),
-        password: "testpass".to_string(),
-        domain: None,
-        metadata: Default::default(),
+        username: "testuser".to_string()
+        password: "testpass".to_string()
+        domain: None
+        metadata: Default::default()
     };
 
     provider
@@ -100,10 +99,10 @@ async fn test_improved_key_separation() {
     let provider2 = FileCredentialProvider::with_path(file_path2.clone()).unwrap();
 
     let credential = Credential {
-        username: "testuser".to_string(),
-        password: "testpass".to_string(),
-        domain: None,
-        metadata: Default::default(),
+        username: "testuser".to_string()
+        password: "testpass".to_string()
+        domain: None
+        metadata: Default::default()
     };
 
     // Store same credential in both files
@@ -129,7 +128,7 @@ async fn test_improved_key_separation() {
     let encrypted2 = store2["data"].as_str().unwrap();
 
     assert_ne!(
-        encrypted1, encrypted2,
+        encrypted1, encrypted2
         "Encrypted data should be different due to random salts/nonces"
     );
 
@@ -151,10 +150,10 @@ async fn test_stronger_encryption_context() {
     let provider = FileCredentialProvider::with_path(file_path.clone()).unwrap();
 
     let credential = Credential {
-        username: "testuser".to_string(),
-        password: "testpass".to_string(),
-        domain: None,
-        metadata: Default::default(),
+        username: "testuser".to_string()
+        password: "testpass".to_string()
+        domain: None
+        metadata: Default::default()
     };
 
     provider
@@ -188,14 +187,14 @@ async fn test_credential_manager_encryption_integration() {
     let credential_manager = CredentialManager::new();
 
     let credential = Credential {
-        username: "manager-test".to_string(),
-        password: "manager-pass".to_string(),
-        domain: Some("TESTDOMAIN".to_string()),
+        username: "manager-test".to_string()
+        password: "manager-pass".to_string()
+        domain: Some("TESTDOMAIN".to_string())
         metadata: {
             let mut meta = HashMap::new();
             meta.insert("test".to_string(), "value".to_string());
             meta
-        },
+        }
     };
 
     // Store and retrieve through credential manager
@@ -215,7 +214,7 @@ async fn test_credential_manager_encryption_integration() {
     assert_eq!(retrieved_credential.password, "manager-pass");
     assert_eq!(retrieved_credential.domain, Some("TESTDOMAIN".to_string()));
     assert_eq!(
-        retrieved_credential.metadata.get("test"),
+        retrieved_credential.metadata.get("test")
         Some(&"value".to_string())
     );
 

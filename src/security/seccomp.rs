@@ -1110,11 +1110,11 @@ impl SyscallFilter {
             }
         }
 
-        return Err(anyhow!(
+        Err(anyhow!(
             "Path '{}' is not allowed in {:?} profile",
             path_str,
             self.profile
-        ));
+        ))
     }
 
     /// Validate file descriptor access
@@ -1437,7 +1437,7 @@ impl GlobalSeccompManager {
     pub fn is_operation_initialized(&self, operation: &str) -> bool {
         self.filters
             .get(operation)
-            .map_or(false, |f| f.is_initialized())
+            .is_some_and(|f| f.is_initialized())
     }
 
     /// Get profile for an operation

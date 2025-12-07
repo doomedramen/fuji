@@ -272,7 +272,7 @@ impl ProcessIsolator {
 
         match cmd.spawn() {
             Ok(child) => {
-                let pid = child.id() as u32;
+                let pid = child.id();
 
                 // Track the process
                 let process = IsolatedProcess {

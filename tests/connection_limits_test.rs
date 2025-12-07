@@ -4,19 +4,16 @@
 //! by limiting concurrent connections, rate limiting, and proper cleanup.
 
 use fuji::socket::{ConnectionLimiter, ConnectionLimits};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_connection_limiter_basic() {
     let limits = ConnectionLimits {
-        max_connections: 5,
-        max_connections_per_client: 2,
-        connection_timeout: 30,
-        idle_timeout: 300,
-        rate_limit_window: 60,
-        rate_limit_max: 10,
+        max_connections: 5
+        max_connections_per_client: 2
+        connection_timeout: 30
+        idle_timeout: 300
+        rate_limit_window: 60
+        rate_limit_max: 10
     };
 
     let limiter = ConnectionLimiter::new(limits);
@@ -46,10 +43,10 @@ async fn test_connection_limiter_basic() {
 #[tokio::test]
 async fn test_connection_limiter_rate_limiting() {
     let limits = ConnectionLimits {
-        max_connections: 100,
-        max_connections_per_client: 50,
-        connection_timeout: 30,
-        idle_timeout: 300,
+        max_connections: 100
+        max_connections_per_client: 50
+        connection_timeout: 30
+        idle_timeout: 300
         rate_limit_window: 1, // 1 second window
         rate_limit_max: 3,    // Max 3 connections per second
     };
@@ -60,7 +57,7 @@ async fn test_connection_limiter_rate_limiting() {
 
     // Acquire connections up to the rate limit
     for _ in 0..3 {
-        let permit = limiter.acquire_connection(client_id).await.unwrap();
+        let _permit = limiter.acquire_connection(client_id).await.unwrap();
         drop(permit); // Immediately release
     }
 
@@ -80,12 +77,12 @@ async fn test_connection_limiter_rate_limiting() {
 #[tokio::test]
 async fn test_connection_limiter_global_limit() {
     let limits = ConnectionLimits {
-        max_connections: 2,
-        max_connections_per_client: 10,
-        connection_timeout: 30,
-        idle_timeout: 300,
-        rate_limit_window: 60,
-        rate_limit_max: 20,
+        max_connections: 2
+        max_connections_per_client: 10
+        connection_timeout: 30
+        idle_timeout: 300
+        rate_limit_window: 60
+        rate_limit_max: 20
     };
 
     let limiter = ConnectionLimiter::new(limits);
@@ -139,12 +136,12 @@ async fn test_connection_metrics() {
 #[tokio::test]
 async fn test_connection_permit_drop() {
     let limits = ConnectionLimits {
-        max_connections: 1,
-        max_connections_per_client: 1,
-        connection_timeout: 30,
-        idle_timeout: 300,
-        rate_limit_window: 60,
-        rate_limit_max: 10,
+        max_connections: 1
+        max_connections_per_client: 1
+        connection_timeout: 30
+        idle_timeout: 300
+        rate_limit_window: 60
+        rate_limit_max: 10
     };
 
     let limiter = ConnectionLimiter::new(limits);
@@ -152,7 +149,7 @@ async fn test_connection_permit_drop() {
     let client_id = "drop_test_client";
 
     // Acquire connection
-    let permit = limiter.acquire_connection(client_id).await.unwrap();
+    let _permit = limiter.acquire_connection(client_id).await.unwrap();
 
     // Try to acquire another - should fail
     let permit2 = limiter.acquire_connection(client_id).await;
@@ -172,12 +169,12 @@ async fn test_connection_permit_drop() {
 #[tokio::test]
 async fn test_connection_cleanup_task() {
     let limits = ConnectionLimits {
-        max_connections: 10,
-        max_connections_per_client: 5,
-        connection_timeout: 30,
+        max_connections: 10
+        max_connections_per_client: 5
+        connection_timeout: 30
         idle_timeout: 2, // 2 seconds idle timeout for testing
-        rate_limit_window: 60,
-        rate_limit_max: 10,
+        rate_limit_window: 60
+        rate_limit_max: 10
     };
 
     let limiter = Arc::new(ConnectionLimiter::new(limits));
@@ -200,12 +197,12 @@ async fn test_connection_cleanup_task() {
 #[tokio::test]
 async fn test_multiple_clients_concurrent() {
     let limits = ConnectionLimits {
-        max_connections: 10,
-        max_connections_per_client: 2,
-        connection_timeout: 30,
-        idle_timeout: 300,
-        rate_limit_window: 60,
-        rate_limit_max: 5,
+        max_connections: 10
+        max_connections_per_client: 2
+        connection_timeout: 30
+        idle_timeout: 300
+        rate_limit_window: 60
+        rate_limit_max: 5
     };
 
     let limiter = Arc::new(ConnectionLimiter::new(limits));
@@ -221,7 +218,7 @@ async fn test_multiple_clients_concurrent() {
             // Each client tries to acquire multiple connections
             let mut results = Vec::new();
             for j in 0..3 {
-                let result = limiter_clone.acquire_connection(&client_id).await;
+                let _result = limiter_clone.acquire_connection(&client_id).await;
                 results.push((j, result.is_ok()));
 
                 // Hold the permit briefly

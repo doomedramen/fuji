@@ -568,7 +568,7 @@ impl ResourceLimitsManager {
                 .connection_semaphore
                 .try_acquire()
                 .map(|_| ())
-                .or_else(|_| Err(anyhow!("Too many concurrent connections"))),
+                .map_err(|_| anyhow!("Too many concurrent connections")),
         }
     }
 
@@ -592,10 +592,7 @@ impl ResourceLimitsManager {
 
         if count > max_count {
             return Err(anyhow!(
-                "Operation would exceed {} limit: {} > {}",
-                format!("{:?}", resource_type),
-                count,
-                max_count
+                "Operation would exceed {resource_type:?} limit: {count} > {max_count}"
             ));
         }
 

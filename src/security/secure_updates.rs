@@ -1501,7 +1501,11 @@ mod tests {
             .await?;
 
         // Verify marker is removed
-        assert!(!tokio::fs::metadata("/tmp/fuji_update_marker").await.is_ok());
+        assert!(
+            tokio::fs::metadata("/tmp/fuji_update_marker")
+                .await
+                .is_err()
+        );
 
         // Check rollback history
         let rollback_history = manager.get_rollback_history().await?;

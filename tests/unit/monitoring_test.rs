@@ -1,6 +1,5 @@
 //! Unit tests for monitoring module
 
-use anyhow;
 use chrono::Utc;
 use fuji::monitoring::{
     health_checks::{
@@ -11,12 +10,8 @@ use fuji::monitoring::{
 };
 use fuji::mount::{MountConfig, MountType};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::Duration;
-use tempfile::TempDir;
-use tokio::sync::RwLock;
 
 #[test]
 fn test_health_check_registry_creation() {

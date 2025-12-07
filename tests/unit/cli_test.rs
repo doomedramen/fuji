@@ -48,9 +48,9 @@ fn test_mount_command_parsing() {
         assert_eq!(url, "nfs://server.example.com/export");
         assert_eq!(mount_point, Some("/mnt/point".to_string()));
         assert_eq!(options, None);
-        assert_eq!(disable, false);
-        assert_eq!(dry_run, false);
-        assert_eq!(progress, false);
+        assert!(!disable);
+        assert!(!dry_run);
+        assert!(!progress);
     } else {
         panic!("Expected mount command");
     }

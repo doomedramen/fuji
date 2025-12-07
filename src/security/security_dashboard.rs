@@ -714,14 +714,11 @@ impl SecurityDashboard {
         // Update severity counts
         *metrics
             .events_by_severity
-            .entry(event.severity.clone())
+            .entry(event.severity)
             .or_insert(0) += 1;
 
         // Update outcome counts
-        *metrics
-            .events_by_outcome
-            .entry(event.outcome.clone())
-            .or_insert(0) += 1;
+        *metrics.events_by_outcome.entry(event.outcome).or_insert(0) += 1;
 
         // Update specific metrics based on event type
         match event.event_type {

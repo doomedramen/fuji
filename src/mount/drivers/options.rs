@@ -388,7 +388,7 @@ mod tests {
             validator
                 .validate_options(
                     "nfs",
-                    &vec![
+                    &[
                         "ro".to_string(),
                         "hard".to_string(),
                         "proto=tcp".to_string(),
@@ -413,7 +413,7 @@ mod tests {
             validator
                 .validate_options(
                     "smb",
-                    &vec![
+                    &[
                         "ro".to_string(),
                         "username=user".to_string(),
                         "password=pass".to_string(),
@@ -432,7 +432,7 @@ mod tests {
             validator
                 .validate_options(
                     "sshfs",
-                    &vec![
+                    &[
                         "allow_other".to_string(),
                         "uid=1000".to_string(),
                         "file_mode=0644".to_string(),

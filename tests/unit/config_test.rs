@@ -1,14 +1,11 @@
 //! Unit tests for configuration management
 
 use fuji::config::Config;
-use fuji::platform::Platform;
-use std::collections::HashMap;
-use std::path::PathBuf;
 use tempfile::TempDir;
 
 #[test]
 fn test_config_creation() {
-    let platform = fuji::platform::get_platform();
+    let _platform = fuji::platform::get_platform();
     let config = Config::default();
 
     // Check default values
@@ -19,7 +16,7 @@ fn test_config_creation() {
 
 #[test]
 fn test_config_validation() {
-    let platform = fuji::platform::get_platform();
+    let _platform = fuji::platform::get_platform();
     let config = Config::default();
 
     // Valid config should pass validation
@@ -28,7 +25,7 @@ fn test_config_validation() {
 
 #[test]
 fn test_config_serialization() {
-    let platform = fuji::platform::get_platform();
+    let _platform = fuji::platform::get_platform();
     let config = Config::default();
 
     // Test serialization

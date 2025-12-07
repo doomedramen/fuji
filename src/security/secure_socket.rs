@@ -851,7 +851,7 @@ impl SecureSocketConnection {
 
             if verification_result.verified {
                 if let Some(payload) = verification_result.payload {
-                    Ok(payload.len() > 0 && payload[0] == 1) // Simple boolean protocol
+                    Ok(!payload.is_empty() && payload[0] == 1) // Simple boolean protocol
                 } else {
                     Ok(false)
                 }
@@ -1297,7 +1297,7 @@ mod tests {
     #[test]
     fn test_data_size_validation() {
         // Test the validation functions directly without creating a full connection
-        let small_data = vec![0u8; 100];
+        let small_data = [0u8; 100];
         let large_data = vec![0u8; 20 * 1024 * 1024]; // 20MB
 
         // Test validation constants
@@ -1310,7 +1310,7 @@ mod tests {
     #[test]
     fn test_buffer_size_validation() {
         // Test the validation logic directly
-        let small_buf = vec![0u8; 100];
+        let small_buf = [0u8; 100];
         let large_buf = vec![0u8; 20 * 1024 * 1024]; // 20MB
 
         // Test validation constants
@@ -1460,8 +1460,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_rate_limiting() -> Result<()> {
-        let mut config = SocketSecurityConfig::default();
-        config.rate_limit = 2; // Very low limit for testing
+        let config = SocketSecurityConfig {
+            rate_limit: 2, // Very low limit for testing
+            ..Default::default()
+        };
         let context = SocketSecurityContext::new(config)?;
 
         // Create a session
@@ -1480,8 +1482,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_message_timeout() -> Result<()> {
-        let mut config = SocketSecurityConfig::default();
-        config.message_timeout = 1; // 1 second timeout for testing
+        let config = SocketSecurityConfig {
+            message_timeout: 1, // 1 second timeout for testing
+            ..Default::default()
+        };
         let context = SocketSecurityContext::new(config)?;
 
         // Create a message
@@ -1527,8 +1531,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_expired_session_cleanup() -> Result<()> {
-        let mut config = SocketSecurityConfig::default();
-        config.message_timeout = 1; // 1 second timeout for testing
+        let config = SocketSecurityConfig {
+            message_timeout: 1, // 1 second timeout for testing
+            ..Default::default()
+        };
         let context = SocketSecurityContext::new(config)?;
 
         // Create a session

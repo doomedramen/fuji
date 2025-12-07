@@ -542,7 +542,7 @@ mod tests {
                 master_key: Arc::new(RwLock::new(None)),
                 key_store_path: PathBuf::from("/tmp/test"),
                 encryptor: ChaCha20Poly1305Encryptor {
-                    cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32]))
+                    cipher: ChaCha20Poly1305::new(Key::from_slice(&[0u8; 32]))
                 },
             }))
             .validate_password("SecurePass123!")
@@ -556,7 +556,7 @@ mod tests {
                 master_key: Arc::new(RwLock::new(None)),
                 key_store_path: PathBuf::from("/tmp/test"),
                 encryptor: ChaCha20Poly1305Encryptor {
-                    cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32]))
+                    cipher: ChaCha20Poly1305::new(Key::from_slice(&[0u8; 32]))
                 },
             }))
             .validate_password("short")
@@ -571,7 +571,7 @@ mod tests {
             master_key: Arc::new(RwLock::new(None)),
             key_store_path: PathBuf::from("/tmp/test"),
             encryptor: ChaCha20Poly1305Encryptor {
-                cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32])),
+                cipher: ChaCha20Poly1305::new(Key::from_slice(&[0u8; 32])),
             },
         }));
 
@@ -596,7 +596,7 @@ mod tests {
             master_key: Arc::new(RwLock::new(None)),
             key_store_path: PathBuf::from("/tmp/test"),
             encryptor: ChaCha20Poly1305Encryptor {
-                cipher: ChaCha20Poly1305::new(&Key::from_slice(&[0u8; 32])),
+                cipher: ChaCha20Poly1305::new(Key::from_slice(&[0u8; 32])),
             },
         };
 

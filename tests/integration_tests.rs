@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use std::process::Command;
-use std::time::Duration;
+use tokio::time::Duration;
 use tokio::time::sleep;
 
 /// Test basic NFS mount and unmount

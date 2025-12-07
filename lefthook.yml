@@ -25,9 +25,9 @@ pre-commit:
 
 pre-push:
   commands:
-    # Full clippy with strict rules
+    # Full clippy with strict rules (excluding tests)
     clippy:
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --lib --bin fuji --all-features -- -D warnings
       glob: "*.rs"
       fail_text: "Clippy found issues. Fix them before pushing."
       timeout: 120

@@ -1473,6 +1473,6 @@ mod tests {
 
         // Predict
         let score = model.predict(&event1).await.unwrap();
-        assert!(score >= 0.0 && score <= 1.0);
+        assert!((0.0..=1.0).contains(&score));
     }
 }

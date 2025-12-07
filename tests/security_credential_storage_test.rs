@@ -10,11 +10,10 @@ use anyhow::Result;
 use fuji::security::Credential;
 use fuji::security::credential_backup::{BackupStrategy, CredentialBackupManager, RecoveryKey};
 use fuji::security::hardware_credential_provider::{
-    EnhancedCredential, HardwareCredentialProvider, KeyRotationConfig, SecurityPolicy,
+    EnhancedCredential, HardwareCredentialProvider, KeyRotationConfig, SecurityPolicy
 };
 use fuji::security::key_derivation::{KeyDerivationFunction, KeyDerivationManager, SecurityLevel};
 use rand::RngCore;
-use std::collections::HashMap;
 use std::time::SystemTime;
 use tokio::time::{Duration, sleep};
 
@@ -27,10 +26,10 @@ async fn test_hardware_credential_storage() -> Result<()> {
 
     // Create test credential
     let credential = Credential {
-        username: "test_user".to_string(),
-        password: "SecurePassword123!".to_string(),
-        domain: Some("TESTDOMAIN".to_string()),
-        metadata: HashMap::new(),
+        username: "test_user".to_string()
+        password: "SecurePassword123!".to_string()
+        domain: Some("TESTDOMAIN".to_string())
+        metadata: HashMap::new()
     };
 
     // Store credential
@@ -61,13 +60,13 @@ async fn test_hardware_credential_storage() -> Result<()> {
 #[tokio::test]
 async fn test_security_policy_enforcement() -> Result<()> {
     let policy = SecurityPolicy {
-        min_password_length: 12,
-        require_complex_password: true,
-        max_failed_attempts: 3,
-        lockout_duration: Duration::from_secs(300),
-        session_timeout: Duration::from_secs(1800),
-        require_mfa: false,
-        max_concurrent_sessions: 2,
+        min_password_length: 12
+        require_complex_password: true
+        max_failed_attempts: 3
+        lockout_duration: Duration::from_secs(300)
+        session_timeout: Duration::from_secs(1800)
+        require_mfa: false
+        max_concurrent_sessions: 2
     };
 
     let hsm_backend = std::sync::Arc::new(MockHSM::new());
@@ -75,10 +74,10 @@ async fn test_security_policy_enforcement() -> Result<()> {
 
     // Test valid password
     let valid_credential = Credential {
-        username: "user".to_string(),
-        password: "ValidPassword123!".to_string(),
-        domain: None,
-        metadata: HashMap::new(),
+        username: "user".to_string()
+        password: "ValidPassword123!".to_string()
+        domain: None
+        metadata: HashMap::new()
     };
 
     // Should succeed
@@ -91,10 +90,10 @@ async fn test_security_policy_enforcement() -> Result<()> {
 
     // Test invalid password (too short)
     let invalid_credential = Credential {
-        username: "user".to_string(),
-        password: "short".to_string(),
-        domain: None,
-        metadata: HashMap::new(),
+        username: "user".to_string()
+        password: "short".to_string()
+        domain: None
+        metadata: HashMap::new()
     };
 
     // Should fail
@@ -115,10 +114,10 @@ async fn test_key_derivation_functions() -> Result<()> {
 
     // Test different security levels
     for security_level in [
-        SecurityLevel::Low,
-        SecurityLevel::Standard,
-        SecurityLevel::High,
-        SecurityLevel::VeryHigh,
+        SecurityLevel::Low
+        SecurityLevel::Standard
+        SecurityLevel::High
+        SecurityLevel::VeryHigh
     ] {
         let password = b"test_password";
         let (key, salt) = manager.derive_key_with_salt(password)?;
@@ -143,40 +142,40 @@ async fn test_key_derivation_functions() -> Result<()> {
 #[tokio::test]
 async fn test_credential_backup_recovery() -> Result<()> {
     let backup_strategy = BackupStrategy::LocalEncrypted {
-        path: std::path::PathBuf::from("/tmp/test_backups"),
+        path: std::path::PathBuf::from("/tmp/test_backups")
     };
     let backup_manager = CredentialBackupManager::new(backup_strategy);
 
     // Create test credentials
     let mut credentials = HashMap::new();
     credentials.insert(
-        "mount1".to_string(),
+        "mount1".to_string()
         EnhancedCredential {
             credential: Credential {
-                username: "user1".to_string(),
-                password: "password1".to_string(),
-                domain: Some("DOMAIN1".to_string()),
-                metadata: HashMap::new(),
-            },
-            version: 1,
-            created_at: SystemTime::now(),
-            expires_at: None,
-            last_rotated: None,
+                username: "user1".to_string()
+                password: "password1".to_string()
+                domain: Some("DOMAIN1".to_string())
+                metadata: HashMap::new()
+            }
+            version: 1
+            created_at: SystemTime::now()
+            expires_at: None
+            last_rotated: None
             security_metadata: fuji::security::hardware_credential_provider::SecurityMetadata {
-                integrity_hash: "hash1".to_string(),
+                integrity_hash: "hash1".to_string()
                 kdf_params: fuji::security::hardware_credential_provider::KeyDerivationParams {
-                    iterations: 100_000,
-                    salt: vec![1, 2, 3, 4],
-                    key_length: 32,
-                    memory_cost: None,
-                    parallelism: Some(4),
-                },
-                encryption_algorithm: "chacha20-poly1305".to_string(),
-                mfa_required: false,
-                access_restrictions: HashMap::new(),
-                audit_log_ids: vec![],
-            },
-        },
+                    iterations: 100_000
+                    salt: vec![1, 2, 3, 4]
+                    key_length: 32
+                    memory_cost: None
+                    parallelism: Some(4)
+                }
+                encryption_algorithm: "chacha20-poly1305".to_string()
+                mfa_required: false
+                access_restrictions: HashMap::new()
+                audit_log_ids: vec![]
+            }
+        }
     );
 
     // Create backup
@@ -211,7 +210,7 @@ async fn test_credential_backup_recovery() -> Result<()> {
 #[tokio::test]
 async fn test_recovery_key_generation() -> Result<()> {
     let backup_strategy = BackupStrategy::LocalEncrypted {
-        path: std::path::PathBuf::from("/tmp/test_backups"),
+        path: std::path::PathBuf::from("/tmp/test_backups")
     };
     let backup_manager = CredentialBackupManager::new(backup_strategy);
 
@@ -246,13 +245,13 @@ async fn test_key_rotation_policies() -> Result<()> {
     };
 
     assert_eq!(
-        rotation_config.rotation_interval.as_secs(),
+        rotation_config.rotation_interval.as_secs()
         7 * 24 * 60 * 60
     );
     assert_eq!(rotation_config.grace_period.as_secs(), 24 * 60 * 60);
     assert_eq!(rotation_config.max_key_age.as_secs(), 90 * 24 * 60 * 60);
     assert_eq!(
-        rotation_config.notification_period.as_secs(),
+        rotation_config.notification_period.as_secs()
         2 * 24 * 60 * 60
     );
 
@@ -270,10 +269,10 @@ async fn test_concurrent_credential_operations() -> Result<()> {
     // Test sequential operations instead of concurrent
     for i in 0..10 {
         let credential = Credential {
-            username: format!("user{}", i),
-            password: format!("Password{}!", i),
-            domain: None,
-            metadata: HashMap::new(),
+            username: format!("user{}", i)
+            password: format!("Password{}!", i)
+            domain: None
+            metadata: HashMap::new()
         };
 
         let mount_id = format!("mount{}", i);
@@ -296,15 +295,15 @@ async fn test_concurrent_credential_operations() -> Result<()> {
 
 /// Mock HSM implementation for testing
 struct MockHSM {
-    key_store: std::sync::Arc<tokio::sync::RwLock<std::collections::HashMap<String, Vec<u8>>>>,
+    key_store: std::sync::Arc<tokio::sync::RwLock<std::collections::HashMap<String, Vec<u8>>>>
 }
 
 impl MockHSM {
     fn new() -> Self {
         Self {
             key_store: std::sync::Arc::new(tokio::sync::RwLock::new(
-                std::collections::HashMap::new(),
-            )),
+                std::collections::HashMap::new()
+            ))
         }
     }
 }

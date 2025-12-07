@@ -2,53 +2,50 @@
 
 use anyhow::Result;
 use fuji::security::integrity::{
-    HashAlgorithm, IntegrityConfig, IntegrityResponseConfig, IntegrityStatus, IntegrityViolation,
-    IntegrityViolationType, MemoryRegion, ProcessInfo, RuntimeIntegrityChecker, ViolationSeverity,
-    ViolationStatus,
+    HashAlgorithm, IntegrityConfig, IntegrityResponseConfig, IntegrityStatus, IntegrityViolation
+    IntegrityViolationType, MemoryRegion, ProcessInfo, RuntimeIntegrityChecker, ViolationSeverity
+    ViolationStatus
 };
-use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
-use std::time::Duration;
 use tempfile::{NamedTempFile, TempDir};
-use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_integrity_config_default_values() -> Result<()> {
     let config = IntegrityConfig::default();
 
     assert!(
-        config.enable_code_integrity,
+        config.enable_code_integrity
         "Code integrity should be enabled by default"
     );
     assert!(
-        config.enable_memory_integrity,
+        config.enable_memory_integrity
         "Memory integrity should be enabled by default"
     );
     assert!(
-        config.enable_data_integrity,
+        config.enable_data_integrity
         "Data integrity should be enabled by default"
     );
     assert_eq!(
-        config.check_interval, 300,
+        config.check_interval, 300
         "Default check interval should be 300 seconds"
     );
     assert_eq!(
-        config.alert_threshold, 3,
+        config.alert_threshold, 3
         "Default alert threshold should be 3"
     );
     assert_eq!(
-        config.hash_algorithm,
-        HashAlgorithm::Sha256,
+        config.hash_algorithm
+        HashAlgorithm::Sha256
         "Default hash algorithm should be SHA-256"
     );
     assert!(
-        !config.monitored_paths.is_empty(),
+        !config.monitored_paths.is_empty()
         "Should have default monitored paths"
     );
     assert!(
-        !config.critical_libraries.is_empty(),
+        !config.critical_libraries.is_empty()
         "Should have default critical libraries"
     );
 
@@ -64,12 +61,12 @@ async fn test_hash_algorithms_consistency() -> Result<()> {
     let sha256_hash1 = HashAlgorithm::Sha256.hash_string(test_data);
     let sha256_hash2 = HashAlgorithm::Sha256.hash_string(test_data);
     assert_eq!(
-        sha256_hash1, sha256_hash2,
+        sha256_hash1, sha256_hash2
         "SHA-256 should be deterministic"
     );
     assert_eq!(
-        sha256_hash1.len(),
-        64,
+        sha256_hash1.len()
+        64
         "SHA-256 should produce 64-character hex string"
     );
 
@@ -77,18 +74,18 @@ async fn test_hash_algorithms_consistency() -> Result<()> {
     let sha512_hash1 = HashAlgorithm::Sha512.hash_string(test_data);
     let sha512_hash2 = HashAlgorithm::Sha512.hash_string(test_data);
     assert_eq!(
-        sha512_hash1, sha512_hash2,
+        sha512_hash1, sha512_hash2
         "SHA-512 should be deterministic"
     );
     assert_eq!(
-        sha512_hash1.len(),
-        128,
+        sha512_hash1.len()
+        128
         "SHA-512 should produce 128-character hex string"
     );
 
     // Verify different algorithms produce different hashes
     assert_ne!(
-        sha256_hash1, sha512_hash1,
+        sha256_hash1, sha512_hash1
         "Different algorithms should produce different hashes"
     );
 
@@ -99,29 +96,29 @@ async fn test_hash_algorithms_consistency() -> Result<()> {
 #[tokio::test]
 async fn test_integrity_violation_creation() -> Result<()> {
     let violation = IntegrityViolation {
-        id: "test-violation-001".to_string(),
+        id: "test-violation-001".to_string()
         violation_type: IntegrityViolationType::DataCorruption {
-            expected_checksum: "abc123def456".to_string(),
-            actual_checksum: "def456abc123".to_string(),
-            file_path: PathBuf::from("/etc/fuji/config.toml"),
-        },
-        timestamp: chrono::Utc::now(),
-        severity: ViolationSeverity::High,
+            expected_checksum: "abc123def456".to_string()
+            actual_checksum: "def456abc123".to_string()
+            file_path: PathBuf::from("/etc/fuji/config.toml")
+        }
+        timestamp: chrono::Utc::now()
+        severity: ViolationSeverity::High
         source_process: ProcessInfo {
-            pid: 1234,
-            ppid: 1,
-            name: "fuji".to_string(),
-            command_line: "fuji daemon".to_string(),
-            executable_path: PathBuf::from("/usr/local/bin/fuji"),
-            uid: 1000,
-            gid: 1000,
-            start_time: chrono::Utc::now(),
-        },
+            pid: 1234
+            ppid: 1
+            name: "fuji".to_string()
+            command_line: "fuji daemon".to_string()
+            executable_path: PathBuf::from("/usr/local/bin/fuji")
+            uid: 1000
+            gid: 1000
+            start_time: chrono::Utc::now()
+        }
         context: HashMap::from([
-            ("user".to_string(), "testuser".to_string()),
-            ("action".to_string(), "file_modification".to_string()),
-        ]),
-        status: ViolationStatus::New,
+            ("user".to_string(), "testuser".to_string())
+            ("action".to_string(), "file_modification".to_string())
+        ])
+        status: ViolationStatus::New
     };
 
     assert_eq!(violation.id, "test-violation-001");
@@ -131,7 +128,7 @@ async fn test_integrity_violation_creation() -> Result<()> {
     assert_eq!(violation.context.get("user"), Some(&"testuser".to_string()));
 
     if let IntegrityViolationType::DataCorruption {
-        file_path,
+        file_path
         ..
     } = violation.violation_type
     {
@@ -184,7 +181,7 @@ async fn test_file_hash_computation() -> Result<()> {
     temp_file2.write_all(b"different content")?;
     let hash3 = checker.compute_file_hash(temp_file2.path())?;
     assert_ne!(
-        hash1, hash3,
+        hash1, hash3
         "Different content should produce different hashes"
     );
 
@@ -205,7 +202,7 @@ async fn test_library_path_detection() -> Result<()> {
         if let Some(lib_path) = checker.find_library_path(library) {
             assert!(lib_path.exists(), "Library path should exist");
             assert!(
-                lib_path.to_string_lossy().contains(library),
+                lib_path.to_string_lossy().contains(library)
                 "Path should contain library name"
             );
             found_count += 1;
@@ -216,8 +213,8 @@ async fn test_library_path_detection() -> Result<()> {
     assert!(found_count > 0, "Should find at least one system library");
 
     println!(
-        "✓ Library path detection test passed (found {}/{} libraries)",
-        found_count,
+        "✓ Library path detection test passed (found {}/{} libraries)"
+        found_count
         common_libraries.len()
     );
     Ok(())
@@ -226,11 +223,11 @@ async fn test_library_path_detection() -> Result<()> {
 #[tokio::test]
 async fn test_memory_region_structure() -> Result<()> {
     let region = MemoryRegion {
-        start: 0x10000000,
-        end: 0x20000000,
-        size: 0x10000000,
-        protection: "r-xp".to_string(),
-        name: Some("test_region".to_string()),
+        start: 0x10000000
+        end: 0x20000000
+        size: 0x10000000
+        protection: "r-xp".to_string()
+        name: Some("test_region".to_string())
     };
 
     assert_eq!(region.start, 0x10000000);
@@ -246,12 +243,12 @@ async fn test_memory_region_structure() -> Result<()> {
 #[tokio::test]
 async fn test_integrity_status_structure() -> Result<()> {
     let status = IntegrityStatus {
-        is_baseline_established: true,
-        baseline_created_at: Some(chrono::Utc::now()),
-        total_violations: 5,
-        active_violations: 2,
-        last_violation: None,
-        last_check_time: chrono::Utc::now(),
+        is_baseline_established: true
+        baseline_created_at: Some(chrono::Utc::now())
+        total_violations: 5
+        active_violations: 2
+        last_violation: None
+        last_check_time: chrono::Utc::now()
     };
 
     assert!(status.is_baseline_established);
@@ -267,16 +264,16 @@ async fn test_integrity_status_structure() -> Result<()> {
 #[tokio::test]
 async fn test_violation_severity_levels() -> Result<()> {
     let severities = vec![
-        (ViolationSeverity::Low, 0),
-        (ViolationSeverity::Medium, 1),
-        (ViolationSeverity::High, 2),
-        (ViolationSeverity::Critical, 3),
+        (ViolationSeverity::Low, 0)
+        (ViolationSeverity::Medium, 1)
+        (ViolationSeverity::High, 2)
+        (ViolationSeverity::Critical, 3)
     ];
 
     for (severity, expected_value) in severities {
         assert_eq!(
-            severity as i32, expected_value,
-            "Severity level {:?} should have value {}",
+            severity as i32, expected_value
+            "Severity level {:?} should have value {}"
             severity, expected_value
         );
     }
@@ -308,23 +305,23 @@ async fn test_violation_status_transitions() -> Result<()> {
 #[tokio::test]
 async fn test_code_integrity_violation_type() -> Result<()> {
     let region = MemoryRegion {
-        start: 0x400000,
-        end: 0x500000,
-        size: 0x100000,
-        protection: "r-xp".to_string(),
-        name: Some("text_segment".to_string()),
+        start: 0x400000
+        end: 0x500000
+        size: 0x100000
+        protection: "r-xp".to_string()
+        name: Some("text_segment".to_string())
     };
 
     let violation_type = IntegrityViolationType::CodeModification {
-        expected_hash: "a1b2c3d4e5f6".to_string(),
-        actual_hash: "f6e5d4c3b2a1".to_string(),
-        region: region.clone(),
+        expected_hash: "a1b2c3d4e5f6".to_string()
+        actual_hash: "f6e5d4c3b2a1".to_string()
+        region: region.clone()
     };
 
     if let IntegrityViolationType::CodeModification {
-        expected_hash,
-        actual_hash,
-        region: r,
+        expected_hash
+        actual_hash
+        region: r
     } = violation_type
     {
         assert_eq!(expected_hash, "a1b2c3d4e5f6");
@@ -342,13 +339,13 @@ async fn test_code_integrity_violation_type() -> Result<()> {
 #[tokio::test]
 async fn test_library_injection_violation_type() -> Result<()> {
     let violation_type = IntegrityViolationType::LibraryInjection {
-        library_path: PathBuf::from("/tmp/malicious.so"),
-        injection_method: "LD_PRELOAD".to_string(),
+        library_path: PathBuf::from("/tmp/malicious.so")
+        injection_method: "LD_PRELOAD".to_string()
     };
 
     if let IntegrityViolationType::LibraryInjection {
-        library_path,
-        injection_method,
+        library_path
+        injection_method
     } = violation_type
     {
         assert_eq!(library_path, PathBuf::from("/tmp/malicious.so"));
@@ -364,15 +361,15 @@ async fn test_library_injection_violation_type() -> Result<()> {
 #[tokio::test]
 async fn test_control_flow_integrity_violation_type() -> Result<()> {
     let violation_type = IntegrityViolationType::ControlFlowViolation {
-        expected_target: 0x401000,
-        actual_target: 0xdeadbeef,
-        function_name: "authenticate_user".to_string(),
+        expected_target: 0x401000
+        actual_target: 0xdeadbeef
+        function_name: "authenticate_user".to_string()
     };
 
     if let IntegrityViolationType::ControlFlowViolation {
-        expected_target,
-        actual_target,
-        function_name,
+        expected_target
+        actual_target
+        function_name
     } = violation_type
     {
         assert_eq!(expected_target, 0x401000);
@@ -389,15 +386,15 @@ async fn test_control_flow_integrity_violation_type() -> Result<()> {
 #[tokio::test]
 async fn test_memory_protection_violation_type() -> Result<()> {
     let violation_type = IntegrityViolationType::MemoryProtectionViolation {
-        address: 0x7fff12345678,
-        operation: "write".to_string(),
+        address: 0x7fff12345678
+        operation: "write".to_string()
         protection_flags: 0x5, // PROT_READ | PROT_EXEC
     };
 
     if let IntegrityViolationType::MemoryProtectionViolation {
-        address,
-        operation,
-        protection_flags,
+        address
+        operation
+        protection_flags
     } = violation_type
     {
         assert_eq!(address, 0x7fff12345678);
@@ -414,15 +411,15 @@ async fn test_memory_protection_violation_type() -> Result<()> {
 #[tokio::test]
 async fn test_runtime_hooking_violation_type() -> Result<()> {
     let violation_type = IntegrityViolationType::RuntimeHooking {
-        function_name: "open".to_string(),
-        hook_address: 0x12345678,
-        original_address: 0x87654321,
+        function_name: "open".to_string()
+        hook_address: 0x12345678
+        original_address: 0x87654321
     };
 
     if let IntegrityViolationType::RuntimeHooking {
-        function_name,
-        hook_address,
-        original_address,
+        function_name
+        hook_address
+        original_address
     } = violation_type
     {
         assert_eq!(function_name, "open");
@@ -442,23 +439,23 @@ async fn test_integrity_response_config() -> Result<()> {
 
     assert!(config.enable_alerts, "Alerts should be enabled by default");
     assert!(
-        !config.enable_termination,
+        !config.enable_termination
         "Termination should be disabled by default"
     );
     assert!(
-        !config.enable_core_dump,
+        !config.enable_core_dump
         "Core dump should be disabled by default"
     );
     assert!(
-        config.enable_secure_shutdown,
+        config.enable_secure_shutdown
         "Secure shutdown should be enabled by default"
     );
     assert!(
-        !config.alert_recipients.is_empty(),
+        !config.alert_recipients.is_empty()
         "Should have default alert recipients"
     );
     assert!(
-        config.custom_response_script.is_none(),
+        config.custom_response_script.is_none()
         "Custom script should be None by default"
     );
 
@@ -502,7 +499,7 @@ async fn test_integrity_checker_file_integrity() -> Result<()> {
 
     assert_ne!(hash1_1, hash2_1, "Hash should change when file is modified");
     assert_eq!(
-        hash1_2, hash2_2,
+        hash1_2, hash2_2
         "Hash should remain same for unchanged file"
     );
 
@@ -515,10 +512,10 @@ async fn test_hash_algorithm_comparison() -> Result<()> {
     let test_data = b"comprehensive test data for hash algorithm comparison";
 
     let algorithms = vec![
-        HashAlgorithm::Sha256,
-        HashAlgorithm::Sha512,
-        HashAlgorithm::Sha3,
-        HashAlgorithm::Blake3,
+        HashAlgorithm::Sha256
+        HashAlgorithm::Sha512
+        HashAlgorithm::Sha3
+        HashAlgorithm::Blake3
     ];
 
     let mut hashes = Vec::new();
@@ -534,7 +531,7 @@ async fn test_hash_algorithm_comparison() -> Result<()> {
         for (j, (_, hash_j)) in hashes.iter().enumerate() {
             if i != j {
                 assert_ne!(
-                    hash_i, hash_j,
+                    hash_i, hash_j
                     "Hashes from different algorithms should be unique"
                 );
             }
@@ -555,7 +552,7 @@ async fn test_hash_algorithm_comparison() -> Result<()> {
         .1
         .clone();
     assert!(
-        sha512_hash.len() > sha256_hash.len(),
+        sha512_hash.len() > sha256_hash.len()
         "SHA-512 should produce longer hash than SHA-256"
     );
 
@@ -577,7 +574,7 @@ async fn test_violation_context_manipulation() -> Result<()> {
     assert_eq!(context.get("source_ip"), Some(&"192.168.1.100".to_string()));
     assert_eq!(context.get("user_agent"), Some(&"Mozilla/5.0".to_string()));
     assert_eq!(
-        context.get("request_path"),
+        context.get("request_path")
         Some(&"/api/v1/mounts".to_string())
     );
 
@@ -597,14 +594,14 @@ async fn test_violation_context_manipulation() -> Result<()> {
 async fn test_process_info_creation() -> Result<()> {
     let current_pid = std::process::id();
     let process_info = ProcessInfo {
-        pid: current_pid,
+        pid: current_pid
         ppid: 1, // Usually init or the shell that started this test
-        name: "test_process".to_string(),
-        command_line: "cargo test security_integrity_test".to_string(),
-        executable_path: PathBuf::from("/usr/local/bin/fuji"),
-        uid: 1000,
-        gid: 1000,
-        start_time: chrono::Utc::now(),
+        name: "test_process".to_string()
+        command_line: "cargo test security_integrity_test".to_string()
+        executable_path: PathBuf::from("/usr/local/bin/fuji")
+        uid: 1000
+        gid: 1000
+        start_time: chrono::Utc::now()
     };
 
     assert_eq!(process_info.pid, current_pid);
@@ -620,29 +617,29 @@ async fn test_process_info_creation() -> Result<()> {
 #[tokio::test]
 async fn test_integrity_violation_serialization() -> Result<()> {
     let violation = IntegrityViolation {
-        id: "test-serialization-001".to_string(),
+        id: "test-serialization-001".to_string()
         violation_type: IntegrityViolationType::DataCorruption {
-            expected_checksum: "expected123".to_string(),
-            actual_checksum: "actual456".to_string(),
-            file_path: PathBuf::from("/test/file.txt"),
-        },
-        timestamp: chrono::Utc::now(),
-        severity: ViolationSeverity::Medium,
+            expected_checksum: "expected123".to_string()
+            actual_checksum: "actual456".to_string()
+            file_path: PathBuf::from("/test/file.txt")
+        }
+        timestamp: chrono::Utc::now()
+        severity: ViolationSeverity::Medium
         source_process: ProcessInfo {
-            pid: 9999,
-            ppid: 1,
-            name: "test".to_string(),
-            command_line: "test".to_string(),
-            executable_path: PathBuf::from("/test"),
-            uid: 0,
-            gid: 0,
-            start_time: chrono::Utc::now(),
-        },
+            pid: 9999
+            ppid: 1
+            name: "test".to_string()
+            command_line: "test".to_string()
+            executable_path: PathBuf::from("/test")
+            uid: 0
+            gid: 0
+            start_time: chrono::Utc::now()
+        }
         context: HashMap::from([
-            ("key1".to_string(), "value1".to_string()),
-            ("key2".to_string(), "value2".to_string()),
-        ]),
-        status: ViolationStatus::New,
+            ("key1".to_string(), "value1".to_string())
+            ("key2".to_string(), "value2".to_string())
+        ])
+        status: ViolationStatus::New
     };
 
     // Serialize to JSON
@@ -656,7 +653,7 @@ async fn test_integrity_violation_serialization() -> Result<()> {
     assert_eq!(violation.severity, deserialized.severity);
     assert_eq!(violation.status, deserialized.status);
     assert_eq!(
-        violation.source_process.pid,
+        violation.source_process.pid
         deserialized.source_process.pid
     );
     assert_eq!(violation.context.len(), deserialized.context.len());
@@ -668,19 +665,19 @@ async fn test_integrity_violation_serialization() -> Result<()> {
 #[tokio::test]
 async fn test_violation_severity_comparison() -> Result<()> {
     let severities = vec![
-        ViolationSeverity::Low,
-        ViolationSeverity::Medium,
-        ViolationSeverity::High,
-        ViolationSeverity::Critical,
+        ViolationSeverity::Low
+        ViolationSeverity::Medium
+        ViolationSeverity::High
+        ViolationSeverity::Critical
     ];
 
     // Test severity ordering (by integer value)
     for i in 0..severities.len() {
         for j in i + 1..severities.len() {
             assert!(
-                (severities[i] as i32) < (severities[j] as i32),
-                "{:?} should have lower severity value than {:?}",
-                severities[i],
+                (severities[i] as i32) < (severities[j] as i32)
+                "{:?} should have lower severity value than {:?}"
+                severities[i]
                 severities[j]
             );
         }
@@ -757,7 +754,7 @@ async fn test_hash_performance() -> Result<()> {
 
         println!("{:?} took {:?} to hash 1MB", algorithm, duration);
         assert!(
-            duration.as_secs() < 1,
+            duration.as_secs() < 1
             "Hashing should complete in under 1 second"
         );
     }
@@ -830,7 +827,7 @@ async fn test_hash_computation_stress() -> Result<()> {
     }
 
     println!(
-        "✓ Hash computation stress test passed ({} iterations)",
+        "✓ Hash computation stress test passed ({} iterations)"
         iterations
     );
     Ok(())
@@ -852,7 +849,7 @@ async fn test_large_file_hashing() -> Result<()> {
 
     assert!(!hash.is_empty(), "Hash should not be empty");
     assert!(
-        duration.as_secs() < 5,
+        duration.as_secs() < 5
         "Large file hashing should complete in under 5 seconds"
     );
 

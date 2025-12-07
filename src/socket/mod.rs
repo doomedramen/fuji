@@ -14,7 +14,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{Mutex, Semaphore};
-use tokio::time::{Duration, interval, timeout};
+use tokio::time::{Duration as StdDuration, interval, timeout};
 use tracing::{debug, error, info, warn};
 
 /// Socket communication protocol
@@ -74,14 +74,14 @@ impl ConnectionInfo {
     }
 
     /// Clean up old timestamps outside the rate limit window
-    fn cleanup_old_timestamps(&mut self, window_duration: Duration) {
+    fn cleanup_old_timestamps(&mut self, window_duration: StdDuration) {
         let now = Instant::now();
         self.connection_timestamps
             .retain(|&ts| now.duration_since(ts) <= window_duration);
     }
 
     /// Check if a new connection is allowed based on rate limits
-    fn is_rate_limited(&self, max_connections: usize, window_duration: Duration) -> bool {
+    fn is_rate_limited(&self, max_connections: usize, window_duration: StdDuration) -> bool {
         let now = Instant::now();
         let recent_count = self
             .connection_timestamps
@@ -168,7 +168,7 @@ impl ConnectionLimiter {
         // Check client-specific limits
         {
             let mut clients = self.client_connections.lock().await;
-            let window_duration = Duration::from_secs(self.limits.rate_limit_window);
+            let window_duration = StdDuration::from_secs(self.limits.rate_limit_window);
 
             let client_info = clients
                 .entry(client_id.to_string())
@@ -223,13 +223,13 @@ impl ConnectionLimiter {
         let idle_timeout = self.limits.idle_timeout;
 
         tokio::spawn(async move {
-            let mut interval = interval(Duration::from_secs(30));
+            let mut interval = interval(StdDuration::from_secs(30));
 
             loop {
                 interval.tick().await;
 
                 let now = Instant::now();
-                let idle_duration = Duration::from_secs(idle_timeout);
+                let idle_duration = StdDuration::from_secs(idle_timeout);
 
                 // Clean up idle clients
                 {
@@ -396,7 +396,7 @@ impl SocketServer {
                     match self.connection_limiter.acquire_connection(&client_id).await {
                         Ok(permit) => {
                             let handler = handler.clone();
-                            let timeout_duration = Duration::from_secs(
+                            let timeout_duration = StdDuration::from_secs(
                                 self.connection_limiter.limits.connection_timeout,
                             );
 
@@ -489,7 +489,7 @@ where
 {
     // Read request
     let mut buf = vec![0u8; 4096];
-    let n = timeout(Duration::from_secs(5), stream.read(&mut buf))
+    let n = timeout(StdDuration::from_secs(5), stream.read(&mut buf))
         .await
         .map_err(|_| anyhow!("Connection read timeout"))?
         .map_err(|e| anyhow!("Failed to read from socket: {}", e))?;
@@ -524,7 +524,7 @@ where
 {
     // Read request
     let mut buf = vec![0u8; 4096];
-    let n = timeout(Duration::from_secs(5), stream.read(&mut buf))
+    let n = timeout(StdDuration::from_secs(5), stream.read(&mut buf))
         .await
         .map_err(|_| anyhow!("Connection read timeout"))?
         .map_err(|e| anyhow!("Failed to read from socket: {}", e))?;
@@ -568,7 +568,7 @@ impl SocketClient {
     pub async fn send_request(&self, request: Request) -> Result<Response> {
         // Connect to socket with timeout
         let stream = timeout(
-            Duration::from_secs(5),
+            StdDuration::from_secs(5),
             UnixStream::connect(&self.socket_path),
         )
         .await
@@ -589,7 +589,7 @@ impl SocketClient {
 
         // Read response
         let mut buf = vec![0u8; 4096];
-        let n = timeout(Duration::from_secs(30), stream.read(&mut buf))
+        let n = timeout(StdDuration::from_secs(30), stream.read(&mut buf))
             .await
             .map_err(|_| anyhow!("Response timeout from daemon"))?
             .map_err(|e| anyhow!("Failed to read response: {}", e))?;
@@ -640,7 +640,7 @@ mod tests {
         });
 
         // Give server time to start
-        sleep(Duration::from_millis(100)).await;
+        sleep(StdDuration::from_millis(100)).await;
 
         // Test client
         let client = SocketClient::new(&socket_path);
