@@ -74,9 +74,10 @@ check-version:
 fmt:
 	cargo fmt --all
 
-# Run clippy lints
+# Run clippy lints (strict for main code, lenient for tests)
 clippy:
-	cargo clippy --all-targets --all-features
+	cargo clippy --lib --bins --all-features -- -D warnings
+	cargo clippy --tests --all-features
 
 # Run full CI checks locally
 ci: fmt clippy test
