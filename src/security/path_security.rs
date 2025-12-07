@@ -8,15 +8,14 @@
 //! It extends the existing static validation with dynamic runtime checks.
 
 use anyhow::{Context, Result, anyhow};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::{Duration, Instant, UNIX_EPOCH};
-use tracing::{debug, error, info, warn};
-
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use std::time::{Duration as StdDuration, Instant, UNIX_EPOCH};
 use tokio::fs;
+use tracing::{debug, error, info, warn};
 
 /// Security event types for path validation
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,22 +147,22 @@ impl SecurityProfile {
     }
 
     /// Get validation interval in seconds
-    pub fn validation_interval(&self) -> Duration {
+    pub fn validation_interval(&self) -> StdDuration {
         match self {
-            Self::Minimal => Duration::from_secs(300),  // 5 minutes
-            Self::Standard => Duration::from_secs(120), // 2 minutes
-            Self::High => Duration::from_secs(60),      // 1 minute
-            Self::Maximum => Duration::from_secs(30),   // 30 seconds
+            Self::Minimal => StdDuration::from_secs(300), // 5 minutes
+            Self::Standard => StdDuration::from_secs(120), // 2 minutes
+            Self::High => StdDuration::from_secs(60),     // 1 minute
+            Self::Maximum => StdDuration::from_secs(30),  // 30 seconds
         }
     }
 
     /// Get maximum mount age before requiring re-validation
-    pub fn max_mount_age(&self) -> Duration {
+    pub fn max_mount_age(&self) -> StdDuration {
         match self {
-            Self::Minimal => Duration::from_secs(86400),  // 24 hours
-            Self::Standard => Duration::from_secs(43200), // 12 hours
-            Self::High => Duration::from_secs(21600),     // 6 hours
-            Self::Maximum => Duration::from_secs(10800),  // 3 hours
+            Self::Minimal => StdDuration::from_secs(86400), // 24 hours
+            Self::Standard => StdDuration::from_secs(43200), // 12 hours
+            Self::High => StdDuration::from_secs(21600),    // 6 hours
+            Self::Maximum => StdDuration::from_secs(10800), // 3 hours
         }
     }
 }

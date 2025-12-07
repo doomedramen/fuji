@@ -680,7 +680,7 @@ impl Default for FileCredentialProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{Duration, Instant};
+    use std::time::{Duration as StdDuration, Instant};
     use tempfile::TempDir;
 
     #[tokio::test]
@@ -967,12 +967,12 @@ mod tests {
         // Performance should be reasonable for 120,000 PBKDF2 iterations
         // Note: With strong encryption, this will take longer than weak encryption
         assert!(
-            encryption_time < Duration::from_secs(30),
+            encryption_time < StdDuration::from_secs(30),
             "Encryption too slow: {:?}",
             encryption_time
         );
         assert!(
-            decryption_time < Duration::from_secs(10),
+            decryption_time < StdDuration::from_secs(10),
             "Decryption too slow: {:?}",
             decryption_time
         );
@@ -1040,10 +1040,10 @@ mod tests {
         );
 
         // Both should complete within reasonable time
-        assert!(aes_encrypt_time < Duration::from_secs(5));
-        assert!(aes_decrypt_time < Duration::from_secs(5));
-        assert!(chacha_encrypt_time < Duration::from_secs(5));
-        assert!(chacha_decrypt_time < Duration::from_secs(5));
+        assert!(aes_encrypt_time < StdDuration::from_secs(5));
+        assert!(aes_decrypt_time < StdDuration::from_secs(5));
+        assert!(chacha_encrypt_time < StdDuration::from_secs(5));
+        assert!(chacha_decrypt_time < StdDuration::from_secs(5));
     }
 
     #[tokio::test]

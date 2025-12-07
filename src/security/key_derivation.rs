@@ -11,7 +11,7 @@ use anyhow::Result;
 use pbkdf2::pbkdf2_hmac;
 use rand::{RngCore, rngs::OsRng};
 use sha2::{Sha256, Sha512};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration as StdDuration, SystemTime};
 use tracing::{debug, warn};
 
 /// Key derivation function types
@@ -269,14 +269,14 @@ impl KDFParameters {
     }
 
     /// Benchmark the current parameters
-    pub fn benchmark(&self, password: &[u8], salt: &[u8]) -> Result<Duration> {
+    pub fn benchmark(&self, password: &[u8], salt: &[u8]) -> Result<StdDuration> {
         let start_time = SystemTime::now();
         self.derive_key(password, salt)?;
         Ok(start_time.elapsed().unwrap_or_default())
     }
 
     /// Auto-tune parameters to target execution time
-    pub fn auto_tune(&mut self, password: &[u8], target_time: Duration) -> Result<()> {
+    pub fn auto_tune(&mut self, password: &[u8], target_time: StdDuration) -> Result<()> {
         let target_ms = target_time.as_millis() as u64;
         let salt = self.generate_salt();
 

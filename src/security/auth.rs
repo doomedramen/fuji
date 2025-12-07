@@ -11,7 +11,7 @@ use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, deco
 use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration as StdDuration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tracing::info;
 
@@ -45,7 +45,7 @@ pub struct JWTAuthenticator {
     /// Raw public key bytes
     public_key_array: [u8; 32],
     /// Token expiration duration
-    expiration: Duration,
+    expiration: StdDuration,
     /// Issuer identifier
     issuer: String,
     /// Revoked tokens
@@ -76,7 +76,7 @@ impl JWTAuthenticator {
             key_pair_bytes: key_pair_bytes_vec,
             public_key,
             public_key_array,
-            expiration: Duration::from_secs(3600), // 1 hour default
+            expiration: StdDuration::from_secs(3600), // 1 hour default
             issuer: "fuji-daemon".to_string(),
             revoked_tokens: RwLock::new(HashSet::new()),
         })
@@ -98,14 +98,14 @@ impl JWTAuthenticator {
             key_pair_bytes,
             public_key,
             public_key_array,
-            expiration: Duration::from_secs(3600),
+            expiration: StdDuration::from_secs(3600),
             issuer: "fuji-daemon".to_string(),
             revoked_tokens: RwLock::new(HashSet::new()),
         })
     }
 
     /// Set token expiration duration
-    pub fn with_expiration(mut self, expiration: Duration) -> Self {
+    pub fn with_expiration(mut self, expiration: StdDuration) -> Self {
         self.expiration = expiration;
         self
     }

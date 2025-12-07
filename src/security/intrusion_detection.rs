@@ -220,7 +220,7 @@ use anyhow::Result;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
-use std::time::Duration;
+use std::time::Duration as StdDuration;
 use tokio::sync::{RwLock, mpsc};
 use tokio::time::{interval, sleep};
 use tracing::{debug, error, info, instrument, warn};
@@ -744,7 +744,7 @@ impl IntrusionDetectionEngine {
 
     /// Analysis loop for continuous monitoring
     async fn analysis_loop(&self) {
-        let mut interval = interval(Duration::from_secs(self.config.analysis_interval));
+        let mut interval = interval(StdDuration::from_secs(self.config.analysis_interval));
 
         loop {
             interval.tick().await;
@@ -790,10 +790,7 @@ impl IntrusionDetectionEngine {
         for event in events {
             if event.source.source_type == crate::security::audit_logging::AuditSourceType::User {
                 let user_id = &event.source.identifier;
-                user_events
-                    .entry(user_id.clone())
-                    .or_insert_with(Vec::new)
-                    .push(event);
+                user_events.entry(user_id.clone()).or_default().push(event);
             }
         }
 
@@ -1017,7 +1014,7 @@ impl IntrusionDetectionEngine {
         }
 
         // Add delay before response
-        sleep(Duration::from_secs(
+        sleep(StdDuration::from_secs(
             self.config.auto_response.response_delay,
         ))
         .await;
@@ -1045,7 +1042,7 @@ impl IntrusionDetectionEngine {
 
     /// Model update loop
     async fn model_update_loop(&self) {
-        let mut interval = interval(Duration::from_secs(
+        let mut interval = interval(StdDuration::from_secs(
             self.config.model_update_interval * 3600,
         ));
 
@@ -1080,7 +1077,7 @@ impl IntrusionDetectionEngine {
 
     /// Alert cleanup loop
     async fn alert_cleanup_loop(&self) {
-        let mut interval = interval(Duration::from_secs(24 * 3600)); // Daily
+        let mut interval = interval(StdDuration::from_secs(24 * 3600)); // Daily
 
         loop {
             interval.tick().await;

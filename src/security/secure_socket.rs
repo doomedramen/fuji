@@ -1268,7 +1268,7 @@ impl SocketSecurityValidator {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    use tokio::time::{Duration, sleep};
+    use tokio::time::sleep;
 
     #[tokio::test]
     async fn test_secure_socket_factory_validation() {
@@ -1539,7 +1539,7 @@ mod tests {
         assert!(context.get_session(&session_id).await.is_some());
 
         // Wait for session to expire
-        sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         // Run cleanup
         context.cleanup_expired_sessions().await;

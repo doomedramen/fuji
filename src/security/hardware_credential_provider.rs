@@ -15,7 +15,7 @@ use sha2::Sha256;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration as StdDuration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{RwLock, Semaphore};
 use tracing::info;
 
@@ -47,13 +47,13 @@ struct CachedKey {
 #[derive(Debug, Clone)]
 pub struct KeyRotationConfig {
     /// Automatic rotation interval
-    pub rotation_interval: Duration,
+    pub rotation_interval: StdDuration,
     /// Grace period before rotation
-    pub grace_period: Duration,
+    pub grace_period: StdDuration,
     /// Maximum key age before forced rotation
-    pub max_key_age: Duration,
+    pub max_key_age: StdDuration,
     /// Notification period before rotation
-    pub notification_period: Duration,
+    pub notification_period: StdDuration,
 }
 
 /// Security policy for credential operations
@@ -66,9 +66,9 @@ pub struct SecurityPolicy {
     /// Maximum failed attempts before lockout
     pub max_failed_attempts: u32,
     /// Account lockout duration
-    pub lockout_duration: Duration,
+    pub lockout_duration: StdDuration,
     /// Session timeout duration
-    pub session_timeout: Duration,
+    pub session_timeout: StdDuration,
     /// Require multi-factor authentication
     pub require_mfa: bool,
     /// Maximum concurrent sessions
@@ -451,10 +451,10 @@ impl HardwareCredentialProvider {
 impl Default for KeyRotationConfig {
     fn default() -> Self {
         Self {
-            rotation_interval: Duration::from_secs(90 * 24 * 60 * 60), // 90 days
-            grace_period: Duration::from_secs(7 * 24 * 60 * 60),       // 7 days
-            max_key_age: Duration::from_secs(365 * 24 * 60 * 60),      // 1 year
-            notification_period: Duration::from_secs(14 * 24 * 60 * 60), // 14 days
+            rotation_interval: StdDuration::from_secs(90 * 24 * 60 * 60), // 90 days
+            grace_period: StdDuration::from_secs(7 * 24 * 60 * 60),       // 7 days
+            max_key_age: StdDuration::from_secs(365 * 24 * 60 * 60),      // 1 year
+            notification_period: StdDuration::from_secs(14 * 24 * 60 * 60), // 14 days
         }
     }
 }
@@ -465,8 +465,8 @@ impl Default for SecurityPolicy {
             min_password_length: 12,
             require_complex_password: true,
             max_failed_attempts: 5,
-            lockout_duration: Duration::from_secs(15 * 60), // 15 minutes
-            session_timeout: Duration::from_secs(30 * 60),  // 30 minutes
+            lockout_duration: StdDuration::from_secs(15 * 60), // 15 minutes
+            session_timeout: StdDuration::from_secs(30 * 60),  // 30 minutes
             require_mfa: false,
             max_concurrent_sessions: 3,
         }

@@ -351,13 +351,13 @@ impl Default for RetryHandler {
 mod tests {
     use super::*;
     use anyhow::anyhow;
-    use tokio::time::Duration;
+    use tokio::time::Duration as StdDuration;
 
     #[tokio::test]
     async fn test_retry_policy_default() {
         let policy = RetryPolicy::default();
-        assert_eq!(policy.initial_delay, Duration::from_secs(1));
-        assert_eq!(policy.max_delay, Duration::from_secs(300));
+        assert_eq!(policy.initial_delay, StdDuration::from_secs(1));
+        assert_eq!(policy.max_delay, StdDuration::from_secs(300));
         assert_eq!(policy.multiplier, 2.0);
         assert_eq!(policy.max_attempts, 5);
     }
@@ -410,9 +410,11 @@ mod tests {
         let handler = RetryHandler::new();
 
         // Set a small max attempts for testing
-        let mut policy = RetryPolicy::default();
-        policy.max_attempts = 3;
-        policy.initial_delay = StdDuration::from_millis(10);
+        let policy = RetryPolicy {
+            max_attempts: 3,
+            initial_delay: StdDuration::from_millis(10),
+            ..Default::default()
+        };
         handler.set_policy("test", policy).await;
 
         let attempt_count = Arc::new(RwLock::new(0));

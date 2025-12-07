@@ -238,7 +238,7 @@ impl SimpleAuditMonitor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    use tokio::time::Duration;
 
     #[tokio::test]
     async fn test_simple_audit_monitor() -> Result<()> {

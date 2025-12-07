@@ -489,6 +489,13 @@ impl Default for PersistenceManager {
     }
 }
 
+// SAFETY: PersistenceManager is safe to send across threads because:
+// 1. Arc<RwLock<Connection>> provides thread-safe access to the SQLite connection
+// 2. All methods use proper async locking
+// 3. PathBuf is Send + Sync
+unsafe impl Send for PersistenceManager {}
+unsafe impl Sync for PersistenceManager {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -539,10 +546,3 @@ mod tests {
         assert!(deleted.is_none());
     }
 }
-
-// SAFETY: PersistenceManager is safe to send across threads because:
-// 1. Arc<RwLock<Connection>> provides thread-safe access to the SQLite connection
-// 2. All methods use proper async locking
-// 3. PathBuf is Send + Sync
-unsafe impl Send for PersistenceManager {}
-unsafe impl Sync for PersistenceManager {}

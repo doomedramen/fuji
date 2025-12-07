@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::Duration as StdDuration;
 use tokio::sync::{RwLock, mpsc};
 use tokio::time::interval;
 use tracing::{debug, error, info, instrument, warn};
@@ -422,7 +422,7 @@ impl RuntimeIntegrityChecker {
 
     /// Start continuous monitoring
     async fn start_monitoring(&self) -> Result<()> {
-        let check_interval = Duration::from_secs(self.config.check_interval);
+        let check_interval = StdDuration::from_secs(self.config.check_interval);
         let mut interval_timer = interval(check_interval);
 
         info!("Starting continuous integrity monitoring");
@@ -998,6 +998,12 @@ pub mod memory_protection {
         protected_regions: RwLock<Vec<(usize, usize, ProtFlags)>>,
     }
 
+    impl Default for MemoryProtector {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl MemoryProtector {
         /// Create new memory protector
         pub fn new() -> Self {
@@ -1072,6 +1078,12 @@ pub mod secure_boot {
         measurements: RwLock<HashMap<String, String>>,
         /// Platform configuration registers
         pcr_values: RwLock<HashMap<u32, String>>,
+    }
+
+    impl Default for SecureBootVerifier {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl SecureBootVerifier {

@@ -11,7 +11,7 @@ use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration as StdDuration, Instant};
 use sysinfo::System;
 use tokio::sync::{RwLock, Semaphore};
 use tokio::time::interval;
@@ -420,7 +420,8 @@ impl ResourceLimitsManager {
             let memory_violations = violations.clone();
 
             tokio::spawn(async move {
-                let mut interval = interval(Duration::from_secs(memory_limits.check_interval_secs));
+                let mut interval =
+                    interval(StdDuration::from_secs(memory_limits.check_interval_secs));
 
                 loop {
                     interval.tick().await;
@@ -446,7 +447,7 @@ impl ResourceLimitsManager {
         let cpu_violations = violations.clone();
 
         tokio::spawn(async move {
-            let mut interval = interval(Duration::from_millis(cpu_limits.check_interval_ms));
+            let mut interval = interval(StdDuration::from_millis(cpu_limits.check_interval_ms));
 
             loop {
                 interval.tick().await;
@@ -467,7 +468,7 @@ impl ResourceLimitsManager {
             let report_violations = violations.clone();
 
             tokio::spawn(async move {
-                let mut interval = interval(Duration::from_secs(
+                let mut interval = interval(StdDuration::from_secs(
                     report_limits.enforcement.report_interval_secs,
                 ));
 
@@ -493,7 +494,7 @@ impl ResourceLimitsManager {
         match self.limits.process.enable_queuing {
             true => {
                 match tokio::time::timeout(
-                    Duration::from_secs(self.limits.process.operation_timeout_secs),
+                    StdDuration::from_secs(self.limits.process.operation_timeout_secs),
                     self.mount_semaphore.acquire(),
                 )
                 .await
@@ -522,7 +523,7 @@ impl ResourceLimitsManager {
         match self.limits.process.enable_queuing {
             true => {
                 match tokio::time::timeout(
-                    Duration::from_secs(self.limits.process.operation_timeout_secs),
+                    StdDuration::from_secs(self.limits.process.operation_timeout_secs),
                     self.reconnection_semaphore.acquire(),
                 )
                 .await
@@ -551,7 +552,7 @@ impl ResourceLimitsManager {
         match self.limits.network.enable_connection_pooling {
             true => {
                 match tokio::time::timeout(
-                    Duration::from_secs(self.limits.network.connection_timeout_secs),
+                    StdDuration::from_secs(self.limits.network.connection_timeout_secs),
                     self.connection_semaphore.acquire(),
                 )
                 .await
@@ -624,7 +625,7 @@ impl ResourceLimitsManager {
 
         // Check grace period
         if last_enforcement.elapsed()
-            < Duration::from_secs(self.limits.enforcement.grace_period_secs)
+            < StdDuration::from_secs(self.limits.enforcement.grace_period_secs)
         {
             return Ok(true);
         }

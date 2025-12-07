@@ -9,7 +9,7 @@ use base64::{Engine as _, engine::general_purpose};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::fs;
@@ -608,7 +608,7 @@ impl CredentialBackupManager {
     // Placeholder methods for actual implementations
     async fn store_local_encrypted_backup(
         &self,
-        _path: &PathBuf,
+        _path: &Path,
         backup_id: &str,
         data: &[u8],
     ) -> Result<u64> {
@@ -622,14 +622,14 @@ impl CredentialBackupManager {
 
     async fn retrieve_local_encrypted_backup(
         &self,
-        path: &PathBuf,
+        path: &Path,
         backup_id: &str,
     ) -> Result<Vec<u8>> {
         let backup_path = path.join(format!("{}.backup", backup_id));
         Ok(fs::read(&backup_path).await?)
     }
 
-    async fn delete_local_encrypted_backup(&self, path: &PathBuf, _backup_id: &str) -> Result<()> {
+    async fn delete_local_encrypted_backup(&self, path: &Path, _backup_id: &str) -> Result<()> {
         let backup_path = path.join(format!("{}.backup", _backup_id));
         fs::remove_file(&backup_path).await?;
         Ok(())

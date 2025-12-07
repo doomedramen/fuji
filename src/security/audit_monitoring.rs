@@ -943,6 +943,12 @@ pub struct LogAlertHandler {
     _private: (),
 }
 
+impl Default for LogAlertHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LogAlertHandler {
     pub fn new() -> Self {
         Self {
@@ -981,6 +987,12 @@ impl AlertHandler for LogAlertHandler {
 /// System response alert handler
 pub struct SystemResponseHandler {
     _private: (),
+}
+
+impl Default for SystemResponseHandler {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SystemResponseHandler {
