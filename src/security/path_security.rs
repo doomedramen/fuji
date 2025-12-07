@@ -66,7 +66,7 @@ pub enum SymlinkAttackType {
     /// Race condition symlink swap
     RaceCondition,
     /// Time-of-check to time-of-use (TOCTOU) attack
-    TOCTOU,
+    Toctou,
 }
 
 /// Path validation results

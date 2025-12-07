@@ -13,7 +13,7 @@ use crate::socket::protocol::DaemonHealthInfo;
 use crate::socket::{MountStatusInfo, Request, Response, SocketServer};
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
-use regex;
+use regex::Regex;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -24,7 +24,7 @@ use tracing::{error, info, warn};
 
 lazy_static::lazy_static! {
     /// A fallback regex that matches nothing - used when user-provided regex is invalid
-    static ref EMPTY_REGEX: regex::Regex = regex::Regex::new("^$").expect("Empty regex is always valid");
+    static ref EMPTY_REGEX: Regex = Regex::new("^$").expect("Empty regex is always valid");
 }
 
 pub mod error;
@@ -724,10 +724,10 @@ async fn handle_status_request(params: StatusRequestParams) -> Response {
 
         if let Some(ref filter_type) = params.filter_type {
             let mount_type_str = match &mount.mount_type {
-                crate::mount::MountType::NFS {
+                crate::mount::MountType::Nfs {
                     ..
                 } => "nfs",
-                crate::mount::MountType::SMB {
+                crate::mount::MountType::Smb {
                     ..
                 } => "smb",
             };
@@ -845,10 +845,10 @@ async fn handle_list_request(
             // Apply type filter
             if let Some(ref filter_type) = filter_type {
                 let mount_type_str = match &m.mount_type {
-                    crate::mount::MountType::NFS {
+                    crate::mount::MountType::Nfs {
                         ..
                     } => "nfs",
-                    crate::mount::MountType::SMB {
+                    crate::mount::MountType::Smb {
                         ..
                     } => "smb",
                 };
@@ -895,11 +895,11 @@ async fn handle_discover_request(url: String) -> Response {
     };
 
     let host = match parsed {
-        crate::mount::MountType::NFS {
+        crate::mount::MountType::Nfs {
             host,
             ..
         } => host,
-        crate::mount::MountType::SMB {
+        crate::mount::MountType::Smb {
             host,
             ..
         } => host,

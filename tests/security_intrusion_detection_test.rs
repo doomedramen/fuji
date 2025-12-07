@@ -10,19 +10,20 @@
 //! - Auto-response mechanisms
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use fuji::security::audit_logging::{
-    AuditEvent, AuditEventType, AuditOutcome, AuditSeverity, AuditSource, AuditSourceType
+    AuditEvent, AuditEventType, AuditOutcome, AuditSeverity, AuditSource, AuditSourceType,
 };
 use fuji::security::intrusion_detection::{
-    AlertSeverity, AlertSource, AlertStatus, DetectionRule, IntrusionDetectionConfig
-    IntrusionDetectionEngine, IntrusionReport, MLModel, RuleType, SimpleMLModel
+    AlertSeverity, AlertSource, AlertStatus, DetectionRule, IntrusionDetectionConfig,
+    IntrusionDetectionEngine, MLModel, RuleType, SimpleMLModel,
 };
+use std::collections::HashMap;
 use tokio::time::{Duration, sleep};
 
 #[tokio::test]
 async fn test_intrusion_detection_engine_creation() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Engine should be created successfully
@@ -33,22 +34,22 @@ async fn test_intrusion_detection_engine_creation() -> Result<()> {
 
 #[tokio::test]
 async fn test_detection_rule_management() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Add a detection rule
     let rule = DetectionRule {
-        id: "test_rule_001".to_string()
-        name: "Test Login Rule".to_string()
-        description: "Test rule for login detection".to_string()
-        rule_type: RuleType::Signature
-        pattern: "login".to_string()
-        severity: AlertSeverity::Medium
-        enabled: true
-        priority: 1
-        time_window: 300
-        threshold: 5.0
-        parameters: HashMap::new()
+        id: "test_rule_001".to_string(),
+        name: "Test Login Rule".to_string(),
+        description: "Test rule for login detection".to_string(),
+        rule_type: RuleType::Signature,
+        pattern: "login".to_string(),
+        severity: AlertSeverity::Medium,
+        enabled: true,
+        priority: 1,
+        time_window: 300,
+        threshold: 5.0,
+        parameters: HashMap::new(),
     };
 
     engine.add_rule(rule).await?;
@@ -66,17 +67,17 @@ async fn test_detection_rule_management() -> Result<()> {
 
 #[tokio::test]
 async fn test_alert_generation() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Generate an alert
     engine
         .create_alert(
-            AlertSource::UserReport
-            AlertSeverity::High
-            "Test Alert"
-            "This is a test alert"
-            vec!["event_1".to_string()]
+            AlertSource::UserReport,
+            AlertSeverity::High,
+            "Test Alert",
+            "This is a test alert",
+            vec!["event_1".to_string()],
         )
         .await?;
 
@@ -85,7 +86,7 @@ async fn test_alert_generation() -> Result<()> {
     assert!(!alerts.is_empty());
 
     // Find the alert
-    let _alert = engine.get_alert(&alerts[0].id).await?;
+    let alert = engine.get_alert(&alerts[0].id).await?;
     assert!(alert.is_some());
     assert_eq!(alert.unwrap().title, "Test Alert");
 
@@ -94,17 +95,17 @@ async fn test_alert_generation() -> Result<()> {
 
 #[tokio::test]
 async fn test_alert_status_update() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Generate an alert
     engine
         .create_alert(
-            AlertSource::AnomalyDetection
-            AlertSeverity::Medium
-            "Status Test Alert"
-            "Test alert status update"
-            vec!["event_1".to_string()]
+            AlertSource::AnomalyDetection,
+            AlertSeverity::Medium,
+            "Status Test Alert",
+            "Test alert status update",
+            vec!["event_1".to_string()],
         )
         .await?;
 
@@ -119,7 +120,7 @@ async fn test_alert_status_update() -> Result<()> {
     assert!(updated);
 
     // Verify status change
-    let _alert = engine.get_alert(alert_id).await?;
+    let alert = engine.get_alert(alert_id).await?;
     assert!(alert.is_some());
     assert!(matches!(alert.unwrap().status, AlertStatus::Investigating));
 
@@ -128,30 +129,30 @@ async fn test_alert_status_update() -> Result<()> {
 
 #[tokio::test]
 async fn test_user_pattern_analysis() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Create test login events
     let login_event = AuditEvent {
-        id: "login_001".to_string()
-        timestamp: Utc::now()
-        event_type: AuditEventType::Authentication
-        severity: AuditSeverity::Medium
-        outcome: AuditOutcome::Success
+        id: "login_001".to_string(),
+        timestamp: Utc::now(),
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
+        outcome: AuditOutcome::Success,
         source: AuditSource {
-            identifier: "test_user".to_string()
-            source_type: AuditSourceType::User
-            ip_address: None
-            user_agent: None
-            metadata: HashMap::new()
-        }
-        description: "system".to_string()
-        details: HashMap::new()
-        network_context: None
-        session_context: None
-        signature: None
-        previous_event_hash: None
-        event_hash: "hash_login_001".to_string()
+            identifier: "test_user".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "system".to_string(),
+        details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "hash_login_001".to_string(),
     };
 
     // Process event to update pattern
@@ -169,22 +170,22 @@ async fn test_user_pattern_analysis() -> Result<()> {
 
 #[tokio::test]
 async fn test_frequency_based_detection() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Add frequency-based rule
     let rule = DetectionRule {
-        id: "failed_login_freq".to_string()
-        name: "Failed Login Frequency".to_string()
-        description: "Detect multiple failed logins".to_string()
-        rule_type: RuleType::FrequencyAnalysis
-        pattern: "login_failed".to_string()
-        severity: AlertSeverity::High
-        enabled: true
-        priority: 1
+        id: "failed_login_freq".to_string(),
+        name: "Failed Login Frequency".to_string(),
+        description: "Detect multiple failed logins".to_string(),
+        rule_type: RuleType::FrequencyAnalysis,
+        pattern: "login_failed".to_string(),
+        severity: AlertSeverity::High,
+        enabled: true,
+        priority: 1,
         time_window: 60, // 1 minute
         threshold: 3.0,  // 3 failed attempts
-        parameters: HashMap::new()
+        parameters: HashMap::new(),
     };
 
     engine.add_rule(rule).await?;
@@ -192,25 +193,25 @@ async fn test_frequency_based_detection() -> Result<()> {
     // Create multiple failed login events
     for i in 0..5 {
         let event = AuditEvent {
-            id: format!("failed_login_{}", i)
-            timestamp: Utc::now()
-            event_type: AuditEventType::Authentication
-            severity: AuditSeverity::Medium
-            outcome: AuditOutcome::Failure
+            id: format!("failed_login_{}", i),
+            timestamp: Utc::now(),
+            event_type: AuditEventType::Authentication,
+            severity: AuditSeverity::Medium,
+            outcome: AuditOutcome::Failure,
             source: AuditSource {
-                identifier: "attacker".to_string()
-                source_type: AuditSourceType::User
-                ip_address: None
-                user_agent: None
-                metadata: HashMap::new()
-            }
-            description: "system".to_string()
-            details: HashMap::new()
-            network_context: None
-            session_context: None
-            signature: None
-            previous_event_hash: None
-            event_hash: format!("hash_failed_login_{}", i)
+                identifier: "attacker".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: HashMap::new(),
+            },
+            description: "system".to_string(),
+            details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: format!("hash_failed_login_{}", i),
         };
 
         engine.process_event(event).await?;
@@ -233,47 +234,47 @@ async fn test_frequency_based_detection() -> Result<()> {
 
 #[tokio::test]
 async fn test_signature_based_detection() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Add signature-based rule
     let rule = DetectionRule {
-        id: "suspicious_command".to_string()
-        name: "Suspicious Command Detection".to_string()
-        description: "Detect suspicious command execution".to_string()
-        rule_type: RuleType::Signature
-        pattern: "privilege_change".to_string()
-        severity: AlertSeverity::High
-        enabled: true
-        priority: 1
-        time_window: 300
-        threshold: 1.0
-        parameters: HashMap::new()
+        id: "suspicious_command".to_string(),
+        name: "Suspicious Command Detection".to_string(),
+        description: "Detect suspicious command execution".to_string(),
+        rule_type: RuleType::Signature,
+        pattern: "privilege_change".to_string(),
+        severity: AlertSeverity::High,
+        enabled: true,
+        priority: 1,
+        time_window: 300,
+        threshold: 1.0,
+        parameters: HashMap::new(),
     };
 
     engine.add_rule(rule).await?;
 
     // Create a privilege change event
     let event = AuditEvent {
-        id: "priv_change_001".to_string()
-        timestamp: Utc::now()
-        event_type: AuditEventType::AdministrativeAction
-        severity: AuditSeverity::High
-        outcome: AuditOutcome::Success
+        id: "priv_change_001".to_string(),
+        timestamp: Utc::now(),
+        event_type: AuditEventType::AdministrativeAction,
+        severity: AuditSeverity::High,
+        outcome: AuditOutcome::Success,
         source: AuditSource {
-            identifier: "admin".to_string()
-            source_type: AuditSourceType::User
-            ip_address: None
-            user_agent: None
-            metadata: HashMap::new()
-        }
-        description: "system".to_string()
-        details: HashMap::new()
-        network_context: None
-        session_context: None
-        signature: None
-        previous_event_hash: None
-        event_hash: "hash_priv_change_001".to_string()
+            identifier: "admin".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "system".to_string(),
+        details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "hash_priv_change_001".to_string(),
     };
 
     engine.process_event(event).await?;
@@ -295,31 +296,31 @@ async fn test_signature_based_detection() -> Result<()> {
 
 #[tokio::test]
 async fn test_statistical_anomaly_detection() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Create events with unusual pattern
     for i in 0..20 {
         let event = AuditEvent {
-            id: format!("anomaly_event_{}", i)
-            timestamp: Utc::now()
-            event_type: AuditEventType::DataAccess
-            severity: AuditSeverity::Medium
-            outcome: AuditOutcome::Success
+            id: format!("anomaly_event_{}", i),
+            timestamp: Utc::now(),
+            event_type: AuditEventType::DataAccess,
+            severity: AuditSeverity::Medium,
+            outcome: AuditOutcome::Success,
             source: AuditSource {
-                identifier: "user_anomaly".to_string()
-                source_type: AuditSourceType::User
-                ip_address: None
-                user_agent: None
-                metadata: HashMap::new()
-            }
-            description: format!("file_{}", i)
-            details: HashMap::new()
-            network_context: None
-            session_context: None
-            signature: None
-            previous_event_hash: None
-            event_hash: format!("hash_anomaly_event_{}", i)
+                identifier: "user_anomaly".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: HashMap::new(),
+            },
+            description: format!("file_{}", i),
+            details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: format!("hash_anomaly_event_{}", i),
         };
 
         engine.process_event(event).await?;
@@ -330,7 +331,7 @@ async fn test_statistical_anomaly_detection() -> Result<()> {
     let alerts = engine.get_active_alerts().await?;
 
     // May have generated anomaly alerts based on frequency
-    let anomaly_alerts: Vec<_> = alerts
+    let _anomaly_alerts: Vec<_> = alerts
         .iter()
         .filter(|a| matches!(a.source, AlertSource::AnomalyDetection))
         .collect();
@@ -344,7 +345,7 @@ async fn test_statistical_anomaly_detection() -> Result<()> {
 
 #[tokio::test]
 async fn test_unusual_login_time_detection() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Establish normal login pattern (during business hours)
@@ -352,25 +353,25 @@ async fn test_unusual_login_time_detection() -> Result<()> {
 
     for i in 0..5 {
         let event = AuditEvent {
-            id: format!("normal_login_{}", i)
-            timestamp: normal_time
-            event_type: AuditEventType::Authentication
-            severity: AuditSeverity::Medium
-            outcome: AuditOutcome::Success
+            id: format!("normal_login_{}", i),
+            timestamp: normal_time,
+            event_type: AuditEventType::Authentication,
+            severity: AuditSeverity::Medium,
+            outcome: AuditOutcome::Success,
             source: AuditSource {
-                identifier: "regular_user".to_string()
-                source_type: AuditSourceType::User
-                ip_address: None
-                user_agent: None
-                metadata: HashMap::new()
-            }
-            description: "system".to_string()
-            details: HashMap::new()
-            network_context: None
-            session_context: None
-            signature: None
-            previous_event_hash: None
-            event_hash: format!("hash_normal_login_{}", i)
+                identifier: "regular_user".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: HashMap::new(),
+            },
+            description: "system".to_string(),
+            details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: format!("hash_normal_login_{}", i),
         };
 
         engine.process_event(event).await?;
@@ -380,25 +381,25 @@ async fn test_unusual_login_time_detection() -> Result<()> {
     let unusual_time = Utc::now();
 
     let unusual_event = AuditEvent {
-        id: "unusual_login_001".to_string()
-        timestamp: unusual_time
-        event_type: AuditEventType::Authentication
-        severity: AuditSeverity::Medium
-        outcome: AuditOutcome::Success
+        id: "unusual_login_001".to_string(),
+        timestamp: unusual_time,
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
+        outcome: AuditOutcome::Success,
         source: AuditSource {
-            identifier: "regular_user".to_string()
-            source_type: AuditSourceType::User
-            ip_address: None
-            user_agent: None
-            metadata: HashMap::new()
-        }
-        description: "system".to_string()
-        details: HashMap::new()
-        network_context: None
-        session_context: None
-        signature: None
-        previous_event_hash: None
-        event_hash: "hash_unusual_login_001".to_string()
+            identifier: "regular_user".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "system".to_string(),
+        details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "hash_unusual_login_001".to_string(),
     };
 
     engine.process_event(unusual_event).await?;
@@ -420,28 +421,28 @@ async fn test_unusual_login_time_detection() -> Result<()> {
 
 #[tokio::test]
 async fn test_report_generation() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Generate some alerts
     for i in 0..3 {
         engine
             .create_alert(
-                AlertSource::AnomalyDetection
+                AlertSource::AnomalyDetection,
                 match i {
-                    0 => AlertSeverity::Low
-                    1 => AlertSeverity::Medium
-                    _ => AlertSeverity::High
-                }
-                &format!("Test Alert {}", i)
-                &format!("Description for test alert {}", i)
-                vec![format!("event_{}", i)]
+                    0 => AlertSeverity::Low,
+                    1 => AlertSeverity::Medium,
+                    _ => AlertSeverity::High,
+                },
+                &format!("Test Alert {}", i),
+                &format!("Description for test alert {}", i),
+                vec![format!("event_{}", i)],
             )
             .await?;
     }
 
     // Generate report
-    let _report = engine.generate_report(None).await?;
+    let report = engine.generate_report(None).await?;
 
     assert!(report.total_alerts >= 3);
     assert!(!report.alerts_by_severity.is_empty());
@@ -454,15 +455,15 @@ async fn test_report_generation() -> Result<()> {
 
 #[tokio::test]
 async fn test_auto_response_configuration() -> Result<()> {
-    let _config = IntrusionDetectionConfig {
+    let config = IntrusionDetectionConfig {
         auto_response: fuji::security::intrusion_detection::AutoResponseConfig {
-            enabled: true
-            block_ip_on_high_alert: true
-            terminate_suspicious_processes: false
-            lock_accounts_on_critical: true
-            enable_adaptive: true
-            response_delay: 30
-        }
+            enabled: true,
+            block_ip_on_high_alert: true,
+            terminate_suspicious_processes: false,
+            lock_accounts_on_critical: true,
+            enable_adaptive: true,
+            response_delay: 30,
+        },
         ..Default::default()
     };
 
@@ -471,11 +472,11 @@ async fn test_auto_response_configuration() -> Result<()> {
     // Create a critical alert that should trigger auto-response
     engine
         .create_alert(
-            AlertSource::AnomalyDetection
-            AlertSeverity::Critical
-            "Critical Test Alert"
-            "This should trigger auto-response"
-            vec!["critical_event".to_string()]
+            AlertSource::AnomalyDetection,
+            AlertSeverity::Critical,
+            "Critical Test Alert",
+            "This should trigger auto-response",
+            vec!["critical_event".to_string()],
         )
         .await?;
 
@@ -496,25 +497,25 @@ async fn test_simple_ml_model() -> Result<()> {
     // Normal events
     for i in 0..50 {
         let event = AuditEvent {
-            id: format!("normal_{}", i)
-            timestamp: Utc::now()
-            event_type: AuditEventType::Authentication
-            severity: AuditSeverity::Medium
-            outcome: AuditOutcome::Success
+            id: format!("normal_{}", i),
+            timestamp: Utc::now(),
+            event_type: AuditEventType::Authentication,
+            severity: AuditSeverity::Medium,
+            outcome: AuditOutcome::Success,
             source: AuditSource {
-                identifier: "user_normal".to_string()
-                source_type: AuditSourceType::User
-                ip_address: None
-                user_agent: None
-                metadata: HashMap::new()
-            }
-            description: "system".to_string()
-            details: HashMap::new()
-            network_context: None
-            session_context: None
-            signature: None
-            previous_event_hash: None
-            event_hash: format!("hash_normal_{}", i)
+                identifier: "user_normal".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: HashMap::new(),
+            },
+            description: "system".to_string(),
+            details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: format!("hash_normal_{}", i),
         };
         events.push(event);
     }
@@ -522,25 +523,25 @@ async fn test_simple_ml_model() -> Result<()> {
     // Anomalous events (less frequent)
     for i in 0..5 {
         let event = AuditEvent {
-            id: format!("anomalous_{}", i)
-            timestamp: Utc::now()
-            event_type: AuditEventType::AdministrativeAction
-            severity: AuditSeverity::High
-            outcome: AuditOutcome::Success
+            id: format!("anomalous_{}", i),
+            timestamp: Utc::now(),
+            event_type: AuditEventType::AdministrativeAction,
+            severity: AuditSeverity::High,
+            outcome: AuditOutcome::Success,
             source: AuditSource {
-                identifier: "user_anomaly".to_string()
-                source_type: AuditSourceType::User
-                ip_address: None
-                user_agent: None
-                metadata: HashMap::new()
-            }
-            description: "system".to_string()
-            details: HashMap::new()
-            network_context: None
-            session_context: None
-            signature: None
-            previous_event_hash: None
-            event_hash: format!("hash_anomalous_{}", i)
+                identifier: "user_anomaly".to_string(),
+                source_type: AuditSourceType::User,
+                ip_address: None,
+                user_agent: None,
+                metadata: HashMap::new(),
+            },
+            description: "system".to_string(),
+            details: HashMap::new(),
+            network_context: None,
+            session_context: None,
+            signature: None,
+            previous_event_hash: None,
+            event_hash: format!("hash_anomalous_{}", i),
         };
         events.push(event);
     }
@@ -551,25 +552,25 @@ async fn test_simple_ml_model() -> Result<()> {
 
     // Test predictions
     let normal_event = AuditEvent {
-        id: "test_normal".to_string()
-        timestamp: Utc::now()
-        event_type: AuditEventType::Authentication
-        severity: AuditSeverity::Medium
-        outcome: AuditOutcome::Success
+        id: "test_normal".to_string(),
+        timestamp: Utc::now(),
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
+        outcome: AuditOutcome::Success,
         source: AuditSource {
-            identifier: "test_user".to_string()
-            source_type: AuditSourceType::User
-            ip_address: None
-            user_agent: None
-            metadata: HashMap::new()
-        }
-        description: "system".to_string()
-        details: HashMap::new()
-        network_context: None
-        session_context: None
-        signature: None
-        previous_event_hash: None
-        event_hash: "hash_test_normal".to_string()
+            identifier: "test_user".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "system".to_string(),
+        details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "hash_test_normal".to_string(),
     };
 
     let anomaly_score = model.predict(&normal_event).await?;
@@ -584,17 +585,17 @@ async fn test_simple_ml_model() -> Result<()> {
 
 #[tokio::test]
 async fn test_alert_lifecycle() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Create an alert
     engine
         .create_alert(
-            AlertSource::UserReport
-            AlertSeverity::Medium
-            "Lifecycle Test Alert"
-            "Testing alert lifecycle"
-            vec!["lifecycle_event".to_string()]
+            AlertSource::UserReport,
+            AlertSeverity::Medium,
+            "Lifecycle Test Alert",
+            "Testing alert lifecycle",
+            vec!["lifecycle_event".to_string()],
         )
         .await?;
 
@@ -610,7 +611,7 @@ async fn test_alert_lifecycle() -> Result<()> {
         .await?;
 
     alerts = engine.get_active_alerts().await?;
-    let _alert = &alerts[0];
+    let alert = &alerts[0];
     assert!(matches!(alert.status, AlertStatus::Investigating));
 
     // Update to resolved
@@ -623,7 +624,7 @@ async fn test_alert_lifecycle() -> Result<()> {
     assert_eq!(alerts.len(), 0);
 
     // But should still be retrievable by ID
-    let _alert = engine.get_alert(&alert_id).await?;
+    let alert = engine.get_alert(&alert_id).await?;
     assert!(alert.is_some());
     assert!(matches!(alert.unwrap().status, AlertStatus::Resolved));
 
@@ -632,7 +633,7 @@ async fn test_alert_lifecycle() -> Result<()> {
 
 #[tokio::test]
 async fn test_configuration_defaults() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
 
     // Check default values
     assert!(config.enabled);
@@ -658,63 +659,63 @@ async fn test_configuration_defaults() -> Result<()> {
 
 #[tokio::test]
 async fn test_multiple_rule_types() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Add different rule types
     let rules = vec![
         DetectionRule {
-            id: "signature_rule".to_string()
-            name: "Signature Rule".to_string()
-            description: "Test signature-based rule".to_string()
-            rule_type: RuleType::Signature
-            pattern: "test_pattern".to_string()
-            severity: AlertSeverity::Low
-            enabled: true
-            priority: 3
-            time_window: 300
-            threshold: 1.0
-            parameters: HashMap::new()
-        }
+            id: "signature_rule".to_string(),
+            name: "Signature Rule".to_string(),
+            description: "Test signature-based rule".to_string(),
+            rule_type: RuleType::Signature,
+            pattern: "test_pattern".to_string(),
+            severity: AlertSeverity::Low,
+            enabled: true,
+            priority: 3,
+            time_window: 300,
+            threshold: 1.0,
+            parameters: HashMap::new(),
+        },
         DetectionRule {
-            id: "frequency_rule".to_string()
-            name: "Frequency Rule".to_string()
-            description: "Test frequency-based rule".to_string()
-            rule_type: RuleType::FrequencyAnalysis
-            pattern: "high_frequency".to_string()
-            severity: AlertSeverity::Medium
-            enabled: true
-            priority: 2
-            time_window: 600
-            threshold: 10.0
-            parameters: HashMap::new()
-        }
+            id: "frequency_rule".to_string(),
+            name: "Frequency Rule".to_string(),
+            description: "Test frequency-based rule".to_string(),
+            rule_type: RuleType::FrequencyAnalysis,
+            pattern: "high_frequency".to_string(),
+            severity: AlertSeverity::Medium,
+            enabled: true,
+            priority: 2,
+            time_window: 600,
+            threshold: 10.0,
+            parameters: HashMap::new(),
+        },
         DetectionRule {
-            id: "statistical_rule".to_string()
-            name: "Statistical Rule".to_string()
-            description: "Test statistical rule".to_string()
-            rule_type: RuleType::StatisticalAnomaly
-            pattern: "anomaly_score > 0.8".to_string()
-            severity: AlertSeverity::High
+            id: "statistical_rule".to_string(),
+            name: "Statistical Rule".to_string(),
+            description: "Test statistical rule".to_string(),
+            rule_type: RuleType::StatisticalAnomaly,
+            pattern: "anomaly_score > 0.8".to_string(),
+            severity: AlertSeverity::High,
             enabled: false, // Disabled for testing
-            priority: 1
-            time_window: 3600
-            threshold: 0.8
-            parameters: HashMap::new()
-        }
+            priority: 1,
+            time_window: 3600,
+            threshold: 0.8,
+            parameters: HashMap::new(),
+        },
         DetectionRule {
-            id: "behavioral_rule".to_string()
-            name: "Behavioral Rule".to_string()
-            description: "Test behavioral rule".to_string()
-            rule_type: RuleType::BehavioralPattern
-            pattern: "behavior_deviation".to_string()
-            severity: AlertSeverity::Critical
-            enabled: true
-            priority: 1
-            time_window: 1800
-            threshold: 0.9
-            parameters: HashMap::new()
-        }
+            id: "behavioral_rule".to_string(),
+            name: "Behavioral Rule".to_string(),
+            description: "Test behavioral rule".to_string(),
+            rule_type: RuleType::BehavioralPattern,
+            pattern: "behavior_deviation".to_string(),
+            severity: AlertSeverity::Critical,
+            enabled: true,
+            priority: 1,
+            time_window: 1800,
+            threshold: 0.9,
+            parameters: HashMap::new(),
+        },
     ];
 
     // Add all rules
@@ -735,30 +736,30 @@ async fn test_multiple_rule_types() -> Result<()> {
 
 #[tokio::test]
 async fn test_edge_cases() -> Result<()> {
-    let _config = IntrusionDetectionConfig::default();
+    let config = IntrusionDetectionConfig::default();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Test with empty event
     let empty_event = AuditEvent {
-        id: "".to_string()
-        timestamp: Utc::now()
-        event_type: AuditEventType::Authentication
-        severity: AuditSeverity::Medium
-        outcome: AuditOutcome::Success
+        id: "".to_string(),
+        timestamp: Utc::now(),
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
+        outcome: AuditOutcome::Success,
         source: AuditSource {
-            identifier: "".to_string()
-            source_type: AuditSourceType::User
-            ip_address: None
-            user_agent: None
-            metadata: HashMap::new()
-        }
-        description: "".to_string()
-        details: HashMap::new()
-        network_context: None
-        session_context: None
-        signature: None
-        previous_event_hash: None
-        event_hash: "".to_string()
+            identifier: "".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "".to_string(),
+        details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "".to_string(),
     };
 
     // Should handle gracefully
@@ -767,55 +768,55 @@ async fn test_edge_cases() -> Result<()> {
     // Test with very long strings
     let long_string = "a".repeat(1000);
     let long_event = AuditEvent {
-        id: long_string.clone()
-        timestamp: Utc::now()
-        event_type: AuditEventType::Authentication
-        severity: AuditSeverity::Medium
-        outcome: AuditOutcome::Success
+        id: long_string.clone(),
+        timestamp: Utc::now(),
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
+        outcome: AuditOutcome::Success,
         source: AuditSource {
-            identifier: long_string.clone()
-            source_type: AuditSourceType::User
-            ip_address: None
-            user_agent: None
-            metadata: HashMap::new()
-        }
-        description: long_string.clone()
+            identifier: long_string.clone(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: long_string.clone(),
         details: {
             let mut details = HashMap::new();
             use serde_json::Value;
             details.insert("long_key".to_string(), Value::String(long_string.clone()));
             details
-        }
-        network_context: None
-        session_context: None
-        signature: None
-        previous_event_hash: None
-        event_hash: long_string.clone()
+        },
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: long_string.clone(),
     };
 
     assert!(engine.process_event(long_event).await.is_ok());
 
     // Test with future timestamp
     let future_event = AuditEvent {
-        id: "future".to_string()
-        timestamp: Utc::now() + chrono::Duration::days(1)
-        event_type: AuditEventType::Authentication
-        severity: AuditSeverity::Medium
-        outcome: AuditOutcome::Success
+        id: "future".to_string(),
+        timestamp: Utc::now() + chrono::Duration::days(1),
+        event_type: AuditEventType::Authentication,
+        severity: AuditSeverity::Medium,
+        outcome: AuditOutcome::Success,
         source: AuditSource {
-            identifier: "future_user".to_string()
-            source_type: AuditSourceType::User
-            ip_address: None
-            user_agent: None
-            metadata: HashMap::new()
-        }
-        description: "system".to_string()
-        details: HashMap::new()
-        network_context: None
-        session_context: None
-        signature: None
-        previous_event_hash: None
-        event_hash: "hash_future".to_string()
+            identifier: "future_user".to_string(),
+            source_type: AuditSourceType::User,
+            ip_address: None,
+            user_agent: None,
+            metadata: HashMap::new(),
+        },
+        description: "system".to_string(),
+        details: HashMap::new(),
+        network_context: None,
+        session_context: None,
+        signature: None,
+        previous_event_hash: None,
+        event_hash: "hash_future".to_string(),
     };
 
     assert!(engine.process_event(future_event).await.is_ok());

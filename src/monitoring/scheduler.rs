@@ -406,7 +406,7 @@ impl HealthCheckScheduler {
 
         // Adjust interval based on mount type
         match &mount_config.mount_type {
-            crate::mount::MountType::NFS {
+            crate::mount::MountType::Nfs {
                 ..
             } => {
                 // NFS mounts can be checked less frequently
@@ -414,7 +414,7 @@ impl HealthCheckScheduler {
                     interval = "*/60 * * * * *".to_string(); // Every minute
                 }
             }
-            crate::mount::MountType::SMB {
+            crate::mount::MountType::Smb {
                 ..
             } => {
                 // SMB mounts benefit from more frequent checks
@@ -462,7 +462,7 @@ mod tests {
         // Create test mount config
         let mut config = crate::mount::MountConfig::new(
             "test://example.com/share".to_string(),
-            crate::mount::MountType::NFS {
+            crate::mount::MountType::Nfs {
                 host: "example.com".to_string(),
                 share: "/share".to_string(),
                 options: vec![],

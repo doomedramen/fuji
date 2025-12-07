@@ -1,5 +1,6 @@
 //! Unit tests for monitoring module
 
+use anyhow;
 use chrono::Utc;
 use fuji::monitoring::{
     health_checks::{
@@ -10,8 +11,10 @@ use fuji::monitoring::{
 };
 use fuji::mount::{MountConfig, MountType};
 use std::collections::HashMap;
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Duration;
 
 #[test]
 fn test_health_check_registry_creation() {
@@ -43,7 +46,7 @@ async fn test_file_access_health_check_nonexistent() {
 
     let config = MountConfig::new(
         "nfs://example.com/share".to_string(),
-        MountType::NFS {
+        MountType::Nfs {
             host: "example.com".to_string(),
             share: "/share".to_string(),
             options: vec![],
@@ -63,7 +66,7 @@ async fn test_ping_health_check_host_extraction() {
     // Test NFS host extraction
     let nfs_config = MountConfig::new(
         "nfs://example.com/share".to_string(),
-        MountType::NFS {
+        MountType::Nfs {
             host: "example.com".to_string(),
             share: "/share".to_string(),
             options: vec![],
@@ -74,7 +77,7 @@ async fn test_ping_health_check_host_extraction() {
     // Test SMB host extraction
     let smb_config = MountConfig::new(
         "smb://server.example.com/share".to_string(),
-        MountType::SMB {
+        MountType::Smb {
             host: "server.example.com".to_string(),
             share: "share".to_string(),
             username: None,

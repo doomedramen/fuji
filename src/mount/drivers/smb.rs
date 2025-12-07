@@ -60,7 +60,7 @@ impl MountHandler for SmbHandler {
         };
         let password = parsed.password().map(|p| p.to_string());
 
-        Ok(MountType::SMB {
+        Ok(MountType::Smb {
             host,
             share,
             username,
@@ -72,7 +72,7 @@ impl MountHandler for SmbHandler {
 
     fn validate_config(&self, config: &MountConfig) -> Result<()> {
         match &config.mount_type {
-            MountType::SMB {
+            MountType::Smb {
                 host,
                 share,
                 ..
@@ -132,7 +132,7 @@ impl MountHandler for SmbHandler {
         self.validate_config(config)?;
 
         match &config.mount_type {
-            MountType::SMB {
+            MountType::Smb {
                 host,
                 share,
                 username,

@@ -24,6 +24,8 @@ enforced-import-renames = [
     { path = "std::time::Duration", rename = "StdDuration" }
 ]
 
+# Allow common patterns
+
 standard-macro-braces = [
     { name = "assert", brace = "(" },
     { name = "assert_eq", brace = "(" },

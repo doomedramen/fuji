@@ -93,7 +93,7 @@ fn test_platform_mount_commands() {
     let platform = get_platform();
 
     // Test NFS mount command generation
-    let nfs_type = MountType::NFS {
+    let nfs_type = MountType::Nfs {
         host: "server.example.com".to_string(),
         share: "/export".to_string(),
         options: vec![],
@@ -105,7 +105,7 @@ fn test_platform_mount_commands() {
     println!("✓ NFS mount command: {:?}", cmd);
 
     // Test SMB mount command generation
-    let smb_type = MountType::SMB {
+    let smb_type = MountType::Smb {
         host: "server.example.com".to_string(),
         share: "share".to_string(),
         username: None,

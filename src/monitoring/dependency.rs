@@ -536,7 +536,7 @@ mod tests {
 
         let config = MountConfig::new(
             "test://example.com/share".to_string(),
-            crate::mount::MountType::NFS {
+            crate::mount::MountType::Nfs {
                 host: "example.com".to_string(),
                 share: "/share".to_string(),
                 options: vec![],
@@ -561,7 +561,7 @@ mod tests {
         // Add mounts
         let config1 = MountConfig::new(
             "nfs://example1.com/share".to_string(),
-            crate::mount::MountType::NFS {
+            crate::mount::MountType::Nfs {
                 host: "example1.com".to_string(),
                 share: "/share".to_string(),
                 options: vec![],
@@ -571,7 +571,7 @@ mod tests {
 
         let config2 = MountConfig::new(
             "smb://example2.com/share".to_string(),
-            crate::mount::MountType::SMB {
+            crate::mount::MountType::Smb {
                 host: "example2.com".to_string(),
                 share: "share".to_string(),
                 username: None,
@@ -617,7 +617,7 @@ mod tests {
         // Create mounts with dependencies
         let config1 = MountConfig::new(
             "nfs://example1.com/share".to_string(),
-            crate::mount::MountType::NFS {
+            crate::mount::MountType::Nfs {
                 host: "example1.com".to_string(),
                 share: "/share".to_string(),
                 options: vec![],
@@ -627,7 +627,7 @@ mod tests {
 
         let config2 = MountConfig::new(
             "smb://example2.com/share".to_string(),
-            crate::mount::MountType::SMB {
+            crate::mount::MountType::Smb {
                 host: "example2.com".to_string(),
                 share: "share".to_string(),
                 username: None,
@@ -640,7 +640,7 @@ mod tests {
 
         let config3 = MountConfig::new(
             "nfs://example3.com/share".to_string(),
-            crate::mount::MountType::NFS {
+            crate::mount::MountType::Nfs {
                 host: "example3.com".to_string(),
                 share: "/share".to_string(),
                 options: vec![],
@@ -710,7 +710,7 @@ mod tests {
         // Create mounts
         let config1 = MountConfig::new(
             "mount1".to_string(),
-            crate::mount::MountType::NFS {
+            crate::mount::MountType::Nfs {
                 host: "example1.com".to_string(),
                 share: "/share".to_string(),
                 options: vec![],
@@ -720,7 +720,7 @@ mod tests {
 
         let config2 = MountConfig::new(
             "mount2".to_string(),
-            crate::mount::MountType::SMB {
+            crate::mount::MountType::Smb {
                 host: "example2.com".to_string(),
                 share: "share".to_string(),
                 username: None,
@@ -733,7 +733,7 @@ mod tests {
 
         let config3 = MountConfig::new(
             "mount3".to_string(),
-            crate::mount::MountType::NFS {
+            crate::mount::MountType::Nfs {
                 host: "example3.com".to_string(),
                 share: "/share".to_string(),
                 options: vec![],

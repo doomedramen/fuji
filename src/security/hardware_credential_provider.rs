@@ -22,7 +22,7 @@ use tracing::info;
 /// Hardware-backed credential provider
 pub struct HardwareCredentialProvider {
     /// HSM backend
-    hsm_backend: Arc<dyn HSMBACKEND>,
+    hsm_backend: Arc<dyn HsmBackend>,
     /// Key cache with TTL
     key_cache: Arc<RwLock<HashMap<String, CachedKey>>>,
     /// Key rotation configuration
@@ -127,7 +127,7 @@ pub struct KeyDerivationParams {
 
 /// HSM backend trait for hardware security modules
 #[async_trait::async_trait]
-pub trait HSMBACKEND: Send + Sync {
+pub trait HsmBackend: Send + Sync {
     /// Store a key in the HSM
     async fn store_key(&self, ____key_id: &str, _key_data: &[u8]) -> Result<()>;
 
@@ -189,7 +189,7 @@ struct ChaCha20Poly1305Encryptor {
 #[allow(dead_code)]
 impl HardwareCredentialProvider {
     /// Create a new hardware-backed credential provider
-    pub fn new(hsm_backend: Arc<dyn HSMBACKEND>) -> Self {
+    pub fn new(hsm_backend: Arc<dyn HsmBackend>) -> Self {
         Self {
             hsm_backend,
             key_cache: Arc::new(RwLock::new(HashMap::new())),
@@ -474,7 +474,7 @@ impl Default for SecurityPolicy {
 }
 
 #[async_trait::async_trait]
-impl HSMBACKEND for SoftwareHSM {
+impl HsmBackend for SoftwareHSM {
     async fn store_key(&self, ____key_id: &str, _key_data: &[u8]) -> Result<()> {
         // Implementation for software HSM key storage
         Err(anyhow!("Software HSM implementation not completed"))

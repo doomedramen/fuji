@@ -177,7 +177,7 @@ pub enum SignatureAlgorithm {
     /// Edwards-curve Digital Signature Algorithm
     Ed25519,
     /// Elliptic Curve Digital Signature Algorithm
-    ECDSA {
+    Ecdsa {
         curve: String,
     },
     /// RSA with SHA-256
@@ -899,7 +899,7 @@ impl SecureUpdateManager {
                     // RSA verification would go here
                     info!("Verifying RSA signature from key: {}", signature.key_id);
                 }
-                SignatureAlgorithm::ECDSA {
+                SignatureAlgorithm::Ecdsa {
                     curve: _,
                 } => {
                     // ECDSA verification would go here

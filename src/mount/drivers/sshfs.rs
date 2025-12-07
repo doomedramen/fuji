@@ -73,7 +73,7 @@ impl MountHandler for SshfsHandler {
         // For SSHFS, we'll use the SMB mount type as a temporary storage for connection info
         // TODO: Add a dedicated SSHFS mount type to MountType enum
         let share = format!("sshfs://{}", host);
-        Ok(MountType::SMB {
+        Ok(MountType::Smb {
             host,
             share,
             username,
@@ -85,7 +85,7 @@ impl MountHandler for SshfsHandler {
 
     fn validate_config(&self, config: &MountConfig) -> Result<()> {
         match &config.mount_type {
-            MountType::SMB {
+            MountType::Smb {
                 host,
                 share,
                 ..
@@ -113,7 +113,7 @@ impl MountHandler for SshfsHandler {
         self.validate_config(config)?;
 
         match &config.mount_type {
-            MountType::SMB {
+            MountType::Smb {
                 host: _,
                 share,
                 username: _,

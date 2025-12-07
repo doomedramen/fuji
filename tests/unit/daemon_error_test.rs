@@ -35,8 +35,9 @@ fn test_daemon_result_type() {
     assert!(success.is_ok());
 
     // Test error result
-    let error = DaemonError::network_error("Connection failed");
-    assert_eq!(error.category(), "network");
+    let error: DaemonResult<i32> = Err(DaemonError::network_error("Connection failed"));
+    assert!(error.is_err());
+    assert_eq!(error.unwrap_err().category(), "network");
 }
 
 #[test]

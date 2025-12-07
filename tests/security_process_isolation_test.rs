@@ -10,9 +10,11 @@
 
 use anyhow::Result;
 use fuji::security::process_isolation::{
-    MountPoint, NamespaceConfig, NetworkConfig, ProcessIsolator, Sandbox
+    MountPoint, NamespaceConfig, NetworkConfig, ProcessIsolator, Sandbox,
 };
+
 use std::path::PathBuf;
+use std::time::Duration;
 use tokio::time::timeout;
 
 #[tokio::test]
@@ -47,31 +49,31 @@ async fn test_sandbox_creation() {
 #[tokio::test]
 async fn test_custom_namespace_config() {
     let config = NamespaceConfig {
-        pid_namespace: true
-        mount_namespace: true
-        network_namespace: true
-        uts_namespace: true
-        ipc_namespace: true
-        user_namespace: false
-        cgroup_namespace: false
-        hostname: Some("test-host".to_string())
-        root_dir: Some(PathBuf::from("/tmp/test-root"))
-        drop_uid: Some(1000)
-        drop_gid: Some(1000)
+        pid_namespace: true,
+        mount_namespace: true,
+        network_namespace: true,
+        uts_namespace: true,
+        ipc_namespace: true,
+        user_namespace: false,
+        cgroup_namespace: false,
+        hostname: Some("test-host".to_string()),
+        root_dir: Some(PathBuf::from("/tmp/test-root")),
+        drop_uid: Some(1000),
+        drop_gid: Some(1000),
         mount_points: vec![MountPoint {
-            source: PathBuf::from("/proc")
-            target: PathBuf::from("/proc")
-            fs_type: "proc".to_string()
-            options: vec!["nosuid".to_string(), "noexec".to_string()]
-            read_only: false
-            create_target: true
-        }]
+            source: PathBuf::from("/proc"),
+            target: PathBuf::from("/proc"),
+            fs_type: "proc".to_string(),
+            options: vec!["nosuid".to_string(), "noexec".to_string()],
+            read_only: false,
+            create_target: true,
+        }],
         network_config: Some(NetworkConfig {
-            interface: "eth0".to_string()
-            ip_address: "192.168.1.100".to_string()
-            netmask: "255.255.255.0".to_string()
-            gateway: Some("192.168.1.1".to_string())
-        })
+            interface: "eth0".to_string(),
+            ip_address: "192.168.1.100".to_string(),
+            netmask: "255.255.255.0".to_string(),
+            gateway: Some("192.168.1.1".to_string()),
+        }),
     };
 
     let isolator = ProcessIsolator::new(config);
@@ -81,12 +83,12 @@ async fn test_custom_namespace_config() {
 #[tokio::test]
 async fn test_mount_point_configuration() {
     let mount = MountPoint {
-        source: PathBuf::from("/dev")
-        target: PathBuf::from("/dev")
-        fs_type: "tmpfs".to_string()
-        options: vec!["size=50M".to_string(), "mode=755".to_string()]
-        read_only: false
-        create_target: true
+        source: PathBuf::from("/dev"),
+        target: PathBuf::from("/dev"),
+        fs_type: "tmpfs".to_string(),
+        options: vec!["size=50M".to_string(), "mode=755".to_string()],
+        read_only: false,
+        create_target: true,
     };
 
     assert_eq!(mount.fs_type, "tmpfs");
@@ -98,10 +100,10 @@ async fn test_mount_point_configuration() {
 #[tokio::test]
 async fn test_network_configuration() {
     let net_config = NetworkConfig {
-        interface: "eth0".to_string()
-        ip_address: "10.0.0.2".to_string()
-        netmask: "255.255.255.0".to_string()
-        gateway: Some("10.0.0.1".to_string())
+        interface: "eth0".to_string(),
+        ip_address: "10.0.0.2".to_string(),
+        netmask: "255.255.255.0".to_string(),
+        gateway: Some("10.0.0.1".to_string()),
     };
 
     assert_eq!(net_config.interface, "eth0");
@@ -112,9 +114,9 @@ async fn test_network_configuration() {
 #[tokio::test]
 async fn test_isolated_process_lifecycle() -> Result<()> {
     let config = NamespaceConfig {
-        pid_namespace: true
-        uts_namespace: true
-        hostname: Some("fuji-test".to_string())
+        pid_namespace: true,
+        uts_namespace: true,
+        hostname: Some("fuji-test".to_string()),
         ..Default::default()
     };
 
@@ -181,8 +183,8 @@ async fn test_process_termination() -> Result<()> {
 #[tokio::test]
 async fn test_hostname_isolation() -> Result<()> {
     let config = NamespaceConfig {
-        uts_namespace: true
-        hostname: Some("fuji-isolated-hostname".to_string())
+        uts_namespace: true,
+        hostname: Some("fuji-isolated-hostname".to_string()),
         ..Default::default()
     };
 
@@ -208,7 +210,7 @@ async fn test_hostname_isolation() -> Result<()> {
 #[tokio::test]
 async fn test_pid_namespace_isolation() -> Result<()> {
     let config = NamespaceConfig {
-        pid_namespace: true
+        pid_namespace: true,
         ..Default::default()
     };
 
@@ -247,7 +249,7 @@ async fn test_multiple_isolated_processes() -> Result<()> {
     }
 
     // Wait for all processes to complete
-    for mut child in children {
+    for child in children {
         let output = child.wait_with_output().await?;
         assert!(output.status.success());
     }
@@ -268,15 +270,15 @@ async fn test_mount_namespace_isolation() -> Result<()> {
     // This test would require more complex setup with actual filesystems
     // For now, we test that the configuration is properly set
     let config = NamespaceConfig {
-        mount_namespace: true
+        mount_namespace: true,
         mount_points: vec![MountPoint {
-            source: PathBuf::from("none")
-            target: PathBuf::from("/tmp/test-mount")
-            fs_type: "tmpfs".to_string()
-            options: vec!["size=10M".to_string()]
-            read_only: false
-            create_target: true
-        }]
+            source: PathBuf::from("none"),
+            target: PathBuf::from("/tmp/test-mount"),
+            fs_type: "tmpfs".to_string(),
+            options: vec!["size=10M".to_string()],
+            read_only: false,
+            create_target: true,
+        }],
         ..Default::default()
     };
 
@@ -339,40 +341,40 @@ async fn test_process_isolation_timeout() -> Result<()> {
 #[tokio::test]
 async fn test_comprehensive_namespace_configuration() {
     let config = NamespaceConfig {
-        pid_namespace: true
-        mount_namespace: true
+        pid_namespace: true,
+        mount_namespace: true,
         network_namespace: false, // Disabled for test environment
-        uts_namespace: true
-        ipc_namespace: true
-        user_namespace: false
-        cgroup_namespace: false
-        hostname: Some("comprehensive-test".to_string())
-        root_dir: None
-        drop_uid: None
-        drop_gid: None
+        uts_namespace: true,
+        ipc_namespace: true,
+        user_namespace: false,
+        cgroup_namespace: false,
+        hostname: Some("comprehensive-test".to_string()),
+        root_dir: None,
+        drop_uid: None,
+        drop_gid: None,
         mount_points: vec![
             MountPoint {
-                source: PathBuf::from("proc")
-                target: PathBuf::from("/proc")
-                fs_type: "proc".to_string()
+                source: PathBuf::from("proc"),
+                target: PathBuf::from("/proc"),
+                fs_type: "proc".to_string(),
                 options: vec![
-                    "nosuid".to_string()
-                    "nodev".to_string()
-                    "noexec".to_string()
-                ]
-                read_only: false
-                create_target: true
-            }
+                    "nosuid".to_string(),
+                    "nodev".to_string(),
+                    "noexec".to_string(),
+                ],
+                read_only: false,
+                create_target: true,
+            },
             MountPoint {
-                source: PathBuf::from("none")
-                target: PathBuf::from("/tmp")
-                fs_type: "tmpfs".to_string()
-                options: vec!["size=100M".to_string(), "mode=1777".to_string()]
-                read_only: false
-                create_target: true
-            }
-        ]
-        network_config: None
+                source: PathBuf::from("none"),
+                target: PathBuf::from("/tmp"),
+                fs_type: "tmpfs".to_string(),
+                options: vec!["size=100M".to_string(), "mode=1777".to_string()],
+                read_only: false,
+                create_target: true,
+            },
+        ],
+        network_config: None,
     };
 
     let isolator = ProcessIsolator::new(config);
@@ -392,9 +394,9 @@ mod integration_tests {
 
         // Test various commands in isolated environment
         let commands = vec![
-            ("echo", vec!["test1".to_string()])
-            ("pwd", vec![])
-            ("ls", vec!["-la".to_string(), "/".to_string()])
+            ("echo", vec!["test1".to_string()]),
+            ("pwd", vec![]),
+            ("ls", vec!["-la".to_string(), "/".to_string()]),
         ];
 
         for (cmd, args) in commands {
@@ -410,13 +412,13 @@ mod integration_tests {
     #[ignore] // Requires network configuration
     async fn test_network_namespace_isolation() -> Result<()> {
         let config = NamespaceConfig {
-            network_namespace: true
+            network_namespace: true,
             network_config: Some(NetworkConfig {
-                interface: "lo".to_string()
-                ip_address: "127.0.0.1".to_string()
-                netmask: "255.0.0.0".to_string()
-                gateway: None
-            })
+                interface: "lo".to_string(),
+                ip_address: "127.0.0.1".to_string(),
+                netmask: "255.0.0.0".to_string(),
+                gateway: None,
+            }),
             ..Default::default()
         };
 

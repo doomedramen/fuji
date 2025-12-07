@@ -195,11 +195,11 @@ impl PingHealthCheck {
     /// Extract host from mount configuration
     pub fn extract_host(&self, mount_config: &crate::mount::MountConfig) -> Result<String> {
         match &mount_config.mount_type {
-            MountType::NFS {
+            MountType::Nfs {
                 host,
                 ..
             } => Ok(host.clone()),
-            MountType::SMB {
+            MountType::Smb {
                 host,
                 ..
             } => Ok(host.clone()),
@@ -321,10 +321,10 @@ impl HealthCheck for ProtocolHealthCheck {
 
         // Get the appropriate handler for this mount type
         let protocol = match &mount_config.mount_type {
-            MountType::NFS {
+            MountType::Nfs {
                 ..
             } => "nfs",
-            MountType::SMB {
+            MountType::Smb {
                 ..
             } => "smb",
         };
@@ -466,7 +466,7 @@ mod tests {
         // Test with non-existent mount
         let config = crate::mount::MountConfig::new(
             "nfs://example.com/share".to_string(),
-            crate::mount::MountType::NFS {
+            crate::mount::MountType::Nfs {
                 host: "example.com".to_string(),
                 share: "/share".to_string(),
                 options: vec![],

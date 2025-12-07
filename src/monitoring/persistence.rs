@@ -518,7 +518,7 @@ mod tests {
         // Create test mount config
         let config = MountConfig::new(
             "nfs://example.com/share".to_string(),
-            MountType::NFS {
+            MountType::Nfs {
                 host: "example.com".to_string(),
                 share: "/share".to_string(),
                 options: vec![],

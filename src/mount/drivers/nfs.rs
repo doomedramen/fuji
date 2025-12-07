@@ -63,7 +63,7 @@ impl MountHandler for NfsHandler {
             parsed.path().to_string()
         };
 
-        Ok(MountType::NFS {
+        Ok(MountType::Nfs {
             host,
             share,
             options: self.get_default_options(),
@@ -72,7 +72,7 @@ impl MountHandler for NfsHandler {
 
     fn validate_config(&self, config: &MountConfig) -> Result<()> {
         match &config.mount_type {
-            MountType::NFS {
+            MountType::Nfs {
                 host,
                 ..
             } => {
@@ -117,7 +117,7 @@ impl MountHandler for NfsHandler {
         self.validate_config(config)?;
 
         match &config.mount_type {
-            MountType::NFS {
+            MountType::Nfs {
                 host,
                 share,
                 options,

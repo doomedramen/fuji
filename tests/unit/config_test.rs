@@ -1,6 +1,7 @@
 //! Unit tests for configuration management
 
 use fuji::config::Config;
+
 use tempfile::TempDir;
 
 #[test]

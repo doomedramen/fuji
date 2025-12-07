@@ -1,7 +1,6 @@
 //! Unit tests for mount options parsing
 
-use fuji::mount::options::{MountOptionParser, MountOptions, PerformanceOptions, SecurityOptions};
-use std::collections::HashMap;
+use fuji::mount::options::MountOptionParser;
 
 #[test]
 fn test_nfs_options_parsing() {

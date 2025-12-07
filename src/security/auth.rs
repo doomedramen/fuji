@@ -161,14 +161,14 @@ impl JWTAuthenticator {
 
         // Check if token is revoked
         {
-            let revoked =
-                self.revoked_tokens
-                    .try_read()
-                    .map_err(|_| SecurityError::SystemSecurityError {
-                        component: "revoked_tokens_store".to_string(),
-                        reason: "Failed to acquire read lock for revoked tokens".to_string(),
-                        source: None,
-                    })?;
+            let revoked = self
+                .revoked_tokens
+                .try_read()
+                .map_err(|_| SecurityError::System {
+                    component: "revoked_tokens_store".to_string(),
+                    reason: "Failed to acquire read lock for revoked tokens".to_string(),
+                    source: None,
+                })?;
             if revoked.contains(token) {
                 return Err(security_auth_error!("Token has been revoked"));
             }

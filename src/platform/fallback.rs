@@ -137,7 +137,7 @@ impl Platform for FallbackPlatform {
 
     fn get_mount_command(&self, mount_type: &MountType) -> Result<Vec<String>> {
         match mount_type {
-            MountType::NFS {
+            MountType::Nfs {
                 host,
                 share,
                 options,
@@ -152,7 +152,7 @@ impl Platform for FallbackPlatform {
                 cmd.push(format!("{}:{}", host, share));
                 Ok(cmd)
             }
-            MountType::SMB {
+            MountType::Smb {
                 ..
             } => Err(anyhow!("SMB/CIFS not yet implemented")),
         }

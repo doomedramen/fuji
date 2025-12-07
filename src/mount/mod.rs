@@ -22,13 +22,13 @@ pub mod state_machine;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MountType {
     /// NFS (Network File System)
-    NFS {
+    Nfs {
         host: String,
         share: String,
         options: Vec<String>,
     },
     /// SMB/CIFS (Windows file sharing)
-    SMB {
+    Smb {
         host: String,
         share: String,
         username: Option<String>,

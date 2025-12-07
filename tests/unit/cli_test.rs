@@ -5,8 +5,6 @@
 
 use clap::Parser;
 use fuji::cli::{Cli, Commands, ConfigCommand, DaemonCommand};
-use std::path::PathBuf;
-use tempfile::TempDir;
 
 #[test]
 fn test_cli_help_message() {
@@ -48,9 +46,9 @@ fn test_mount_command_parsing() {
         assert_eq!(url, "nfs://server.example.com/export");
         assert_eq!(mount_point, Some("/mnt/point".to_string()));
         assert_eq!(options, None);
-        assert!(!disable);
-        assert!(!dry_run);
-        assert!(!progress);
+        assert_eq!(disable, false);
+        assert_eq!(dry_run, false);
+        assert_eq!(progress, false);
     } else {
         panic!("Expected mount command");
     }

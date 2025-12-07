@@ -80,7 +80,7 @@ pub enum SecurityError {
 
     /// System security errors
     #[error("System security error: {component} - {reason}")]
-    SystemSecurityError {
+    System {
         component: String,
         reason: String,
         #[source]
@@ -97,7 +97,7 @@ pub enum SecurityError {
 
     /// Network security errors
     #[error("Network security error: {protocol} - {reason}")]
-    NetworkSecurityError {
+    Network {
         protocol: String,
         reason: String,
         remote_address: Option<String>,
@@ -105,7 +105,7 @@ pub enum SecurityError {
 
     /// File system security errors
     #[error("File system security error: {path} - {reason}")]
-    FileSystemSecurityError {
+    FileSystem {
         path: String,
         reason: String,
         operation: String,
@@ -247,12 +247,12 @@ impl Clone for SecurityError {
                 reason: reason.clone(),
                 threat_level: threat_level.clone(),
             },
-            SecurityError::SystemSecurityError {
+            SecurityError::System {
                 component,
                 reason,
                 source: _,
             } => {
-                SecurityError::SystemSecurityError {
+                SecurityError::System {
                     component: component.clone(),
                     reason: reason.clone(),
                     source: None, // Cannot clone Box<dyn Error>
@@ -267,20 +267,20 @@ impl Clone for SecurityError {
                 reason: reason.clone(),
                 config_file: config_file.clone(),
             },
-            SecurityError::NetworkSecurityError {
+            SecurityError::Network {
                 protocol,
                 reason,
                 remote_address,
-            } => SecurityError::NetworkSecurityError {
+            } => SecurityError::Network {
                 protocol: protocol.clone(),
                 reason: reason.clone(),
                 remote_address: remote_address.clone(),
             },
-            SecurityError::FileSystemSecurityError {
+            SecurityError::FileSystem {
                 path,
                 reason,
                 operation,
-            } => SecurityError::FileSystemSecurityError {
+            } => SecurityError::FileSystem {
                 path: path.clone(),
                 reason: reason.clone(),
                 operation: operation.clone(),
@@ -628,16 +628,16 @@ impl SecurityErrorMetrics {
             SecurityError::IntrusionDetectionError {
                 ..
             } => "intrusion_detection".to_string(),
-            SecurityError::SystemSecurityError {
+            SecurityError::System {
                 ..
             } => "system_security".to_string(),
             SecurityError::ConfigurationError {
                 ..
             } => "configuration".to_string(),
-            SecurityError::NetworkSecurityError {
+            SecurityError::Network {
                 ..
             } => "network_security".to_string(),
-            SecurityError::FileSystemSecurityError {
+            SecurityError::FileSystem {
                 ..
             } => "file_system_security".to_string(),
             SecurityError::ValidationError {
@@ -674,7 +674,7 @@ impl Default for SecurityErrorMetrics {
 /// Conversions from common error types to SecurityError
 impl From<std::io::Error> for SecurityError {
     fn from(err: std::io::Error) -> Self {
-        SecurityError::SystemSecurityError {
+        SecurityError::System {
             component: "filesystem".to_string(),
             reason: format!("I/O error: {}", err),
             source: Some(Box::new(err)),

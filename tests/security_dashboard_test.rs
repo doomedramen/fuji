@@ -3,7 +3,7 @@
 //! Comprehensive test suite for the security monitoring dashboard module
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use fuji::security::audit_logging::{
     AuditEvent, AuditEventType, AuditOutcome, AuditSeverity, AuditSource, AuditSourceType,
 };
@@ -86,7 +86,7 @@ async fn test_security_alert_creation() -> Result<()> {
     let config = DashboardConfig::default();
     let dashboard = SecurityDashboard::new(config);
 
-    let alert_id = Uuid::new_v4().to_string();
+    let _alert_id = Uuid::new_v4().to_string();
 
     dashboard
         .create_alert(
@@ -460,7 +460,7 @@ async fn test_historical_data_tracking() -> Result<()> {
         dashboard.process_event(audit_event).await?;
     }
 
-    let historical_data = dashboard.get_historical_data(Some(24)).await?;
+    let _historical_data = dashboard.get_historical_data(Some(24)).await?;
 
     // Note: Historical snapshots are created by background monitoring task
     // In a real scenario, they would be generated periodically

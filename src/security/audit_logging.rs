@@ -809,10 +809,10 @@ impl AuditLogger {
         let events: Vec<AuditEvent> = buffer.iter().cloned().collect();
 
         match format {
-            ExportFormat::JSON => serde_json::to_vec_pretty(&events)?,
-            ExportFormat::CSV => self.export_to_csv(&events)?,
+            ExportFormat::Json => serde_json::to_vec_pretty(&events)?,
+            ExportFormat::Csv => self.export_to_csv(&events)?,
             ExportFormat::Syslog => self.export_to_syslog(&events)?,
-            ExportFormat::CEF => self.export_to_cef(&events)?,
+            ExportFormat::Cef => self.export_to_cef(&events)?,
         };
 
         Ok(vec![]) // Placeholder for actual export
@@ -1006,7 +1006,7 @@ impl AuditLogger {
         if !filter.source_filters.is_empty() {
             let source_match = filter.source_filters.iter().any(|pattern| {
                 event.source.identifier.contains(pattern)
-                    || event.source.source_type.to_string().contains(pattern)
+                    || event.source.source_type.as_str().contains(pattern)
             });
             if !source_match {
                 return false;
@@ -1234,10 +1234,10 @@ pub struct AuditStatistics {
 /// Export formats for audit logs
 #[derive(Debug, Clone, Copy)]
 pub enum ExportFormat {
-    JSON,
-    CSV,
+    Json,
+    Csv,
     Syslog,
-    CEF,
+    Cef,
 }
 
 impl Default for AuditLogger {
@@ -1250,7 +1250,7 @@ impl Default for AuditLogger {
 
 impl AuditSourceType {
     /// Get string representation
-    pub fn to_string(&self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             AuditSourceType::User => "user",
             AuditSourceType::Process => "process",
