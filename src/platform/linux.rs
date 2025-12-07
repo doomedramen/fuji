@@ -219,7 +219,7 @@ impl Platform for LinuxPlatform {
         }
 
         let output_str = String::from_utf8(output.stdout)?;
-        let parts: Vec<&str> = output_str.trim().split_whitespace().collect();
+        let parts: Vec<&str> = output_str.split_whitespace().collect();
 
         if parts.len() >= 4 {
             Ok(Some(MountInfo {
@@ -284,7 +284,7 @@ impl Platform for LinuxPlatform {
 
         if user_config.exists()
             || self
-                .can_access_path(&user_config.parent().unwrap())
+                .can_access_path(user_config.parent().unwrap())
                 .unwrap_or(false)
         {
             return user_config;

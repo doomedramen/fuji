@@ -458,7 +458,7 @@ impl PersistenceManager {
             info!("Cleaned up {} old health check records", result);
         }
 
-        Ok(result as usize)
+        Ok(result)
     }
 }
 

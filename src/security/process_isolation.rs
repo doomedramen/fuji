@@ -708,7 +708,7 @@ fn setup_network_namespace(config: &NamespaceConfig) -> Result<()> {
         // Set gateway if configured
         if let Some(ref gateway) = net_config.gateway {
             Command::new("ip")
-                .args(&["route", "add", "default", "via", gateway])
+                .args(["route", "add", "default", "via", gateway])
                 .output()?;
         }
 

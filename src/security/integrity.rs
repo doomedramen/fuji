@@ -937,6 +937,12 @@ pub mod control_flow_integrity {
         shadow_stack: RwLock<Vec<usize>>,
     }
 
+    impl Default for ControlFlowIntegrity {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl ControlFlowIntegrity {
         /// Create new CFI protector
         pub fn new() -> Self {

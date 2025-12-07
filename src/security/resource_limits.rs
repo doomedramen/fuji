@@ -736,7 +736,7 @@ impl ResourceLimitsManager {
         sys.refresh_cpu();
 
         let cpu_usage = sys.global_cpu_info().cpu_usage();
-        let usage_percent = cpu_usage as f32 / 100.0;
+        let usage_percent = cpu_usage / 100.0;
         let cpu_cores = sys.cpus().len() as u32;
 
         {

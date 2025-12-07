@@ -367,7 +367,6 @@ mod tests {
 
             #[cfg(unix)]
             {
-                use std::os::unix::fs::PermissionsExt;
                 let metadata = fs::metadata(&mount_path).unwrap();
                 // We can't reliably test UID/GID changes as they require root privileges
                 // but we can test the mode
