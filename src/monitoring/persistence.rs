@@ -67,6 +67,7 @@ impl PersistenceManager {
         let db_path_clone = db_path.clone();
         let manager = Self {
             #[allow(clippy::arc_with_non_send_sync)]
+            #[allow(clippy::arc_with_non_send_sync)]
             connection: Arc::new(RwLock::new(connection)),
             db_path,
         };

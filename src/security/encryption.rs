@@ -430,6 +430,12 @@ pub struct ChaCha20Poly1305Encryptor {
     algorithm: EncryptionAlgorithm,
 }
 
+impl Default for ChaCha20Poly1305Encryptor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChaCha20Poly1305Encryptor {
     pub fn new() -> Self {
         Self {
@@ -455,7 +461,7 @@ impl Encryptor for ChaCha20Poly1305Encryptor {
         OsRng.fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
 
-        let cipher = ChaCha20Poly1305::new(&key);
+        let cipher = ChaCha20Poly1305::new(key);
         let encrypted = cipher
             .encrypt(nonce, plaintext)
             .map_err(|e| security_crypto_error!("chacha20poly1305_encrypt", &e))?;
@@ -507,7 +513,7 @@ impl Encryptor for ChaCha20Poly1305Encryptor {
         let (nonce_bytes, ciphertext) = encrypted.decode_components()?;
 
         let nonce = Nonce::from_slice(&nonce_bytes);
-        let cipher = ChaCha20Poly1305::new(&key);
+        let cipher = ChaCha20Poly1305::new(key);
 
         cipher
             .decrypt(nonce, &ciphertext[..])
@@ -522,6 +528,12 @@ impl Encryptor for ChaCha20Poly1305Encryptor {
 /// AES-256-GCM encryptor implementation
 pub struct Aes256GcmEncryptor {
     algorithm: EncryptionAlgorithm,
+}
+
+impl Default for Aes256GcmEncryptor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Aes256GcmEncryptor {
@@ -549,7 +561,7 @@ impl Encryptor for Aes256GcmEncryptor {
         OsRng.fill_bytes(&mut nonce_bytes);
         let nonce = AesNonce::from_slice(&nonce_bytes);
 
-        let cipher = AesGcm::new(&key);
+        let cipher = AesGcm::new(key);
         let encrypted = cipher
             .encrypt(nonce, plaintext)
             .map_err(|e| security_crypto_error!("aes256gcm_encrypt", &e))?;
@@ -601,7 +613,7 @@ impl Encryptor for Aes256GcmEncryptor {
         let (nonce_bytes, ciphertext) = encrypted.decode_components()?;
 
         let nonce = AesNonce::from_slice(&nonce_bytes);
-        let cipher = AesGcm::new(&key);
+        let cipher = AesGcm::new(key);
 
         cipher
             .decrypt(nonce, &ciphertext[..])

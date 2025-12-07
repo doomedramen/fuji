@@ -216,7 +216,7 @@ impl AuditMonitor {
         detectors.push(detector);
 
         // Sort by priority
-        detectors.sort_by(|a, b| b.priority().cmp(&a.priority()));
+        detectors.sort_by_key(|b| std::cmp::Reverse(b.priority()));
     }
 
     /// Add alert handler
@@ -481,10 +481,7 @@ impl PatternDetector for BruteForceDetector {
                     event.source.identifier,
                     event.source.ip_address.as_deref().unwrap_or("unknown")
                 );
-                auth_failures
-                    .entry(key)
-                    .or_insert_with(Vec::new)
-                    .push(event);
+                auth_failures.entry(key).or_default().push(event);
             }
         }
 
@@ -562,10 +559,7 @@ impl PatternDetector for SuspiciousIPDetector {
         for event in events {
             if event.timestamp > window_start {
                 if let Some(ip) = &event.source.ip_address {
-                    ip_activities
-                        .entry(ip.clone())
-                        .or_insert_with(Vec::new)
-                        .push(event);
+                    ip_activities.entry(ip.clone()).or_default().push(event);
                 }
             }
         }
@@ -676,7 +670,7 @@ impl PatternDetector for PrivilegeEscalationDetector {
             {
                 admin_actions
                     .entry(event.source.identifier.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(event);
             }
         }
