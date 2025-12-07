@@ -20,7 +20,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - run: cargo fmt --all -- --check
+      - run: make fmt
 
   # Stage 2: Security-focused linting
   clippy:
@@ -40,7 +40,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: make clippy
 
   # Stage 3: Security audit
   security:
@@ -65,7 +65,7 @@ jobs:
         run: cargo deny check
       - uses: dtolnay/rust-toolchain@stable
       - name: Run security tests
-        run: cargo test security_* --lib --no-fail-fast
+        run: make test-security
 
   # Stage 4: Unit tests
   test:
@@ -86,7 +86,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-      - run: cargo test --all-features --lib --bins --no-fail-fast
+      - run: make test-unit
 
   # Stage 5: Coverage verification
   coverage:
@@ -159,7 +159,7 @@ jobs:
             sleep 5
           done
       - name: Run integration tests
-        run: cargo test integration_tests --all-features
+        run: make test-integration
       - name: Cleanup
         if: always()
         run: docker compose down -v
@@ -184,4 +184,4 @@ jobs:
           key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-release-
-      - run: cargo build --release
+      - run: make build

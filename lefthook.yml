@@ -6,14 +6,14 @@ pre-commit:
     # Auto-format and stage changes
     format:
       run: |
-        cargo fmt --all
+        make fmt
         git add -u '*.rs'
       glob: "*.rs"
       fail_text: "Code formatting failed."
 
     # Quick compilation check
     check:
-      run: cargo check --all-targets --all-features
+      run: make build-dev
       glob: "*.rs"
       fail_text: "Code has compilation errors."
 
@@ -27,28 +27,28 @@ pre-push:
   commands:
     # Full clippy with strict rules (excluding tests)
     clippy:
-      run: cargo clippy --lib --bin fuji --all-features -- -D warnings
+      run: make clippy
       glob: "*.rs"
       fail_text: "Clippy found issues. Fix them before pushing."
       timeout: 120
 
     # All unit tests
     test-unit:
-      run: cargo test --lib --bins --all-features --no-fail-fast
+      run: make test-unit
       glob: "*.rs"
       fail_text: "Unit tests failed."
       timeout: 300
 
     # Security test suite
     test-security:
-      run: cargo test security_* --all-features --no-fail-fast
+      run: make test-security
       glob: "src/security/**/*.rs"
       fail_text: "Security tests failed."
       timeout: 240
 
     # Build verification
     build-release:
-      run: cargo build --release
+      run: make build
       glob: "*.rs"
       fail_text: "Release build failed."
       timeout: 180
