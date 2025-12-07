@@ -16,15 +16,16 @@ cognitive-complexity-threshold = 30
 
 # Arithmetic and numeric checks
 arithmetic-side-effects-allowed = ["std::time::Duration::new", "std::time::Duration::from_secs"]
-allow-expect-in-tests = true
-allow-unwrap-in-tests = true
 
 # Standard library overrides
 enforced-import-renames = [
     { path = "std::time::Duration", rename = "StdDuration" }
 ]
 
-# Allow common patterns
+# Allow common patterns in tests
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-dbg-in-tests = true
 
 standard-macro-braces = [
     { name = "assert", brace = "(" },

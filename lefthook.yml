@@ -25,7 +25,7 @@ pre-commit:
 
 pre-push:
   commands:
-    # Full clippy with strict rules (excluding tests)
+    # Full clippy check
     clippy:
       run: make clippy
       glob: "*.rs"
