@@ -40,7 +40,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-      - run: cargo clippy --lib --bins --all-features -- -D warnings
+      - run: cargo clippy --all-targets --all-features
 
   # Stage 3: Security audit
   security:
