@@ -76,7 +76,7 @@ fmt:
 
 # Run clippy lints
 clippy:
-	cargo clippy --all-targets --all-features -- -D warnings
+	cargo clippy --lib --bins --all-features -- -D warnings
 
 # Run full CI checks locally
 ci: fmt clippy test

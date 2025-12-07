@@ -187,19 +187,19 @@ impl ProcessIsolator {
                 let process_args = &process_data.args;
 
                 // Setup namespaces
-                if let Err(e) = setup_namespaces(&config) {
+                if let Err(e) = setup_namespaces(config) {
                     error!("Failed to setup namespaces: {}", e);
                     return 1;
                 }
 
                 // Execute the command
                 let mut command = Command::new(
-                    &config
+                    config
                         .root_dir
                         .as_ref()
-                        .map(|r| Path::new(r).join(&cmd))
+                        .map(|r| Path::new(r).join(cmd))
                         .as_deref()
-                        .unwrap_or(Path::new(&cmd)),
+                        .unwrap_or(Path::new(cmd)),
                 );
 
                 command.args(process_args);
@@ -686,17 +686,17 @@ fn setup_network_namespace(config: &NamespaceConfig) -> Result<()> {
     if let Some(ref net_config) = config.network_config {
         // Bring up loopback interface
         Command::new("ip")
-            .args(&["link", "set", "lo", "up"])
+            .args(["link", "set", "lo", "up"])
             .output()?;
 
         // Configure network interface
         Command::new("ip")
-            .args(&["link", "set", &net_config.interface, "up"])
+            .args(["link", "set", &net_config.interface, "up"])
             .output()?;
 
         // Assign IP address
         Command::new("ip")
-            .args(&[
+            .args([
                 "addr",
                 "add",
                 &format!("{}/{}", net_config.ip_address, net_config.netmask),
