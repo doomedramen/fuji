@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tokio::process::Command as TokioCommand;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 // Use libc types for cross-platform compatibility
 #[cfg(unix)]
