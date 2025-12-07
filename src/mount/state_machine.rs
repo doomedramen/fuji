@@ -249,7 +249,7 @@ impl MountStateMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{Duration, sleep};
+    use tokio::time::{Duration as StdDuration, sleep};
 
     #[tokio::test]
     async fn test_state_transitions() {
@@ -342,13 +342,13 @@ mod tests {
             .transition_with_reason(MountState::Mounting, "1")
             .await
             .unwrap();
-        sleep(Duration::from_millis(10)).await;
+        sleep(StdDuration::from_millis(10)).await;
 
         machine
             .transition_with_reason(MountState::Mounted, "2")
             .await
             .unwrap();
-        sleep(Duration::from_millis(10)).await;
+        sleep(StdDuration::from_millis(10)).await;
 
         machine
             .transition_with_reason(MountState::Unmounting, "3")
@@ -379,7 +379,7 @@ mod tests {
             .unwrap();
 
         // Wait a bit
-        sleep(Duration::from_millis(50)).await;
+        sleep(StdDuration::from_millis(50)).await;
 
         let time = machine.time_in_state().await;
         assert!(time.num_milliseconds() >= 40); // Allow some tolerance

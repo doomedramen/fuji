@@ -238,7 +238,7 @@ impl SimpleAuditMonitor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::Duration;
+    use tokio::time::Duration as StdDuration;
 
     #[tokio::test]
     async fn test_simple_audit_monitor() -> Result<()> {
@@ -333,7 +333,7 @@ mod tests {
         }
 
         // Wait for processing
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(StdDuration::from_millis(100)).await;
 
         // Check statistics
         let stats = monitor.get_statistics().await;

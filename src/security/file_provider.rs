@@ -453,9 +453,9 @@ impl FileCredentialProvider {
         // Additional entropy quality check - ensure sufficient variation
         let mut bit_counts = [0u8; 8];
         for &byte in salt.iter() {
-            for i in 0..8 {
-                if (byte >> i) & 1 == 1 {
-                    bit_counts[i] += 1;
+            for (bit_pos, count) in bit_counts.iter_mut().enumerate() {
+                if (byte >> bit_pos) & 1 == 1 {
+                    *count += 1;
                 }
             }
         }
@@ -464,7 +464,7 @@ impl FileCredentialProvider {
         // More lenient range for random data
         for (i, &count) in bit_counts.iter().enumerate() {
             let ratio = count as f64 / salt.len() as f64;
-            if ratio < 0.1 || ratio > 0.9 {
+            if !(0.1..=0.9).contains(&ratio) {
                 return Err(anyhow!(
                     "{} salt shows poor bit distribution at position {} (ratio: {:.2})",
                     salt_type,

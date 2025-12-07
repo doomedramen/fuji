@@ -1272,12 +1272,13 @@ mod tests {
     fn create_test_logger() -> (AuditLogger, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("audit.log");
-        let mut config = AuditConfig::default();
-        config.log_file_path = log_path;
-        // Disable features that might require additional setup
-        config.enable_signing = false;
-        config.enable_encryption = false;
-        config.enable_chaining = false;
+        let config = AuditConfig {
+            log_file_path: log_path.clone(),
+            enable_signing: false,
+            enable_encryption: false,
+            enable_chaining: false,
+            ..Default::default()
+        };
         (AuditLogger::with_config(config).unwrap(), temp_dir)
     }
 

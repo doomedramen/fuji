@@ -217,12 +217,12 @@ impl KDFParameters {
         let key = match self.function {
             KeyDerivationFunction::PBKDF2Sha256 => {
                 let mut derived_key = vec![0u8; self.key_length];
-                pbkdf2_hmac::<Sha256>(password, salt, self.iterations as u32, &mut derived_key);
+                pbkdf2_hmac::<Sha256>(password, salt, self.iterations, &mut derived_key);
                 derived_key
             }
             KeyDerivationFunction::PBKDF2Sha512 => {
                 let mut derived_key = vec![0u8; self.key_length];
-                pbkdf2_hmac::<Sha512>(password, salt, self.iterations as u32, &mut derived_key);
+                pbkdf2_hmac::<Sha512>(password, salt, self.iterations, &mut derived_key);
                 derived_key
             }
             KeyDerivationFunction::Argon2id => self.derive_key_argon2id(password, salt)?,
@@ -249,7 +249,7 @@ impl KDFParameters {
         // For now, fall back to PBKDF2 as placeholder
         warn!("Argon2id not available, falling back to PBKDF2-SHA256");
         let mut derived_key = vec![0u8; self.key_length];
-        pbkdf2_hmac::<Sha256>(password, salt, self.iterations as u32, &mut derived_key);
+        pbkdf2_hmac::<Sha256>(password, salt, self.iterations, &mut derived_key);
         Ok(derived_key)
     }
 
@@ -262,7 +262,7 @@ impl KDFParameters {
         pbkdf2_hmac::<Sha512>(
             password,
             salt,
-            (self.iterations as u32).saturating_mul(10),
+            self.iterations.saturating_mul(10),
             &mut derived_key,
         );
         Ok(derived_key)

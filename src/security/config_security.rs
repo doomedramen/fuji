@@ -668,8 +668,8 @@ impl ConfigSecurityManager {
         reason: &str,
     ) -> Result<String> {
         // Check admin permissions for admin locks
-        if lock_type == LockType::Admin {
-            if !self
+        if lock_type == LockType::Admin
+            && !self
                 .check_permissions(
                     user_id,
                     Permissions {
@@ -678,11 +678,10 @@ impl ConfigSecurityManager {
                     },
                 )
                 .await?
-            {
-                return Err(anyhow!(
-                    "Access denied: admin privileges required for admin lock"
-                ));
-            }
+        {
+            return Err(anyhow!(
+                "Access denied: admin privileges required for admin lock"
+            ));
         }
 
         let mut locks = self.locks.write().await;
@@ -771,7 +770,7 @@ impl ConfigSecurityManager {
         }
 
         // Format validation based on file extension
-        if let Some(extension) = config_data.metadata.name.split('.').last() {
+        if let Some(extension) = config_data.metadata.name.split('.').next_back() {
             match extension {
                 "toml" => {
                     if let Err(e) = config_data.content.parse::<toml::Value>() {
@@ -1028,7 +1027,7 @@ impl ConfigSecurityManager {
             checksum: {
                 use sha2::{Digest, Sha256};
                 let mut hasher = Sha256::new();
-                hasher.update(&config_data.content.as_bytes());
+                hasher.update(config_data.content.as_bytes());
                 format!("{:x}", hasher.finalize())
             },
             previous_checksum: history.last().map(|e| e.checksum.clone()),

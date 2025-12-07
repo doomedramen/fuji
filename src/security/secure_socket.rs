@@ -1268,7 +1268,6 @@ impl SocketSecurityValidator {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    use tokio::time::sleep;
 
     #[tokio::test]
     async fn test_secure_socket_factory_validation() {

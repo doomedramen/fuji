@@ -638,12 +638,18 @@ impl PathSecurityValidator {
 
     /// Perform runtime validation of all registered mounts
     pub async fn validate_all_mounts(&self) -> Result<Vec<(String, IntegrityStatus)>> {
-        let mounts = self.mounts.read().unwrap();
-        let mut results = Vec::new();
+        let mounts_to_check: Vec<(String, MountSecurityConfig)> = {
+            let mounts = self.mounts.read().unwrap();
+            mounts
+                .iter()
+                .map(|(id, config)| (id.clone(), config.clone()))
+                .collect()
+        };
 
-        for (mount_id, config) in mounts.iter() {
-            let status = self.validate_mount_integrity(config).await?;
-            results.push((mount_id.clone(), status));
+        let mut results = Vec::new();
+        for (mount_id, config) in mounts_to_check {
+            let status = self.validate_mount_integrity(&config).await?;
+            results.push((mount_id, status));
         }
 
         Ok(results)
@@ -879,7 +885,7 @@ impl PathSecurityValidator {
         for (key, value) in stats {
             report.push_str(&format!("| {} | {} |\n", key, value));
         }
-        report.push_str("\n");
+        report.push('\n');
 
         // Mount integrity section
         report.push_str("## Mount Integrity Status\n\n");
@@ -888,7 +894,7 @@ impl PathSecurityValidator {
         for (mount_id, status) in validation_results {
             report.push_str(&format!("| {} | {:?} |\n", mount_id, status));
         }
-        report.push_str("\n");
+        report.push('\n');
 
         // Recent events section
         report.push_str("## Recent Security Events (Last 50)\n\n");

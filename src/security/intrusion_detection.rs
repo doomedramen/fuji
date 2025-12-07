@@ -1262,6 +1262,12 @@ impl SimpleMLModel {
     /// Create a new simple ML model
     #[allow(dead_code)]
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for SimpleMLModel {
+    fn default() -> Self {
         Self {
             weights: HashMap::new(),
             bias: 0.0,
@@ -1306,7 +1312,7 @@ impl MLModel for SimpleMLModel {
 
         // Add factor for unusual times (simplified)
         let hour = event.timestamp.hour12().1 as f64;
-        if hour < 6.0 || hour > 22.0 {
+        if !(6.0..=22.0).contains(&hour) {
             score *= 1.5;
         }
 

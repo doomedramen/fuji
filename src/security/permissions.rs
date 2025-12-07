@@ -133,7 +133,6 @@ impl PermissionManager {
             .map_err(|e| anyhow!("Failed to parse id output: {}", e))?;
 
         let groups: Result<Vec<Gid>, _> = output_str
-            .trim()
             .split_whitespace()
             .map(|g| g.parse::<u32>().map(Gid::from_raw))
             .collect();
@@ -173,22 +172,22 @@ impl PermissionManager {
                     (uid, gid, mode)
                 } else {
                     (
-                        config.owner_uid.unwrap_or_else(|| Uid::current()),
-                        config.owner_gid.unwrap_or_else(|| Gid::current()),
+                        config.owner_uid.unwrap_or_else(Uid::current),
+                        config.owner_gid.unwrap_or_else(Gid::current),
                         config.mode,
                     )
                 }
             } else {
                 (
-                    config.owner_uid.unwrap_or_else(|| Uid::current()),
-                    config.owner_gid.unwrap_or_else(|| Gid::current()),
+                    config.owner_uid.unwrap_or_else(Uid::current),
+                    config.owner_gid.unwrap_or_else(Gid::current),
                     config.mode,
                 )
             }
         } else {
             (
-                config.owner_uid.unwrap_or_else(|| Uid::current()),
-                config.owner_gid.unwrap_or_else(|| Gid::current()),
+                config.owner_uid.unwrap_or_else(Uid::current),
+                config.owner_gid.unwrap_or_else(Gid::current),
                 config.mode,
             )
         };
@@ -304,12 +303,10 @@ impl PermissionManager {
             } else {
                 (mode & 0o040) != 0
             }
+        } else if write {
+            (mode & 0o002) != 0
         } else {
-            if write {
-                (mode & 0o002) != 0
-            } else {
-                (mode & 0o004) != 0
-            }
+            (mode & 0o004) != 0
         }
     }
 

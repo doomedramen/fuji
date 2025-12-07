@@ -613,31 +613,31 @@ impl RuntimeIntegrityChecker {
         for mapping in maps {
             let path = &mapping.path;
 
-            if path.starts_with("/tmp/") || path.starts_with("/var/tmp/") {
-                if path.ends_with(".so") || path.contains("lib") {
-                    warn!("Suspicious library detected: {}", path);
+            if (path.starts_with("/tmp/") || path.starts_with("/var/tmp/"))
+                && (path.ends_with(".so") || path.contains("lib"))
+            {
+                warn!("Suspicious library detected: {}", path);
 
-                    let violation = IntegrityViolation {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        violation_type: IntegrityViolationType::LibraryInjection {
-                            library_path: PathBuf::from(path),
-                            injection_method: "memory_mapping".to_string(),
-                        },
-                        timestamp: Utc::now(),
-                        severity: ViolationSeverity::Critical,
-                        source_process: self.process_info.clone(),
-                        context: HashMap::from([
-                            ("library_path".to_string(), path.clone()),
-                            (
-                                "memory_range".to_string(),
-                                format!("{:x}-{:x}", mapping.start, mapping.end),
-                            ),
-                        ]),
-                        status: ViolationStatus::New,
-                    };
+                let violation = IntegrityViolation {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    violation_type: IntegrityViolationType::LibraryInjection {
+                        library_path: PathBuf::from(path),
+                        injection_method: "memory_mapping".to_string(),
+                    },
+                    timestamp: Utc::now(),
+                    severity: ViolationSeverity::Critical,
+                    source_process: self.process_info.clone(),
+                    context: HashMap::from([
+                        ("library_path".to_string(), path.clone()),
+                        (
+                            "memory_range".to_string(),
+                            format!("{:x}-{:x}", mapping.start, mapping.end),
+                        ),
+                    ]),
+                    status: ViolationStatus::New,
+                };
 
-                    return Ok(Some(violation));
-                }
+                return Ok(Some(violation));
             }
         }
 
