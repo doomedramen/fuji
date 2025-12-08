@@ -3,6 +3,24 @@
 
 pre-commit:
   commands:
+    # Bump patch version if changed
+    version-bump:
+      run: |
+        if git diff --cached --name-only | grep -E "(Cargo\.toml|src/)"; then
+          # Check if version has already been updated in this commit
+          if (git diff --cached Cargo.toml | grep -q "version"); then
+            echo "Version already updated in this commit"
+          else
+            echo "Auto-bumping patch version..."
+            # Just update the Cargo.toml without committing
+            cargo bump patch --manifest-path Cargo.toml
+            # Stage the updated Cargo.toml
+            git add Cargo.toml
+          fi
+        fi
+      glob: "*"
+      fail_text: "Version bump failed."
+
     # Auto-format and stage changes
     format:
       run: |

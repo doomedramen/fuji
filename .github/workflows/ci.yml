@@ -123,9 +123,9 @@ jobs:
   # NOTE: Integration tests skipped on CI - requires NFS kernel module
   # Run locally with: make test-integration
 
-  # Stage 6: Release build verification
-  build:
-    name: Release Build
+  # Stage 6: Verify release builds work (not the actual release)
+  verify-release-build:
+    name: Verify Release Build
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
