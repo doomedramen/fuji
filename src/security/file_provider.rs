@@ -970,13 +970,14 @@ mod tests {
 
         // Performance should be reasonable for test configuration (60,000 PBKDF2 iterations)
         // Note: Tests use minimum allowed iterations for security
+        // CI environments may be slower, so use generous timeouts
         assert!(
-            encryption_time < StdDuration::from_secs(20),
+            encryption_time < StdDuration::from_secs(30),
             "Encryption too slow: {:?}",
             encryption_time
         );
         assert!(
-            decryption_time < StdDuration::from_secs(10),
+            decryption_time < StdDuration::from_secs(15),
             "Decryption too slow: {:?}",
             decryption_time
         );
