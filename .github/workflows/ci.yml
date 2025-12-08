@@ -120,37 +120,17 @@ jobs:
         with:
           file: target/coverage/tarpaulin-report.xml
 
-  # Stage 6: Integration tests with Docker
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: [test]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      - name: Run integration tests
-        run: make test-integration
-      - name: Cleanup
-        if: always()
-        run: docker compose down -v
+  # NOTE: Integration tests skipped on CI - requires NFS kernel module
+  # Run locally with: make test-integration
 
-  # Stage 7: Release build verification
+  # Stage 6: Release build verification
   build:
     name: Release Build
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-    needs: [test, integration, coverage]
+    needs: [test, coverage]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
