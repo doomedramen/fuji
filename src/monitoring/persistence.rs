@@ -191,10 +191,17 @@ impl PersistenceManager {
         if current_version < 1 {
             info!("Applying migration 1");
             // Migration 1: Add health_check_summary to mounts table
-            conn.execute(
-                "ALTER TABLE mounts ADD COLUMN health_check_summary TEXT",
-                [],
-            )?;
+            // Check if column already exists to avoid duplicate column error
+            let column_exists: bool = conn
+                .prepare("SELECT health_check_summary FROM mounts LIMIT 1")
+                .is_ok();
+
+            if !column_exists {
+                conn.execute(
+                    "ALTER TABLE mounts ADD COLUMN health_check_summary TEXT",
+                    [],
+                )?;
+            }
 
             conn.execute(
                 "INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?)",
