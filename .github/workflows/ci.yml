@@ -140,23 +140,27 @@ jobs:
         run: docker compose up -d nfs-server smb-server
       - name: Wait for NFS server
         run: |
-          for i in {1..30}; do
+          i=1
+          while [ $i -le 30 ]; do
             if docker compose exec -T nfs-server showmount -e localhost 2>/dev/null; then
               echo "NFS server is ready"
               break
             fi
             echo "Waiting for NFS server... ($i/30)"
             sleep 5
+            i=$((i+1))
           done
       - name: Wait for SMB server
         run: |
-          for i in {1..30}; do
+          i=1
+          while [ $i -le 30 ]; do
             if docker compose exec -T smb-server smbclient -L localhost -N 2>/dev/null; then
               echo "SMB server is ready"
               break
             fi
             echo "Waiting for SMB server... ($i/30)"
             sleep 5
+            i=$((i+1))
           done
       - name: Run integration tests
         run: make test-integration
