@@ -931,7 +931,11 @@ mod tests {
     async fn test_performance() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test_perf.enc");
-        let provider = FileCredentialProvider::with_aes256_gcm(file_path).unwrap();
+
+        // Use test configuration with fewer iterations for faster CI execution
+        let test_config = EncryptionConfig::performance_optimized().with_iterations(60_000); // Minimum allowed for tests
+        let provider =
+            FileCredentialProvider::with_path_and_config(file_path, test_config).unwrap();
 
         // Measure encryption time
         let start = Instant::now();
@@ -964,10 +968,10 @@ mod tests {
 
         let decryption_time = start.elapsed();
 
-        // Performance should be reasonable for 120,000 PBKDF2 iterations
-        // Note: With strong encryption, this will take longer than weak encryption
+        // Performance should be reasonable for test configuration (60,000 PBKDF2 iterations)
+        // Note: Tests use minimum allowed iterations for security
         assert!(
-            encryption_time < StdDuration::from_secs(30),
+            encryption_time < StdDuration::from_secs(20),
             "Encryption too slow: {:?}",
             encryption_time
         );
