@@ -40,19 +40,38 @@ test-security:
 test-integration:
 	@echo "Starting Docker services..."
 	docker compose up -d nfs-server smb-server
-	@echo "Waiting for services to be ready..."
-	@for i in $$(seq 1 30); do \
+	@echo "Waiting for NFS server (up to 120 seconds)..."
+	@nfs_ready=0; \
+	for i in $$(seq 1 120); do \
 		if docker compose exec -T nfs-server showmount -e localhost 2>/dev/null; then \
-			echo "NFS server is ready"; break; \
+			echo "NFS server is ready after $$i seconds"; \
+			nfs_ready=1; \
+			break; \
 		fi; \
-		echo "Waiting for NFS server... ($$i/30)"; sleep 5; \
-	done
-	@for i in $$(seq 1 30); do \
+		sleep 1; \
+	done; \
+	if [ "$$nfs_ready" != "1" ]; then \
+		echo "ERROR: NFS server failed to start within 120 seconds"; \
+		docker compose logs nfs-server; \
+		docker compose down -v; \
+		exit 1; \
+	fi
+	@echo "Waiting for SMB server (up to 120 seconds)..."
+	@smb_ready=0; \
+	for i in $$(seq 1 120); do \
 		if docker compose exec -T smb-server smbclient -L localhost -N 2>/dev/null; then \
-			echo "SMB server is ready"; break; \
+			echo "SMB server is ready after $$i seconds"; \
+			smb_ready=1; \
+			break; \
 		fi; \
-		echo "Waiting for SMB server... ($$i/30)"; sleep 5; \
-	done
+		sleep 1; \
+	done; \
+	if [ "$$smb_ready" != "1" ]; then \
+		echo "ERROR: SMB server failed to start within 120 seconds"; \
+		docker compose logs smb-server; \
+		docker compose down -v; \
+		exit 1; \
+	fi
 	@echo "Running integration tests..."
 	cargo test integration_tests --all-features
 	@echo "Cleaning up Docker services..."

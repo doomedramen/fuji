@@ -137,36 +137,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-      - name: Start Docker services
-        run: docker compose up -d nfs-server smb-server
-      - name: Wait for NFS server
-        run: |
-          echo "Waiting for NFS server..."
-          i=1
-          while [ $i -le 120 ]; do
-            if docker compose exec -T nfs-server showmount -e localhost 2>/dev/null; then
-              echo "NFS server is ready after $i seconds"
-              exit 0
-            fi
-            sleep 1
-            i=$((i+1))
-          done
-          echo "NFS server failed to start within 120 seconds"
-          exit 1
-      - name: Wait for SMB server
-        run: |
-          echo "Waiting for SMB server..."
-          i=1
-          while [ $i -le 120 ]; do
-            if docker compose exec -T smb-server smbclient -L localhost -N 2>/dev/null; then
-              echo "SMB server is ready after $i seconds"
-              exit 0
-            fi
-            sleep 1
-            i=$((i+1))
-          done
-          echo "SMB server failed to start within 120 seconds"
-          exit 1
       - name: Run integration tests
         run: make test-integration
       - name: Cleanup
