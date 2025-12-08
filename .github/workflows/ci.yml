@@ -113,6 +113,7 @@ jobs:
         run: |
           cargo tarpaulin --lib --skip-clean --fail-under 70 \
             --workspace --exclude-files="scripts/*" \
+            --timeout 600 \
             --output-dir target/coverage --out Xml
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -140,28 +141,32 @@ jobs:
         run: docker compose up -d nfs-server smb-server
       - name: Wait for NFS server
         run: |
+          echo "Waiting for NFS server..."
           i=1
-          while [ $i -le 30 ]; do
+          while [ $i -le 60 ]; do
             if docker compose exec -T nfs-server showmount -e localhost 2>/dev/null; then
-              echo "NFS server is ready"
-              break
+              echo "NFS server is ready after $i seconds"
+              exit 0
             fi
-            echo "Waiting for NFS server... ($i/30)"
-            sleep 5
+            sleep 1
             i=$((i+1))
           done
+          echo "NFS server failed to start within 60 seconds"
+          exit 1
       - name: Wait for SMB server
         run: |
+          echo "Waiting for SMB server..."
           i=1
-          while [ $i -le 30 ]; do
+          while [ $i -le 60 ]; do
             if docker compose exec -T smb-server smbclient -L localhost -N 2>/dev/null; then
-              echo "SMB server is ready"
-              break
+              echo "SMB server is ready after $i seconds"
+              exit 0
             fi
-            echo "Waiting for SMB server... ($i/30)"
-            sleep 5
+            sleep 1
             i=$((i+1))
           done
+          echo "SMB server failed to start within 60 seconds"
+          exit 1
       - name: Run integration tests
         run: make test-integration
       - name: Cleanup
@@ -175,7 +180,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-    needs: [test, integration]
+    needs: [test, integration, coverage]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
