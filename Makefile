@@ -113,4 +113,17 @@ release: check-version build
 	read -p "Continue? (y/N) " confirm && [ "$$confirm" = "y" ] || exit 1; \
 	git tag -a "v$$version" -m "Release v$$version" && \
 	echo "Created tag v$$version" && \
-	echo "Run 'git push origin v$$version' to push the release"
+	echo "Pushing tag to origin..." && \
+	git push origin v$$version && \
+	echo "Release v$$version pushed successfully!"
+
+# Create a tagged release without confirmation (for automation)
+release-auto: check-version build
+	@echo "Creating a new release (auto)..."
+	@version=$$(cargo metadata --no-deps --format-version 1 | grep -o '"version":"[^"]*"' | cut -d'"' -f4); \
+	echo "Release version: v$$version"; \
+	git tag -a "v$$version" -m "Release v$$version" && \
+	echo "Created tag v$$version" && \
+	echo "Pushing tag to origin..." && \
+	git push origin v$$version && \
+	echo "Release v$$version pushed successfully!"
