@@ -17,7 +17,7 @@ use fuji::security::audit_monitoring::{
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::Duration as StdDuration;
 
 use tracing::info;
 
@@ -31,7 +31,7 @@ async fn test_comprehensive_audit_logging() -> Result<()> {
         enable_signing: true,
         enable_chaining: true,
         enable_encryption: false, // Disabled for testing
-        retention_period: Duration::from_secs(7 * 24 * 60 * 60), // 7 days
+        retention_period: StdDuration::from_secs(7 * 24 * 60 * 60), // 7 days
         max_file_size: 10 * 1024 * 1024, // 10 MB
         backup_count: 5,
         enable_real_time: true,
@@ -150,7 +150,7 @@ async fn test_comprehensive_audit_logging() -> Result<()> {
 #[tokio::test]
 async fn test_real_time_monitoring() -> Result<()> {
     // Create audit logger
-    let logger = AuditLogger::new()?;
+    let _logger = AuditLogger::new()?;
 
     // Create audit monitor
     let monitoring_config = AuditMonitoringConfig {
@@ -206,11 +206,11 @@ async fn test_real_time_monitoring() -> Result<()> {
 
         // Send event to monitor
         event_sender.send(event)?;
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        tokio::time::sleep(StdDuration::from_millis(10)).await;
     }
 
     // Wait for monitoring to process events
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    tokio::time::sleep(StdDuration::from_millis(500)).await;
 
     // Check for generated alerts
     let alerts = monitor.get_active_alerts().await;
@@ -235,7 +235,7 @@ async fn test_real_time_monitoring() -> Result<()> {
 #[tokio::test]
 async fn test_privilege_escalation_detection() -> Result<()> {
     // Create audit logger
-    let logger = AuditLogger::new()?;
+    let _logger = AuditLogger::new()?;
 
     // Create audit monitor
     let monitoring_config = AuditMonitoringConfig {
@@ -299,11 +299,11 @@ async fn test_privilege_escalation_detection() -> Result<()> {
         };
 
         event_sender.send(event)?;
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        tokio::time::sleep(StdDuration::from_millis(20)).await;
     }
 
     // Wait for processing
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    tokio::time::sleep(StdDuration::from_millis(200)).await;
 
     // Check for privilege escalation alerts
     let alerts = monitor.get_active_alerts().await;
@@ -338,7 +338,7 @@ async fn test_event_filtering_and_export() -> Result<()> {
     logger.add_filter(filter).await;
 
     // Log events with different severities
-    let sources = vec![
+    let sources = [
         ("admin_user", AuditSourceType::User),
         ("normal_user", AuditSourceType::User),
         ("system_process", AuditSourceType::Process),
@@ -504,7 +504,7 @@ async fn test_concurrent_audit_operations() -> Result<()> {
                     .unwrap();
 
                 // Small delay to simulate real work
-                tokio::time::sleep(Duration::from_millis(1)).await;
+                tokio::time::sleep(StdDuration::from_millis(1)).await;
             }
 
             Ok::<(), anyhow::Error>(())
@@ -514,7 +514,7 @@ async fn test_concurrent_audit_operations() -> Result<()> {
 
     // Wait for all operations to complete
     for handle in handles {
-        handle.await?;
+        let _ = handle.await?;
     }
 
     // Verify all events were logged
@@ -545,7 +545,7 @@ async fn test_monitoring_statistics() -> Result<()> {
     };
 
     // Generate varied events for statistics
-    let events = vec![
+    let events = [
         (
             AuditEventType::Authentication,
             AuditSeverity::Medium,
@@ -573,7 +573,7 @@ async fn test_monitoring_statistics() -> Result<()> {
         ),
     ];
 
-    for (i, (event_type, severity, outcome)) in events.iter().enumerate() {
+    for (i, (event_type, _severity, outcome)) in events.iter().enumerate() {
         logger
             .log(
                 *event_type,

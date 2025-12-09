@@ -16,8 +16,8 @@ use fuji::security::key_derivation::{KeyDerivationFunction, KeyDerivationManager
 use rand::RngCore;
 use std::collections::HashMap;
 
-use std::time::SystemTime;
-use tokio::time::{Duration, sleep};
+use std::time::{Duration as StdDuration, SystemTime};
+use tokio::time::sleep;
 
 /// Test hardware-backed credential storage
 #[tokio::test]
@@ -65,8 +65,8 @@ async fn test_security_policy_enforcement() -> Result<()> {
         min_password_length: 12,
         require_complex_password: true,
         max_failed_attempts: 3,
-        lockout_duration: Duration::from_secs(300),
-        session_timeout: Duration::from_secs(1800),
+        lockout_duration: StdDuration::from_secs(300),
+        session_timeout: StdDuration::from_secs(1800),
         require_mfa: false,
         max_concurrent_sessions: 2,
     };
@@ -240,10 +240,10 @@ async fn test_recovery_key_generation() -> Result<()> {
 #[tokio::test]
 async fn test_key_rotation_policies() -> Result<()> {
     let rotation_config = KeyRotationConfig {
-        rotation_interval: Duration::from_secs(7 * 24 * 60 * 60), // 7 days
-        grace_period: Duration::from_secs(24 * 60 * 60),          // 1 day
-        max_key_age: Duration::from_secs(90 * 24 * 60 * 60),      // 90 days
-        notification_period: Duration::from_secs(2 * 24 * 60 * 60), // 2 days
+        rotation_interval: StdDuration::from_secs(7 * 24 * 60 * 60), // 7 days
+        grace_period: StdDuration::from_secs(24 * 60 * 60),          // 1 day
+        max_key_age: StdDuration::from_secs(90 * 24 * 60 * 60),      // 90 days
+        notification_period: StdDuration::from_secs(2 * 24 * 60 * 60), // 2 days
     };
 
     assert_eq!(
@@ -280,12 +280,12 @@ async fn test_concurrent_credential_operations() -> Result<()> {
         let mount_id = format!("mount{}", i);
 
         // Store credential
-        let _ = provider
+        provider
             .store_enhanced_credential(&mount_id, &credential)
             .await?;
 
         // Small delay to simulate real work
-        sleep(Duration::from_millis(10)).await;
+        sleep(StdDuration::from_millis(10)).await;
 
         // Retrieve credential
         let retrieved = provider.get_enhanced_credential(&mount_id).await?;

@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use std::process::Command;
-use std::time::Duration;
+use std::time::Duration as StdDuration;
 use tokio::time::sleep;
 
 /// Test basic NFS mount and unmount
@@ -13,11 +13,11 @@ use tokio::time::sleep;
 async fn test_nfs_mount_unmount() -> Result<()> {
     // Start daemon
     let mut child = Command::new("./target/debug/fuji")
-        .args(&["daemon", "start"])
+        .args(["daemon", "start"])
         .spawn()?;
 
     // Give daemon time to start
-    sleep(Duration::from_secs(2)).await;
+    sleep(StdDuration::from_secs(2)).await;
 
     // Check if daemon is still running
     match child.try_wait() {
@@ -37,7 +37,7 @@ async fn test_nfs_mount_unmount() -> Result<()> {
 
     // Mount NFS share
     let output = Command::new("./target/debug/fuji")
-        .args(&["mount", "nfs://nfs-server/data"])
+        .args(["mount", "nfs://nfs-server/data"])
         .output()?;
 
     assert!(
@@ -48,7 +48,7 @@ async fn test_nfs_mount_unmount() -> Result<()> {
 
     // Check status
     let output = Command::new("./target/debug/fuji")
-        .args(&["status"])
+        .args(["status"])
         .output()?;
 
     assert!(output.status.success(), "Failed to get status");
@@ -60,7 +60,7 @@ async fn test_nfs_mount_unmount() -> Result<()> {
 
     // Unmount
     let output = Command::new("./target/debug/fuji")
-        .args(&["unmount", "nfs-server_nfs"])
+        .args(["unmount", "nfs-server_nfs"])
         .output()?;
 
     assert!(
@@ -71,7 +71,7 @@ async fn test_nfs_mount_unmount() -> Result<()> {
 
     // Stop daemon
     let _status = Command::new("./target/debug/fuji")
-        .args(&["daemon", "stop"])
+        .args(["daemon", "stop"])
         .status()?;
 
     // Gracefully stop daemon with SIGTERM
@@ -92,14 +92,14 @@ async fn test_nfs_mount_unmount() -> Result<()> {
 async fn test_config_persistence() -> Result<()> {
     // Start daemon
     let mut child = Command::new("./target/debug/fuji")
-        .args(&["daemon", "start"])
+        .args(["daemon", "start"])
         .spawn()?;
 
-    sleep(Duration::from_secs(2)).await;
+    sleep(StdDuration::from_secs(2)).await;
 
     // Mount a share
     let output = Command::new("./target/debug/fuji")
-        .args(&["mount", "nfs://nfs-server/media"])
+        .args(["mount", "nfs://nfs-server/media"])
         .output()?;
 
     assert!(output.status.success(), "Failed to mount NFS share");
@@ -115,26 +115,26 @@ async fn test_config_persistence() -> Result<()> {
 
     // Stop daemon
     let status = Command::new("./target/debug/fuji")
-        .args(&["daemon", "stop"])
+        .args(["daemon", "stop"])
         .status()?;
 
     assert!(status.success(), "Failed to stop daemon");
 
-    sleep(Duration::from_secs(1)).await;
+    sleep(StdDuration::from_secs(1)).await;
 
     // Start daemon again
     let mut child2 = Command::new("./target/debug/fuji")
-        .args(&["daemon", "start"])
+        .args(["daemon", "start"])
         .spawn()?;
 
     assert!(true, "Daemon restarted successfully");
 
-    sleep(Duration::from_secs(1)).await; // Give daemon time to start
-    sleep(Duration::from_secs(3)).await; // Give time for auto-mount
+    sleep(StdDuration::from_secs(1)).await; // Give daemon time to start
+    sleep(StdDuration::from_secs(3)).await; // Give time for auto-mount
 
     // Check that share was auto-mounted
     let output = Command::new("./target/debug/fuji")
-        .args(&["status"])
+        .args(["status"])
         .output()?;
 
     assert!(output.status.success());
@@ -155,7 +155,7 @@ async fn test_config_persistence() -> Result<()> {
 
     // Cleanup
     Command::new("./target/debug/fuji")
-        .args(&["daemon", "stop"])
+        .args(["daemon", "stop"])
         .status()?;
 
     Ok(())
@@ -166,7 +166,7 @@ async fn test_config_persistence() -> Result<()> {
 async fn test_error_handling() -> Result<()> {
     // Try to mount invalid URL without daemon
     let output = Command::new("./target/debug/fuji")
-        .args(&["mount", "invalid://url"])
+        .args(["mount", "invalid://url"])
         .output()?;
 
     assert!(!output.status.success());
@@ -186,11 +186,11 @@ async fn test_error_handling() -> Result<()> {
 async fn test_daemon_lifecycle() -> Result<()> {
     // Start daemon in foreground for a brief moment
     let mut child = Command::new("./target/debug/fuji")
-        .args(&["daemon", "start"])
+        .args(["daemon", "start"])
         .spawn()?;
 
     // Give it a moment to start
-    sleep(Duration::from_secs(1)).await;
+    sleep(StdDuration::from_secs(1)).await;
 
     // Send SIGTERM
     #[cfg(unix)]
@@ -226,13 +226,13 @@ fn check_test_environment() -> Result<()> {
 
     // Check if SMB server is reachable
     let output = Command::new("smbclient")
-        .args(&["-L", "smb-server", "-N"])
+        .args(["-L", "smb-server", "-N"])
         .output()?;
 
     if !output.status.success() {
         // Try with credentials
         let output = Command::new("smbclient")
-            .args(&["-L", "smb-server", "-U", "testuser%testpass"])
+            .args(["-L", "smb-server", "-U", "testuser%testpass"])
             .output()?;
 
         if !output.status.success() {

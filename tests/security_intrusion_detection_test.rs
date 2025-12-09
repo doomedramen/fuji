@@ -19,16 +19,15 @@ use fuji::security::intrusion_detection::{
     IntrusionDetectionEngine, MLModel, RuleType, SimpleMLModel,
 };
 use std::collections::HashMap;
-use tokio::time::{Duration, sleep};
+use std::time::Duration as StdDuration;
+use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_intrusion_detection_engine_creation() -> Result<()> {
     let config = IntrusionDetectionConfig::default();
-    let engine = IntrusionDetectionEngine::new(config).await?;
+    let _engine = IntrusionDetectionEngine::new(config).await?;
 
-    // Engine should be created successfully
-    assert!(true); // If we reach here, creation succeeded
-
+    // Engine created successfully if we reach here
     Ok(())
 }
 
@@ -218,7 +217,7 @@ async fn test_frequency_based_detection() -> Result<()> {
     }
 
     // Check for alerts
-    sleep(Duration::from_millis(500)).await;
+    sleep(StdDuration::from_millis(500)).await;
     let alerts = engine.get_active_alerts().await?;
 
     // Should have triggered frequency rule
@@ -280,7 +279,7 @@ async fn test_signature_based_detection() -> Result<()> {
     engine.process_event(event).await?;
 
     // Check for alerts
-    sleep(Duration::from_millis(500)).await;
+    sleep(StdDuration::from_millis(500)).await;
     let alerts = engine.get_active_alerts().await?;
 
     // Should have triggered signature rule
@@ -327,7 +326,7 @@ async fn test_statistical_anomaly_detection() -> Result<()> {
     }
 
     // Check for anomaly alerts
-    sleep(Duration::from_millis(1000)).await;
+    sleep(StdDuration::from_millis(1000)).await;
     let alerts = engine.get_active_alerts().await?;
 
     // May have generated anomaly alerts based on frequency
@@ -338,8 +337,6 @@ async fn test_statistical_anomaly_detection() -> Result<()> {
 
     // This test checks that the analysis runs without errors
     // Actual anomaly detection would depend on the statistical model
-    assert!(true);
-
     Ok(())
 }
 
@@ -405,7 +402,7 @@ async fn test_unusual_login_time_detection() -> Result<()> {
     engine.process_event(unusual_event).await?;
 
     // Check for unusual login time alerts
-    sleep(Duration::from_millis(500)).await;
+    sleep(StdDuration::from_millis(500)).await;
     let alerts = engine.get_active_alerts().await?;
 
     let unusual_login_alerts: Vec<_> = alerts
@@ -482,8 +479,6 @@ async fn test_auto_response_configuration() -> Result<()> {
 
     // Auto-response should be configured
     // Note: Actual response is simulated
-    assert!(true);
-
     Ok(())
 }
 
@@ -574,7 +569,7 @@ async fn test_simple_ml_model() -> Result<()> {
     };
 
     let anomaly_score = model.predict(&normal_event).await?;
-    assert!(anomaly_score >= 0.0 && anomaly_score <= 1.0);
+    assert!((0.0..=1.0).contains(&anomaly_score));
 
     // Test feature importance
     let importance = model.feature_importance().await?;

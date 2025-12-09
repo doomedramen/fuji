@@ -688,7 +688,7 @@ async fn test_update_stages_progress() -> Result<()> {
         classification: UpdateClassification::Official,
     };
 
-    let package_id = manager.create_update_package(metadata).await?;
+    let _package_id = manager.create_update_package(metadata).await?;
 
     let active_updates = manager.get_active_updates().await?;
     let update = &active_updates[0];

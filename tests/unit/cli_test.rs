@@ -46,9 +46,9 @@ fn test_mount_command_parsing() {
         assert_eq!(url, "nfs://server.example.com/export");
         assert_eq!(mount_point, Some("/mnt/point".to_string()));
         assert_eq!(options, None);
-        assert_eq!(disable, false);
-        assert_eq!(dry_run, false);
-        assert_eq!(progress, false);
+        assert!(!disable);
+        assert!(!dry_run);
+        assert!(!progress);
     } else {
         panic!("Expected mount command");
     }
@@ -151,8 +151,7 @@ fn test_daemon_stop_command() {
     } = cli.command
     {
         if let DaemonCommand::Stop = command {
-            // Stop command has no additional arguments
-            assert!(true);
+            // Stop command parsed correctly
         } else {
             panic!("Expected daemon stop command");
         }
@@ -410,8 +409,7 @@ fn test_doctor_command() {
     let cli = cli.unwrap();
 
     if let Commands::Doctor = cli.command {
-        // Doctor command has no additional arguments
-        assert!(true);
+        // Doctor command parsed correctly
     } else {
         panic!("Expected doctor command");
     }

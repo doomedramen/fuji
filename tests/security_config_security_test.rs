@@ -10,8 +10,9 @@ use fuji::security::encryption::EncryptionAlgorithm;
 use std::fs;
 use std::path::PathBuf;
 
+use std::time::Duration as StdDuration;
 use tempfile::{NamedTempFile, TempDir};
-use tokio::time::{Duration, sleep};
+use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_config_security_config_default_values() -> Result<()> {
@@ -725,7 +726,7 @@ async fn test_expired_lock_cleanup() -> Result<()> {
     assert_eq!(active_locks.len(), 3, "Should have 3 active locks");
 
     // Wait for locks to expire
-    sleep(Duration::from_secs(2)).await;
+    sleep(StdDuration::from_secs(2)).await;
 
     // Clean up expired locks
     let cleaned_count = manager.cleanup_expired_locks().await?;
@@ -821,7 +822,7 @@ async fn test_configuration_statistics() -> Result<()> {
         },
     };
 
-    for i in 1..=3 {
+    for _i in 1..=3 {
         manager
             .add_history_entry(
                 &config_path,

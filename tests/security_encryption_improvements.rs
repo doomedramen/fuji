@@ -7,7 +7,6 @@
 
 use fuji::security::file_provider::FileCredentialProvider;
 use fuji::security::{Credential, CredentialManager, CredentialProvider};
-use serde_json;
 use std::collections::HashMap;
 use tempfile::TempDir;
 use tokio::fs;
