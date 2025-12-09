@@ -1,6 +1,6 @@
 [package]
 name = "fuji"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 rust-version = "1.80.0"
 authors = ["Martin Page <m@rtin.page>"]
@@ -101,6 +101,26 @@ path = "tests/unit/mount_drivers_test.rs"
 [[test]]
 name = "resource_limits_config_test"
 path = "tests/unit/resource_limits_config_test.rs"
+
+[[test]]
+name = "cluster_invitation_test"
+path = "tests/unit/cluster_invitation_test.rs"
+
+[[test]]
+name = "config_merge_test"
+path = "tests/unit/config_merge_test.rs"
+
+[[test]]
+name = "sync_coordinator_test"
+path = "tests/unit/sync_coordinator_test.rs"
+
+[[test]]
+name = "tcp_transport_test"
+path = "tests/unit/tcp_transport_test.rs"
+
+[[test]]
+name = "concurrent_sync_test"
+path = "tests/unit/concurrent_sync_test.rs"
 
 [[test]]
 name = "service_test"

@@ -209,7 +209,7 @@ mod tests {
         let config_dir = temp_dir.path().to_path_buf();
 
         // Create instance manager
-        let mut manager = InstanceManager::new(config_dir.clone());
+        let manager = InstanceManager::new(config_dir.clone());
 
         // Check instance ID
         let id1 = manager.get_instance_id().to_string();
@@ -238,7 +238,7 @@ mod tests {
         let signature = sign_data(key, data).unwrap();
         assert!(!signature.is_empty());
 
-        assert!(verify_signature(key, data, signature).unwrap());
+        assert!(verify_signature(key, data, &signature).unwrap());
         assert!(!verify_signature("wrong_key", data, &signature).unwrap());
         assert!(!verify_signature(key, "wrong_data", &signature).unwrap());
     }
