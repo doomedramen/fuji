@@ -14,8 +14,8 @@ pre-commit:
             echo "Auto-bumping patch version..."
             # Just update the Cargo.toml without committing
             cargo bump patch --manifest-path Cargo.toml
-            # Stage the updated Cargo.toml
-            git add Cargo.toml
+            # Stage the updated Cargo.toml and Cargo.lock
+            git add Cargo.toml Cargo.lock
           fi
         fi
       glob: "*"
