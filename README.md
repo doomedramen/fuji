@@ -1,4 +1,5 @@
 # Fuji
+> /📁/🗻
 
 A daemon-based network file system mount manager for Linux and macOS.
 
