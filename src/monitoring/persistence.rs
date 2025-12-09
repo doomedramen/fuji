@@ -191,12 +191,21 @@ impl PersistenceManager {
         if current_version < 1 {
             info!("Applying migration 1");
             // Migration 1: Add health_check_summary to mounts table
-            // Check if column already exists to avoid duplicate column error
-            let column_exists: bool = conn
-                .prepare("SELECT health_check_summary FROM mounts LIMIT 1")
-                .is_ok();
+            // Check if column already exists using PRAGMA_TABLE_INFO
+            let mut stmt = conn
+                .prepare("PRAGMA table_info(mounts)")
+                .context("Failed to prepare PRAGMA table_info")?;
 
-            if !column_exists {
+            let columns = stmt
+                .query_map([], |row| {
+                    let name: String = row.get(1)?;
+                    Ok(name)
+                })
+                .context("Failed to query table info")?
+                .collect::<Result<Vec<_>, _>>()
+                .context("Failed to collect column names")?;
+
+            if !columns.contains(&"health_check_summary".to_string()) {
                 conn.execute(
                     "ALTER TABLE mounts ADD COLUMN health_check_summary TEXT",
                     [],
