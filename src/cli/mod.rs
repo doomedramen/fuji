@@ -2,14 +2,14 @@
 
 use crate::platform::Platform;
 use crate::socket::{Request, Response, SocketClient};
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::fs;
 use std::path::Path;
 use std::process;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Debug, Parser)]
 #[command(name = "fuji")]
@@ -157,6 +157,12 @@ pub enum Commands {
         command: ConfigCommand,
     },
 
+    /// Service management
+    Service {
+        #[command(subcommand)]
+        command: ServiceCommand,
+    },
+
     /// Check system for issues
     Doctor,
 
@@ -241,6 +247,28 @@ pub enum ConfigCommand {
 
     /// Edit configuration in default editor
     Edit,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ServiceCommand {
+    /// Generate a systemd service file
+    Generate {
+        /// Output to file instead of stdout
+        #[arg(short, long)]
+        output: Option<String>,
+
+        /// Service name (default: fuji-daemon)
+        #[arg(short, long)]
+        name: Option<String>,
+
+        /// User to run the service as (default: current user)
+        #[arg(short, long)]
+        user: Option<String>,
+
+        /// Working directory for the daemon
+        #[arg(long)]
+        work_dir: Option<String>,
+    },
 }
 
 /// Run the CLI command
@@ -330,6 +358,9 @@ pub async fn run(cli: Cli, platform: Box<dyn Platform>) -> Result<()> {
         Commands::Config {
             command,
         } => handle_config(command, platform.as_ref()).await,
+        Commands::Service {
+            command,
+        } => handle_service(command, platform.as_ref()).await,
         Commands::Doctor => handle_doctor(platform.as_ref()).await,
         Commands::Batch {
             file,
@@ -1443,5 +1474,108 @@ fn format_health_state(state: &crate::monitoring::HealthState) -> &'static str {
         crate::monitoring::HealthState::Failed => "Failed",
         crate::monitoring::HealthState::Checking => "Checking",
         crate::monitoring::HealthState::Recovering => "Recovering",
+    }
+}
+
+/// Systemd service file template
+const SYSTEMD_SERVICE_TEMPLATE: &str = r#"[Unit]
+Description=Fuji Network File System Manager
+Documentation=https://github.com/fuji-fs/fuji
+After=network.target network-online.target
+Wants=network-online.target
+ConditionPathExists={executable_path}
+
+[Service]
+Type=simple
+ExecStart={executable_path} daemon start
+Restart=on-failure
+RestartSec=5s
+User={user}
+Group={group}
+WorkingDirectory={work_dir}
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={data_dir}
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+"#;
+
+/// Generate systemd service file content
+fn generate_systemd_service(
+    executable_path: &str,
+    user: &str,
+    group: &str,
+    work_dir: &str,
+    data_dir: &str,
+) -> Result<String> {
+    let content = SYSTEMD_SERVICE_TEMPLATE
+        .replace("{executable_path}", executable_path)
+        .replace("{user}", user)
+        .replace("{group}", group)
+        .replace("{work_dir}", work_dir)
+        .replace("{data_dir}", data_dir);
+
+    Ok(content)
+}
+
+/// Handle service command
+async fn handle_service(command: ServiceCommand, _platform: &dyn Platform) -> Result<()> {
+    match command {
+        ServiceCommand::Generate {
+            output,
+            name,
+            user,
+            work_dir,
+        } => {
+            // Check if systemd is available
+            if !std::path::Path::new("/run/systemd/system").exists() {
+                warn!(
+                    "systemd is not available on this system. Generated service file may not be compatible."
+                );
+            }
+
+            // Get configuration
+            let _service_name = name.unwrap_or_else(|| "fuji-daemon".to_string());
+            let current_user = user.unwrap_or_else(|| whoami::username());
+            let group = current_user.clone(); // Simplified: assume group name is same as username
+            let executable_path = std::env::current_exe()
+                .context("Failed to get fuji executable path")?
+                .to_string_lossy()
+                .to_string();
+            let work_dir = work_dir.unwrap_or_else(|| "/".to_string());
+            let data_dir = "/var/lib/fuji"; // Or get from config in the future
+
+            // Generate service file content
+            let service_content = generate_systemd_service(
+                &executable_path,
+                &current_user,
+                &group,
+                &work_dir,
+                data_dir,
+            )?;
+
+            // Output
+            match output {
+                Some(path) => {
+                    std::fs::write(&path, service_content)
+                        .context(format!("Failed to write to {}", path))?;
+                    info!("Service file written to {}", path);
+                    println!("Service file '{}' written successfully", path);
+                }
+                None => {
+                    println!("{}", service_content);
+                }
+            }
+
+            Ok(())
+        }
     }
 }
