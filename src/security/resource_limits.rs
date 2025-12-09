@@ -320,7 +320,7 @@ impl From<crate::config::ResourceLimitsConfig> for ResourceLimits {
         Self {
             memory: MemoryLimits {
                 max_memory_bytes: config.max_memory_mb as u64 * 1024 * 1024,
-                max_memory_percent: config.max_cpu_percent,
+                max_memory_percent: 70, // Fixed: Use default memory limit instead of CPU limit
                 warning_threshold_percent: 70,
                 enforcement_threshold_percent: 90,
                 check_interval_secs: 5,
@@ -620,6 +620,16 @@ impl ResourceLimitsManager {
         let _violations = self.violations.read().await;
         let last_enforcement = self.last_enforcement.read().await;
 
+        // Add debug logging for current resource usage
+        info!(
+            "Resource limits check - CPU: {:.1}% (limit: {}%), Memory: {:.1}% (limit: {}%), Action: {:?}",
+            usage.cpu.usage_percent,
+            self.limits.cpu.max_cpu_percent,
+            usage.memory.usage_percent,
+            self.limits.memory.max_memory_percent,
+            self.limits.enforcement.violation_action
+        );
+
         // Check grace period
         if last_enforcement.elapsed()
             < StdDuration::from_secs(self.limits.enforcement.grace_period_secs)
@@ -660,7 +670,13 @@ impl ResourceLimitsManager {
                 }
                 ViolationAction::Terminate => {
                     // Emergency termination
-                    error!("Critical resource limits exceeded, terminating daemon");
+                    error!(
+                        "Critical resource limits exceeded - CPU: {:.1}% (limit: {}%), Memory: {:.1}% (limit: {}%) - TERMINATING DAEMON",
+                        usage.cpu.usage_percent,
+                        self.limits.cpu.max_cpu_percent,
+                        usage.memory.usage_percent,
+                        self.limits.memory.max_memory_percent
+                    );
                     std::process::exit(1);
                 }
             }
