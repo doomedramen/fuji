@@ -19,7 +19,7 @@ pub mod point;
 pub mod state_machine;
 
 /// Mount types supported by Fuji
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MountType {
     /// NFS (Network File System)
     Nfs {
@@ -69,7 +69,7 @@ impl std::fmt::Display for MountStatus {
 }
 
 /// Mount configuration entry
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MountConfig {
     /// Unique identifier for this mount
     pub id: String,

@@ -20,9 +20,6 @@ use crate::mount::{MountConfig, MountStatus, MountType};
 pub struct PersistenceManager {
     /// Database connection
     connection: Arc<RwLock<Connection>>,
-    /// Database file path
-    #[allow(dead_code)]
-    db_path: PathBuf,
 }
 
 /// Persisted mount state
@@ -64,19 +61,12 @@ impl PersistenceManager {
         // Open/create database
         let connection = Connection::open(&db_path).context("Failed to open database")?;
 
-        let db_path_clone = db_path.clone();
-        let manager = Self {
-            #[allow(clippy::arc_with_non_send_sync)]
+        info!("Persistence manager created with database at {:?}", db_path);
+
+        Ok(Self {
             #[allow(clippy::arc_with_non_send_sync)]
             connection: Arc::new(RwLock::new(connection)),
-            db_path,
-        };
-
-        info!(
-            "Persistence manager created with database at {:?}",
-            db_path_clone
-        );
-        Ok(manager)
+        })
     }
 
     /// Initialize the persistence manager (async version)
