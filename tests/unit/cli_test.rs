@@ -127,6 +127,7 @@ fn test_daemon_start_command() {
     {
         if let DaemonCommand::Start {
             no_automount,
+            disable_resource_limits: _,
         } = command
         {
             assert!(no_automount);

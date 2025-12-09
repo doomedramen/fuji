@@ -101,6 +101,7 @@ impl Daemon {
         socket_path: Option<PathBuf>,
         detach: bool,
         no_automount: bool,
+        disable_resource_limits: bool,
     ) -> Result<()> {
         info!("Starting Fuji daemon");
 
@@ -182,12 +183,16 @@ impl Daemon {
             })
         };
 
-        // Start resource limits monitoring task
+        // Start resource limits monitoring task if not disabled
         let resource_limits_handle = {
             let resource_limits = Arc::clone(&self.resource_limits);
             tokio::spawn(async move {
-                if let Err(e) = resource_limits.start_monitoring().await {
-                    error!("Resource limits monitoring failed: {}", e);
+                if !disable_resource_limits {
+                    if let Err(e) = resource_limits.start_monitoring().await {
+                        error!("Resource limits monitoring failed: {}", e);
+                    }
+                } else {
+                    info!("Resource limits monitoring disabled by flag");
                 }
             })
         };

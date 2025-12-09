@@ -98,6 +98,10 @@ path = "tests/security_dashboard_test.rs"
 name = "mount_drivers_test"
 path = "tests/unit/mount_drivers_test.rs"
 
+[[test]]
+name = "resource_limits_config_test"
+path = "tests/unit/resource_limits_config_test.rs"
+
 [dependencies]
 # Core dependencies
 tokio = { version = "1.35", features = ["full"] }

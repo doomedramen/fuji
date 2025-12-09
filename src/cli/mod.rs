@@ -182,6 +182,10 @@ pub enum DaemonCommand {
         /// Don't auto-mount enabled shares
         #[arg(long)]
         no_automount: bool,
+
+        /// Disable resource limits monitoring
+        #[arg(long)]
+        disable_resource_limits: bool,
     },
 
     /// Stop the daemon
@@ -658,10 +662,13 @@ async fn handle_daemon(command: DaemonCommand, platform: Box<dyn Platform>) -> R
     match command {
         DaemonCommand::Start {
             no_automount,
+            disable_resource_limits,
         } => {
             // Start the daemon directly (not through socket)
             let mut daemon = crate::daemon::Daemon::new(platform).await?;
-            daemon.start(None, false, no_automount).await
+            daemon
+                .start(None, false, no_automount, disable_resource_limits)
+                .await
         }
         DaemonCommand::Stop => {
             let client = create_socket_client(platform.as_ref()).await?;
