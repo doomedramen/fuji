@@ -63,7 +63,7 @@ async fn test_merge_with_many_conflicts() {
                 mount_point: Some(format!("/mnt/{}/{}", i, mount_id)),
                 options: Some(vec![format!("instance={}", i)]),
                 enabled: true,
-                status: MountStatus::Mounted,
+                status: MountStatus::Active,
                 created_at: base_time - Duration::hours(j as i64),
                 updated_at: base_time + Duration::minutes((i * j) as i64),
             };
@@ -115,7 +115,7 @@ async fn test_simultaneous_modification_resolution() {
             mount_point: Some("/mnt/simultaneous".to_string()),
             options: Some(vec![format!("instance={}", i)]),
             enabled: i % 2 == 0,
-            status: MountStatus::Mounted,
+            status: MountStatus::Active,
             created_at: exact_time - Duration::minutes(1),
             updated_at: exact_time, // Same timestamp!
         };
@@ -231,7 +231,7 @@ async fn test_high_frequency_updates() {
             mount_point: Some("/mnt/rapid".to_string()),
             options: Some(vec![format!("update={}", i)]),
             enabled: i % 2 == 0,
-            status: MountStatus::Mounted,
+            status: MountStatus::Active,
             created_at: base_time,
             updated_at: base_time + Duration::seconds(i as i64),
         };
@@ -279,7 +279,7 @@ async fn test_large_configuration_merge() {
                     mount_point: Some(format!("/mnt/large/{:04}", mount_idx)),
                     options: Some(vec![format!("mount-index={}", mount_idx)]),
                     enabled: true,
-                    status: MountStatus::Mounted,
+                    status: MountStatus::Active,
                     created_at: chrono::Utc::now() - Duration::days(mount_idx as i64),
                     updated_at: chrono::Utc::now() + Duration::minutes(mount_idx as i64),
                 };
@@ -337,7 +337,7 @@ fn add_unique_mount(config: &mut Config, mount_id: &str) {
         mount_point: Some(format!("/mnt/{}", mount_id)),
         options: None,
         enabled: true,
-        status: MountStatus::Mounted,
+        status: MountStatus::Active,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     };
@@ -359,7 +359,7 @@ fn add_partitioned_mount(config: &mut Config, mount_id: &str, partition: &str) {
         mount_point: Some(format!("/mnt/{}/{}", partition, mount_id)),
         options: Some(vec![format!("partition={}", partition)]),
         enabled: true,
-        status: MountStatus::Mounted,
+        status: MountStatus::Active,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     };
