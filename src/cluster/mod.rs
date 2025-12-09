@@ -11,7 +11,7 @@ pub mod instance;
 
 use crate::config::{ClusterConfig, PeerInfo, PeerStatus};
 use anyhow::Result;
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::Engine as _;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -238,74 +238,8 @@ pub struct ClusterStats {
     pub last_peer_request: Option<DateTime<Utc>>,
 }
 
-/// Cluster invitation token structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClusterInvitation {
-    /// Invitation format version
-    pub version: String,
-    /// Instance ID of the inviting node
-    pub instance_id: String,
-    /// Network address to connect to
-    pub address: String,
-    /// Pre-shared key for authentication
-    pub psk: String,
-    /// When the invitation expires
-    pub expires_at: DateTime<Utc>,
-    /// HMAC signature for integrity verification
-    pub signature: String,
-}
-
-impl ClusterInvitation {
-    /// Create a new invitation
-    pub fn new(instance_id: String, address: String, psk: String) -> Result<Self> {
-        let invitation_data = format!(
-            "{}|{}|{}|{}",
-            instance_id,
-            address,
-            psk,
-            Utc::now() + chrono::Duration::hours(24)
-        );
-
-        let signature = sign_data(&psk, &invitation_data)?;
-
-        Ok(Self {
-            version: "1.0".to_string(),
-            instance_id,
-            address,
-            psk,
-            expires_at: Utc::now() + chrono::Duration::hours(24),
-            signature,
-        })
-    }
-
-    /// Encode invitation as a base64 string
-    pub fn to_string(&self) -> Result<String> {
-        let json = serde_json::to_string(self)?;
-        Ok(URL_SAFE_NO_PAD.encode(json.as_bytes()))
-    }
-
-    /// Decode invitation from a base64 string
-    pub fn from_str(s: &str) -> Result<Self> {
-        let json = URL_SAFE_NO_PAD.decode(s)?;
-        let invitation: ClusterInvitation = serde_json::from_slice(&json)?;
-        Ok(invitation)
-    }
-
-    /// Verify the invitation signature
-    pub fn verify(&self) -> Result<bool> {
-        let invitation_data = format!(
-            "{}|{}|{}|{}",
-            self.instance_id, self.address, self.psk, self.expires_at
-        );
-
-        verify_signature(&self.psk, &invitation_data, &self.signature)
-    }
-
-    /// Check if the invitation has expired
-    pub fn is_expired(&self) -> bool {
-        Utc::now() > self.expires_at
-    }
-}
+// Re-export ClusterInvitation from discovery module
+pub use crate::cluster::discovery::ClusterInvitation;
 
 /// Default cluster port
 pub const DEFAULT_CLUSTER_PORT: u16 = 8080;

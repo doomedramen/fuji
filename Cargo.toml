@@ -155,6 +155,7 @@ nix = { version = "0.27", features = ["mount", "process", "signal", "fs", "socke
 libc = "0.2"
 gethostname = "0.4"
 get_if_addrs = "0.5"
+local-ip = "0.1"
 
 # Additional dependencies
 async-trait = "0.1"

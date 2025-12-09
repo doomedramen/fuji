@@ -9,7 +9,13 @@ use serde_json::{Value, json};
 use std::fs;
 use std::path::Path;
 use std::process;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing::{error, info, warn};
+
+use crate::cluster::instance::InstanceManager;
+use crate::config::Config;
+use cluster::ClusterCommands;
 
 #[derive(Debug, Parser)]
 #[command(name = "fuji")]
@@ -178,6 +184,12 @@ pub enum Commands {
         /// Dry run - show what would be executed
         #[arg(long)]
         dry_run: bool,
+    },
+
+    /// Cluster management
+    Cluster {
+        #[command(subcommand)]
+        command: ClusterCommands,
     },
 }
 
@@ -367,6 +379,12 @@ pub async fn run(cli: Cli, platform: Box<dyn Platform>) -> Result<()> {
             continue_on_error,
             dry_run,
         } => handle_batch(file, continue_on_error, dry_run, platform).await,
+        Commands::Cluster {
+            command,
+        } => {
+            let ctx = Arc::new(CliContext::new(platform.as_ref()).await?);
+            cluster::handle_cluster_command(command, ctx).await
+        }
     }
 }
 
@@ -1172,6 +1190,34 @@ async fn create_socket_client(platform: &dyn Platform) -> Result<SocketClient> {
     let final_path = platform.get_socket_path(socket_path.as_deref());
 
     Ok(SocketClient::new(final_path))
+}
+
+pub mod cluster;
+
+/// CLI context for cluster operations
+pub struct CliContext {
+    pub config: Arc<RwLock<Config>>,
+    pub config_dir: std::path::PathBuf,
+    pub instance_manager: Arc<InstanceManager>,
+}
+
+impl CliContext {
+    pub async fn new(platform: &dyn Platform) -> Result<Self> {
+        let config_dir = platform.get_config_dir();
+        let config = Config::load_with_dir(&config_dir).await?;
+        let instance_manager = InstanceManager::new(config_dir.clone());
+
+        Ok(Self {
+            config: Arc::new(RwLock::new(config)),
+            config_dir,
+            instance_manager: Arc::new(instance_manager),
+        })
+    }
+
+    pub async fn save_config(&self) -> Result<()> {
+        let config = self.config.read().await;
+        config.save_to_dir(&self.config_dir).await
+    }
 }
 
 /// Batch operation configuration

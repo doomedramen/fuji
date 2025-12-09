@@ -5,13 +5,16 @@
 // Test comment for pre-commit hook formatting
 
 mod cli;
+mod cluster;
 mod config;
 mod daemon;
 mod monitoring;
 mod mount;
+mod network;
 mod platform;
 mod security;
 mod socket;
+mod sync;
 
 use anyhow::Result;
 use clap::Parser;

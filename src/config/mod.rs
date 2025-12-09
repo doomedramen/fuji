@@ -9,7 +9,7 @@ use anyhow::{Result, anyhow};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 use tracing::{debug, info, warn};
 use validator::Validate;
@@ -370,6 +370,48 @@ impl Config {
         // Ensure config directory exists
         if let Some(parent) = config_path.parent() {
             platform.ensure_dir_exists(parent)?;
+        }
+
+        let content = toml::to_string_pretty(self)
+            .map_err(|e| anyhow!("Failed to serialize configuration: {}", e))?;
+
+        fs::write(&config_path, content)
+            .await
+            .map_err(|e| anyhow!("Failed to write configuration to {:?}: {}", config_path, e))?;
+
+        info!("Saved configuration to {:?}", config_path);
+        Ok(())
+    }
+
+    /// Load configuration from a specific directory
+    pub async fn load_with_dir(config_dir: &Path) -> Result<Self> {
+        let config_path = config_dir.join("mounts.toml");
+
+        if !config_path.exists() {
+            info!("No existing configuration found, using defaults");
+            return Ok(Self::default());
+        }
+
+        let content = fs::read_to_string(&config_path)
+            .await
+            .map_err(|e| anyhow!("Failed to read config from {:?}: {}", config_path, e))?;
+
+        let mut config = toml::from_str::<Config>(&content)
+            .map_err(|e| anyhow!("Failed to parse config from {:?}: {}", config_path, e))?;
+
+        // Migrate old configurations if needed
+        Self::migrate(&mut config)?;
+        Ok(config)
+    }
+
+    /// Save configuration to a specific directory
+    pub async fn save_to_dir(&self, config_dir: &Path) -> Result<()> {
+        let config_path = config_dir.join("mounts.toml");
+
+        // Ensure config directory exists
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| anyhow!("Failed to create config directory: {}", e))?;
         }
 
         let content = toml::to_string_pretty(self)
