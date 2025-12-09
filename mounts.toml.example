@@ -1,0 +1,80 @@
+# Fuji Network Mount Manager Configuration Example
+# Copy this file to mounts.toml and customize for your environment
+version = "1.0"
+
+[global]
+health_check_interval_secs = 30
+log_level = "info"
+auto_mount = true
+
+[global.resource_limits]
+# Memory limit in megabytes (70% of typical 16GB system ≈ 11.2GB)
+max_memory_mb = 11200
+# Maximum CPU usage percentage
+max_cpu_percent = 90
+# Maximum concurrent mount operations
+max_concurrent_mounts = 10
+# Maximum file descriptors
+max_file_descriptors = 4096
+# Maximum network connections
+max_connections = 500
+# Enable resource limits enforcement
+enable_enforcement = true
+# Action when limits are exceeded: "warn", "throttle", "reject", or "terminate"
+violation_action = "warn"
+# Resource monitoring interval in seconds
+monitoring_interval_secs = 30
+
+[reconnection]
+max_retries = 5
+initial_delay_ms = 1000
+max_delay_ms = 60000
+backoff_multiplier = 2.0
+
+[platform]
+# Optional: custom socket path (uncomment to override default)
+# socket_path = "/tmp/fuji.sock"
+# Optional: custom config directory (uncomment to override default)
+# config_dir = "/root/.config/fuji"
+# Optional: custom mount directory (uncomment to override default)
+# mount_dir = "/mnt/fuji"
+
+# Example mount configurations
+# Each mount is a separate section with its ID as the key
+
+# Example NFS mount
+# [nfs-share]
+# id = "nfs-share"
+# url = "nfs://server.example.com/export/data"
+# mount_point = "/mnt/data"
+# enabled = true
+# status = "inactive"
+# created_at = "2024-01-01T00:00:00Z"
+# updated_at = "2024-01-01T00:00:00Z"
+# last_connected = null
+# reconnect_attempts = 0
+#
+# [nfs-share.mount_type]
+# host = "server.example.com"
+# share = "/export/data"
+# options = ["rw", "hard", "intr", "tcp"]
+
+# Example SMB/CIFS mount
+# [smb-share]
+# id = "smb-share"
+# url = "smb://fileserver/shared"
+# mount_point = "/mnt/shared"
+# enabled = true
+# status = "inactive"
+# created_at = "2024-01-01T00:00:00Z"
+# updated_at = "2024-01-01T00:00:00Z"
+# last_connected = null
+# reconnect_attempts = 0
+#
+# [smb-share.mount_type]
+# host = "fileserver"
+# share = "shared"
+# username = "user"
+# password = "password"
+# domain = null
+# options = ["rw", "vers=3.0"]
