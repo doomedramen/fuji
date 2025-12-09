@@ -183,19 +183,12 @@ impl Daemon {
             })
         };
 
-        // Start resource limits monitoring task if not disabled
-        let resource_limits_handle = {
-            let resource_limits = Arc::clone(&self.resource_limits);
-            tokio::spawn(async move {
-                if !disable_resource_limits {
-                    if let Err(e) = resource_limits.start_monitoring().await {
-                        error!("Resource limits monitoring failed: {}", e);
-                    }
-                } else {
-                    info!("Resource limits monitoring disabled by flag");
-                }
-            })
-        };
+        // Resource limits monitoring is permanently disabled
+        if !disable_resource_limits {
+            info!("Resource limits monitoring has been permanently disabled");
+        } else {
+            info!("Resource limits monitoring disabled by flag");
+        }
 
         // Wait for shutdown signal
         tokio::select! {
@@ -212,12 +205,6 @@ impl Daemon {
                 match result {
                     Ok(_) => info!("Monitor task completed"),
                     Err(e) => error!("Monitor task error: {}", e),
-                }
-            }
-            result = resource_limits_handle => {
-                match result {
-                    Ok(_) => info!("Resource limits task completed"),
-                    Err(e) => error!("Resource limits task error: {}", e),
                 }
             }
         }
