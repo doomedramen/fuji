@@ -25,6 +25,7 @@ node_modules/
 .DS_Store
 
 /target
+/debug_test*
 /.taskmaster
 .mcp.json
 /.cursor
