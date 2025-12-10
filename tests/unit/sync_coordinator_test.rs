@@ -1,10 +1,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use tokio::time::sleep;
 
 use fuji::cluster::ClusterState;
-use fuji::config::{ClusterConfig, Config, PeerInfo, PeerStatus};
+use fuji::config::{ClusterConfig, Config};
 use fuji::network::tcp::TcpTransport;
 use fuji::sync::coordinator::SyncCoordinator;
 use fuji::sync::protocol::{SyncMessage, SyncRequest, SyncResponse};
@@ -103,7 +102,7 @@ async fn test_sync_coordinator_handle_messages() {
     let sync_request = SyncRequest {
         request_id: "test-request-123".to_string(),
         requester_id: "peer-instance".to_string(),
-        timestamp: chrono::Utc::now(),
+        // timestamp: chrono::Utc::now(),
     };
     let sync_message = SyncMessage::SyncRequest(sync_request);
 
@@ -115,9 +114,9 @@ async fn test_sync_coordinator_handle_messages() {
     // Sync Response
     let sync_response = SyncResponse {
         request_id: "test-request-123".to_string(),
-        responder_id: "peer-instance".to_string(),
+        // responder_id: "peer-instance".to_string(),
         config: Config::default(),
-        timestamp: chrono::Utc::now(),
+        // timestamp: chrono::Utc::now(),
     };
     let sync_message = SyncMessage::SyncResponse(sync_response);
 
