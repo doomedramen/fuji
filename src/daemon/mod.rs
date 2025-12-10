@@ -3,16 +3,18 @@
 //! The daemon handles all mount operations, monitoring, and reconnection logic.
 
 use crate::config::Config;
+use crate::monitoring::mount_retry::MountRetryCoordinator;
 use crate::mount::options::{MountOptionParser, MountOptions};
 use crate::mount::{MountConfig, MountState, MountStatus, MountType, get_mount_handler};
 use crate::platform::Platform;
+use crate::progress::ProgressManager;
 use crate::security::path_security::{
     IntegrityStatus, PathSecurityEvent, PathSecurityValidator, SecurityProfile,
 };
 use crate::security::resource_limits::ResourceLimitsManager;
-use crate::socket::protocol::{ClusterInfo, DaemonHealthInfo};
+use crate::socket::protocol::{ClusterInfo, DaemonHealthInfo, ForceSyncInfo};
 use crate::socket::{MountStatusInfo, Request, Response, SocketServer};
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use regex::Regex;
 use std::collections::HashMap;
@@ -65,6 +67,10 @@ pub struct Daemon {
     transport: Option<Arc<TcpTransport>>,
     /// Sync coordinator for configuration synchronization
     sync_coordinator: Option<Arc<SyncCoordinator>>,
+    /// Progress manager for tracking operation progress
+    progress_manager: Arc<ProgressManager>,
+    /// Mount retry coordinator for handling retry logic
+    retry_coordinator: Arc<MountRetryCoordinator>,
 }
 
 /// Internal mount state tracking
@@ -165,6 +171,12 @@ impl Daemon {
             (None, None, None, None)
         };
 
+        // Initialize progress manager
+        let progress_manager = Arc::new(ProgressManager::new());
+
+        // Initialize retry coordinator
+        let retry_coordinator = Arc::new(MountRetryCoordinator::new(monitor.clone()));
+
         Ok(Self {
             platform,
             config,
@@ -177,6 +189,8 @@ impl Daemon {
             cluster_state,
             transport,
             sync_coordinator,
+            progress_manager,
+            retry_coordinator,
         })
     }
 
@@ -248,6 +262,8 @@ impl Daemon {
         let sync_coordinator = self.sync_coordinator.clone();
         let instance_manager = self.instance_manager.clone();
         let cluster_state = self.cluster_state.clone();
+        let progress_manager = self.progress_manager.clone();
+        let retry_coordinator = self.retry_coordinator.clone();
         let _platform = self.platform.as_ref() as *const dyn Platform;
 
         let start_time = self.start_time;
@@ -261,6 +277,8 @@ impl Daemon {
                     let sync_coordinator = sync_coordinator.clone();
                     let instance_manager = instance_manager.clone();
                     let cluster_state = cluster_state.clone();
+                    let progress_manager = progress_manager.clone();
+                    let retry_coordinator = retry_coordinator.clone();
 
                     async move {
                         handle_request(
@@ -272,6 +290,8 @@ impl Daemon {
                             sync_coordinator,
                             instance_manager,
                             cluster_state,
+                            progress_manager,
+                            retry_coordinator,
                             start_time,
                         )
                         .await
@@ -285,13 +305,36 @@ impl Daemon {
             let config = Arc::clone(&self.config);
             let monitor = Arc::clone(&self.monitor);
             let path_security = Arc::clone(&self.path_security);
+            let retry_coordinator = Arc::clone(&self.retry_coordinator);
             let _platform = self.platform.as_ref() as *const dyn Platform;
 
             tokio::spawn(async move {
-                if let Err(e) =
-                    run_monitoring_loop(config, monitor, path_security, no_automount).await
+                if let Err(e) = run_monitoring_loop(
+                    config,
+                    monitor,
+                    path_security,
+                    retry_coordinator,
+                    no_automount,
+                )
+                .await
                 {
                     error!("Monitoring loop failed: {}", e);
+                }
+            })
+        };
+
+        // Start progress cleanup task
+        let _progress_cleanup_handle = {
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300)); // Every 5 minutes
+                interval.tick().await; // Skip first tick
+
+                let progress_manager = crate::progress::ProgressManager::new();
+                loop {
+                    interval.tick().await;
+                    progress_manager
+                        .cleanup_finished(chrono::Duration::minutes(10))
+                        .await;
                 }
             })
         };
@@ -303,37 +346,23 @@ impl Daemon {
             info!("Resource limits monitoring disabled by flag");
         }
 
-        // Wait for shutdown signal
-        tokio::select! {
-            _ = self.wait_for_shutdown() => {
-                info!("Received shutdown signal");
-            }
-            result = server_handle => {
-                match result {
-                    Ok(_) => info!("Socket server task completed"),
-                    Err(e) => error!("Socket server task error: {}", e),
-                }
-            }
-            result = monitor_handle => {
-                match result {
-                    Ok(_) => info!("Monitor task completed"),
-                    Err(e) => error!("Monitor task error: {}", e),
-                }
-            }
+        // Wait for tasks to complete using a simpler approach
+        let (server_result, monitor_result) = tokio::join!(server_handle, monitor_handle);
+
+        match server_result {
+            Ok(_) => info!("Socket server task completed"),
+            Err(e) => error!("Socket server task error: {}", e),
+        }
+
+        match monitor_result {
+            Ok(_) => info!("Monitor task completed"),
+            Err(e) => error!("Monitor task error: {}", e),
         }
 
         // Cleanup
         self.cleanup(&socket_path, &pid_file).await?;
 
         info!("Fuji daemon stopped");
-        Ok(())
-    }
-
-    /// Wait for shutdown signal
-    async fn wait_for_shutdown(&mut self) -> Result<()> {
-        if let Some(rx) = self.shutdown_rx.write().await.take() {
-            rx.await.map_err(|_| anyhow!("Shutdown channel closed"))?;
-        }
         Ok(())
     }
 
@@ -755,6 +784,8 @@ async fn handle_request(
     sync_coordinator: Option<Arc<SyncCoordinator>>,
     instance_manager: Option<Arc<InstanceManager>>,
     cluster_state: Option<Arc<ClusterState>>,
+    progress_manager: Arc<ProgressManager>,
+    retry_coordinator: Arc<MountRetryCoordinator>,
     start_time: Instant,
 ) -> Response {
     match request {
@@ -778,6 +809,8 @@ async fn handle_request(
                 config,
                 path_security,
                 resource_limits,
+                progress_manager,
+                retry_coordinator,
             })
             .await
         }
@@ -863,6 +896,10 @@ async fn handle_request(
         Request::GetConfig => handle_get_config_request(config).await,
 
         Request::Doctor => handle_doctor_request().await,
+
+        Request::ForceSync {
+            reason,
+        } => handle_force_sync_request(reason, sync_coordinator).await,
     }
 }
 
@@ -873,20 +910,42 @@ struct MountRequestParams {
     options: Option<Vec<String>>,
     disable: bool,
     dry_run: bool,
-    #[allow(dead_code)] // TODO: Implement progress reporting
     progress: bool,
     config: Arc<RwLock<Config>>,
     path_security: Arc<PathSecurityValidator>,
     resource_limits: Arc<ResourceLimitsManager>,
+    progress_manager: Arc<ProgressManager>,
+    retry_coordinator: Arc<MountRetryCoordinator>,
 }
 
 /// Handle mount request
 async fn handle_mount_request(params: MountRequestParams) -> Response {
+    // Create progress reporter if progress is requested
+    let (progress_reporter, _progress_rx) = if params.progress {
+        let (reporter, rx) = crate::progress::ProgressReporter::new(
+            "mount".to_string(),
+            params.url.clone(),
+            Some(10000), // 10 seconds estimated for a typical mount
+        );
+        params
+            .progress_manager
+            .register_operation(reporter.current_progress().await)
+            .await;
+        (Some(reporter), Some(rx))
+    } else {
+        (None, None)
+    };
+
     // Parse URL
     let protocol = params.url.split("://").next().unwrap_or("");
     let handler = match get_mount_handler(protocol) {
         Ok(h) => h,
-        Err(e) => return Response::Error(e.to_string()),
+        Err(e) => {
+            if let Some(reporter) = progress_reporter {
+                reporter.fail(&e.to_string()).await;
+            }
+            return Response::Error(e.to_string());
+        }
     };
 
     // Parse mount type
@@ -1115,6 +1174,13 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
         info!("Mount will use soft option");
     }
 
+    // Update progress - preparing mount point
+    if let Some(ref reporter) = progress_reporter {
+        reporter
+            .update_progress("preparing", "Preparing mount point...", 0.5)
+            .await;
+    }
+
     // Register mount with path security validator for ongoing monitoring
     if let Err(e) = params
         .path_security
@@ -1158,9 +1224,17 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
             }
         };
 
-        // Perform the actual mount operation
-        let mount_result = handler
-            .mount(&mount_config, &mount_config.mount_point)
+        // Update progress - executing mount command
+        if let Some(ref reporter) = progress_reporter {
+            reporter
+                .update_progress("executing", "Executing mount command with retry...", 0.5)
+                .await;
+        }
+
+        // Perform the actual mount operation with retry logic
+        let mount_result = params
+            .retry_coordinator
+            .mount_with_retry(&mount_config, params.config.clone())
             .await;
 
         // Release the mount permit
@@ -1168,15 +1242,22 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
             params.resource_limits.release_mount_permit();
         }
 
+        // Update progress - verifying mount
+        if let Some(ref reporter) = progress_reporter {
+            reporter
+                .update_progress("verifying", "Verifying mount...", 1.0)
+                .await;
+        }
+
         // Handle mount result
         if let Err(e) = mount_result {
             error!("Failed to mount {}: {}", mount_id, e);
-            if let Err(status_err) =
-                Daemon::update_mount_status(params.config.clone(), &mount_id, MountStatus::Failed)
-                    .await
-            {
-                error!("Failed to update mount status: {}", status_err);
+
+            // Update progress with failure
+            if let Some(ref reporter) = progress_reporter {
+                reporter.fail(&e.to_string()).await;
             }
+
             return Response::Error(e.to_string());
         }
 
@@ -1192,6 +1273,11 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
             mount_id,
             mount_config.mount_point.display()
         );
+
+        // Update progress with success
+        if let Some(ref reporter) = progress_reporter {
+            reporter.complete("Mount completed successfully").await;
+        }
     }
 
     Response::MountSuccess {
@@ -1359,6 +1445,18 @@ async fn handle_status_request(params: StatusRequestParams) -> Response {
     let cluster_info = if let Some(instance_manager) = &params.instance_manager {
         let cfg = params.config.read().await;
         let cluster_enabled = cfg.cluster.is_some();
+        let force_sync_info = if let Some(force_sync_state) = cfg.get_force_sync_state() {
+            Some(ForceSyncInfo {
+                in_progress: force_sync_state.sync_in_progress,
+                last_initiated: force_sync_state.last_force_sync_at,
+                initiated_by: force_sync_state.initiated_by.clone(),
+                reason: force_sync_state.last_force_sync_reason.clone(),
+                attempt_count: force_sync_state.attempt_count,
+                last_result: force_sync_state.last_result.clone(),
+            })
+        } else {
+            None
+        };
         drop(cfg);
 
         // Get actual peer count and sync info from sync coordinator if available
@@ -1393,6 +1491,7 @@ async fn handle_status_request(params: StatusRequestParams) -> Response {
             cluster_enabled,
             peers_connected,
             last_sync,
+            force_sync_info,
         })
     } else {
         None
@@ -1950,6 +2049,23 @@ async fn handle_get_logs_request(lines: Option<usize>) -> Response {
     }
 }
 
+/// Handle force sync request
+async fn handle_force_sync_request(
+    reason: Option<String>,
+    sync_coordinator: Option<Arc<SyncCoordinator>>,
+) -> Response {
+    if let Some(coordinator) = sync_coordinator {
+        let sync_reason = reason.unwrap_or_else(|| "manual force sync".to_string());
+
+        match coordinator.force_sync(sync_reason).await {
+            Ok(()) => Response::Success,
+            Err(e) => Response::Error(format!("Force sync failed: {}", e)),
+        }
+    } else {
+        Response::Error("Cluster mode is not enabled".to_string())
+    }
+}
+
 /// Convert monitor health states to HealthStatus structs
 #[allow(dead_code)]
 async fn get_all_health_statuses_from_monitor(
@@ -1991,11 +2107,12 @@ async fn run_monitoring_loop(
     config: Arc<RwLock<Config>>,
     monitor: Arc<MountMonitor>,
     path_security: Arc<PathSecurityValidator>,
+    retry_coordinator: Arc<MountRetryCoordinator>,
     no_automount: bool,
 ) -> Result<()> {
     // Auto-mount enabled shares on startup if requested
     if !no_automount {
-        auto_mount_enabled_shares(config.clone()).await?;
+        auto_mount_enabled_shares(config.clone(), retry_coordinator.clone()).await?;
     }
 
     // Start health checking
@@ -2016,14 +2133,17 @@ async fn run_monitoring_loop(
         }
 
         // Attempt reconnections for failed mounts
-        if let Err(e) = attempt_reconnections(config.clone()).await {
+        if let Err(e) = attempt_reconnections(config.clone(), retry_coordinator.clone()).await {
             error!("Reconnection error: {}", e);
         }
     }
 }
 
 /// Auto-mount all enabled shares on startup
-async fn auto_mount_enabled_shares(config: Arc<RwLock<Config>>) -> Result<()> {
+async fn auto_mount_enabled_shares(
+    config: Arc<RwLock<Config>>,
+    retry_coordinator: Arc<MountRetryCoordinator>,
+) -> Result<()> {
     info!("Auto-mounting enabled shares");
 
     let mounts_to_mount: Vec<MountConfig> = {
@@ -2037,36 +2157,20 @@ async fn auto_mount_enabled_shares(config: Arc<RwLock<Config>>) -> Result<()> {
     for mount in mounts_to_mount {
         info!("Mounting {} on startup", mount.id);
 
-        let protocol = mount.url.split("://").next().unwrap_or("");
-        if let Ok(handler) = get_mount_handler(protocol) {
-            match handler.mount(&mount, &mount.mount_point).await {
-                Ok(_) => {
-                    if let Err(status_err) =
-                        Daemon::update_mount_status(config.clone(), &mount.id, MountStatus::Active)
-                            .await
-                    {
-                        error!(
-                            "Failed to update mount status after auto-mount: {}",
-                            status_err
-                        );
-                    }
-                    info!("Successfully auto-mounted {}", mount.id);
+        // Use retry coordinator for mounting with backoff
+        match retry_coordinator
+            .mount_with_retry(&mount, config.clone())
+            .await
+        {
+            Ok(()) => {
+                info!("Successfully auto-mounted {}", mount.id);
 
-                    // Stagger mounts to avoid overwhelming network
-                    tokio::time::sleep(StdDuration::from_secs(1)).await;
-                }
-                Err(e) => {
-                    error!("Failed to auto-mount {}: {}", mount.id, e);
-                    if let Err(status_err) =
-                        Daemon::update_mount_status(config.clone(), &mount.id, MountStatus::Failed)
-                            .await
-                    {
-                        error!(
-                            "Failed to update mount status after failed auto-mount: {}",
-                            status_err
-                        );
-                    }
-                }
+                // Stagger mounts to avoid overwhelming network
+                tokio::time::sleep(StdDuration::from_millis(500)).await;
+            }
+            Err(e) => {
+                error!("Failed to auto-mount {}: {}", mount.id, e);
+                // Status is already updated by the retry coordinator
             }
         }
     }
@@ -2128,8 +2232,11 @@ async fn check_mount_health(config: Arc<RwLock<Config>>, monitor: Arc<MountMonit
 }
 
 /// Attempt reconnections for failed mounts
-async fn attempt_reconnections(config: Arc<RwLock<Config>>) -> Result<()> {
-    let mut mounts_to_reconnect: Vec<MountConfig> = {
+async fn attempt_reconnections(
+    config: Arc<RwLock<Config>>,
+    retry_coordinator: Arc<MountRetryCoordinator>,
+) -> Result<()> {
+    let mounts_to_reconnect: Vec<MountConfig> = {
         let cfg = config.read().await;
         cfg.get_failed_mounts()
             .filter(|m| {
@@ -2144,56 +2251,17 @@ async fn attempt_reconnections(config: Arc<RwLock<Config>>) -> Result<()> {
             .collect()
     };
 
-    for mount in mounts_to_reconnect.drain(..) {
-        info!(
-            "Attempting to reconnect {} (attempt {})",
-            mount.id,
-            mount.reconnect_attempts + 1
-        );
+    for mount in mounts_to_reconnect {
+        info!("Attempting to reconnect {}", mount.id);
 
-        // Increment attempt counter
+        // Use retry coordinator for reconnection
+        if retry_coordinator
+            .attempt_reconnection(&mount, config.clone())
+            .await?
         {
-            let mut cfg = config.write().await;
-            if let Some(m) = cfg.get_mount_mut(&mount.id) {
-                m.increment_reconnect_attempts();
-                m.update_status(MountStatus::Reconnecting);
-            }
-        }
-
-        let protocol = mount.url.split("://").next().unwrap_or("");
-        if let Ok(handler) = get_mount_handler(protocol) {
-            // Unmount if still mounted
-            if mount.mount_point.exists() {
-                let _ = handler.unmount(&mount.mount_point).await;
-            }
-
-            // Attempt to mount
-            match handler.mount(&mount, &mount.mount_point).await {
-                Ok(_) => {
-                    if let Err(status_err) =
-                        Daemon::update_mount_status(config.clone(), &mount.id, MountStatus::Active)
-                            .await
-                    {
-                        error!(
-                            "Failed to update mount status after reconnection: {}",
-                            status_err
-                        );
-                    }
-                    info!("Successfully reconnected {}", mount.id);
-                }
-                Err(e) => {
-                    warn!("Failed to reconnect {}: {}", mount.id, e);
-                    if let Err(status_err) =
-                        Daemon::update_mount_status(config.clone(), &mount.id, MountStatus::Failed)
-                            .await
-                    {
-                        error!(
-                            "Failed to update mount status after failed reconnection: {}",
-                            status_err
-                        );
-                    }
-                }
-            }
+            info!("Successfully reconnected {}", mount.id);
+        } else {
+            warn!("Failed to reconnect {}", mount.id);
         }
     }
 

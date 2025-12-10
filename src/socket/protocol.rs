@@ -86,6 +86,11 @@ pub enum Request {
 
     /// Check system for issues
     Doctor,
+
+    /// Force cluster synchronization
+    ForceSync {
+        reason: Option<String>,
+    },
 }
 
 /// Response from daemon to CLI
@@ -176,6 +181,18 @@ pub struct ClusterInfo {
     pub cluster_enabled: bool,
     pub peers_connected: usize,
     pub last_sync: Option<DateTime<Utc>>,
+    pub force_sync_info: Option<ForceSyncInfo>,
+}
+
+/// Force sync information
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ForceSyncInfo {
+    pub in_progress: bool,
+    pub last_initiated: Option<DateTime<Utc>>,
+    pub initiated_by: Option<String>,
+    pub reason: Option<String>,
+    pub attempt_count: u32,
+    pub last_result: Option<crate::config::ForceSyncResult>,
 }
 
 /// System issue identified by doctor

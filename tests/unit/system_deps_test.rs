@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 #[test]
 fn test_system_deps_creation() {
-    let checker = SystemDepsChecker::new();
+    let mut checker = SystemDepsChecker::new();
 
     // Should have all default dependencies
     let deps = checker.get_dependencies();
@@ -57,7 +57,7 @@ fn test_add_custom_dependency() {
 
 #[tokio::test]
 async fn test_check_existing_binary() {
-    let checker = SystemDepsChecker::new();
+    let mut checker = SystemDepsChecker::new();
 
     // 'sh' should exist on all Unix systems
     assert!(checker.check_binary_exists("sh").await);
@@ -65,7 +65,7 @@ async fn test_check_existing_binary() {
 
 #[tokio::test]
 async fn test_check_missing_binary() {
-    let checker = SystemDepsChecker::new();
+    let mut checker = SystemDepsChecker::new();
 
     // This binary should not exist
     assert!(
@@ -151,7 +151,7 @@ async fn test_missing_dependency_check() {
 
 #[tokio::test]
 async fn test_check_all_dependencies() {
-    let checker = SystemDepsChecker::new();
+    let mut checker = SystemDepsChecker::new();
     let result = checker.check_all().await;
 
     // Should have results for all default dependencies
@@ -173,7 +173,7 @@ async fn test_check_all_dependencies() {
 
 #[tokio::test]
 async fn test_check_required_dependencies() {
-    let checker = SystemDepsChecker::new();
+    let mut checker = SystemDepsChecker::new();
     let result = checker.check_required().await;
 
     // Should have results for required dependencies only
@@ -186,7 +186,7 @@ async fn test_check_required_dependencies() {
 
 #[test]
 fn test_install_instructions_coverage() {
-    let checker = SystemDepsChecker::new();
+    let mut checker = SystemDepsChecker::new();
     let deps = checker.get_dependencies();
 
     // Each dependency should have installation instructions for major platforms

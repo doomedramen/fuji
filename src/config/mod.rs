@@ -223,6 +223,9 @@ pub struct SyncMetadata {
     pub sync_version: u64,
     /// Pending conflicts to resolve
     pub pending_conflicts: Vec<SyncConflict>,
+    /// Force sync state tracking
+    #[serde(default)]
+    pub force_sync_state: ForceSyncState,
 }
 
 impl Default for SyncMetadata {
@@ -232,6 +235,7 @@ impl Default for SyncMetadata {
             last_modified_by: None,
             sync_version: 0,
             pending_conflicts: Vec::new(),
+            force_sync_state: ForceSyncState::default(),
         }
     }
 }
@@ -269,6 +273,59 @@ pub enum ConflictResolution {
     UsedInstance(String),
     /// Manual resolution required
     RequiresManualIntervention,
+}
+
+/// Force sync state tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ForceSyncState {
+    /// Last time a force sync was initiated
+    pub last_force_sync_at: Option<DateTime<Utc>>,
+    /// Whether a force sync is currently in progress
+    pub sync_in_progress: bool,
+    /// Reason for the last force sync
+    pub last_force_sync_reason: Option<String>,
+    /// Instance that initiated the last force sync
+    pub initiated_by: Option<String>,
+    /// Force sync attempts count
+    pub attempt_count: u32,
+    /// Last force sync result
+    pub last_result: Option<ForceSyncResult>,
+}
+
+/// Result of a force sync operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ForceSyncResult {
+    /// Sync completed successfully
+    Success {
+        completed_at: DateTime<Utc>,
+        peers_synced: usize,
+        conflicts_resolved: usize,
+    },
+    /// Sync failed
+    Failed {
+        failed_at: DateTime<Utc>,
+        error: String,
+        peers_attempted: usize,
+    },
+    /// Sync is in progress
+    InProgress {
+        started_at: DateTime<Utc>,
+        peers_attempted: usize,
+        peers_completed: usize,
+    },
+}
+
+impl Default for ForceSyncState {
+    fn default() -> Self {
+        Self {
+            last_force_sync_at: None,
+            sync_in_progress: false,
+            last_force_sync_reason: None,
+            initiated_by: None,
+            attempt_count: 0,
+            last_result: None,
+        }
+    }
 }
 
 /// Serialization helper for Duration
@@ -672,6 +729,7 @@ impl Config {
                 last_modified_by: Some(instance_id),
                 sync_version: 0,
                 pending_conflicts: Vec::new(),
+                force_sync_state: ForceSyncState::default(),
             },
         });
     }
@@ -718,6 +776,99 @@ impl Config {
     /// Get mutable cluster configuration
     pub fn get_cluster_config_mut(&mut self) -> Option<&mut ClusterConfig> {
         self.cluster.as_mut()
+    }
+
+    /// Initiate a force sync operation
+    pub fn initiate_force_sync(&mut self, reason: String, initiated_by: String) -> Result<()> {
+        if let Some(cluster) = self.get_cluster_config_mut() {
+            let force_sync = &mut cluster.sync_metadata.force_sync_state;
+
+            // Update force sync state
+            force_sync.last_force_sync_at = Some(Utc::now());
+            force_sync.sync_in_progress = true;
+            force_sync.last_force_sync_reason = Some(reason);
+            force_sync.initiated_by = Some(initiated_by);
+            force_sync.attempt_count += 1;
+
+            // Set current result to in-progress
+            force_sync.last_result = Some(ForceSyncResult::InProgress {
+                started_at: Utc::now(),
+                peers_attempted: cluster.peers.len(),
+                peers_completed: 0,
+            });
+
+            info!(
+                "Force sync initiated by {} (attempt #{})",
+                force_sync.initiated_by.as_ref().unwrap(),
+                force_sync.attempt_count
+            );
+
+            Ok(())
+        } else {
+            Err(anyhow!("Clustering is not enabled"))
+        }
+    }
+
+    /// Mark force sync as completed
+    pub fn complete_force_sync(
+        &mut self,
+        peers_synced: usize,
+        conflicts_resolved: usize,
+    ) -> Result<()> {
+        if let Some(cluster) = self.get_cluster_config_mut() {
+            let force_sync = &mut cluster.sync_metadata.force_sync_state;
+
+            if !force_sync.sync_in_progress {
+                return Err(anyhow!("No force sync in progress"));
+            }
+
+            force_sync.sync_in_progress = false;
+            force_sync.last_result = Some(ForceSyncResult::Success {
+                completed_at: Utc::now(),
+                peers_synced,
+                conflicts_resolved,
+            });
+
+            info!(
+                "Force sync completed successfully: {} peers synced, {} conflicts resolved",
+                peers_synced, conflicts_resolved
+            );
+
+            Ok(())
+        } else {
+            Err(anyhow!("Clustering is not enabled"))
+        }
+    }
+
+    /// Mark force sync as failed
+    pub fn fail_force_sync(&mut self, error: String, peers_attempted: usize) -> Result<()> {
+        if let Some(cluster) = self.get_cluster_config_mut() {
+            let force_sync = &mut cluster.sync_metadata.force_sync_state;
+
+            if !force_sync.sync_in_progress {
+                return Err(anyhow!("No force sync in progress"));
+            }
+
+            force_sync.sync_in_progress = false;
+            force_sync.last_result = Some(ForceSyncResult::Failed {
+                failed_at: Utc::now(),
+                error,
+                peers_attempted,
+            });
+
+            warn!("Force sync failed");
+
+            Ok(())
+        } else {
+            Err(anyhow!("Clustering is not enabled"))
+        }
+    }
+
+    /// Get current force sync state
+    pub fn get_force_sync_state(&self) -> Option<&ForceSyncState> {
+        self.cluster
+            .as_ref()
+            .map(|c| &c.sync_metadata.force_sync_state)
     }
 }
 

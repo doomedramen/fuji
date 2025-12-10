@@ -11,6 +11,7 @@ pub mod monitoring;
 pub mod mount;
 pub mod network;
 pub mod platform;
+pub mod progress;
 pub mod security;
 pub mod socket;
 pub mod sync;

@@ -12,6 +12,7 @@ mod monitoring;
 mod mount;
 mod network;
 mod platform;
+mod progress;
 mod security;
 mod socket;
 mod sync;

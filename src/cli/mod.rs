@@ -564,6 +564,88 @@ async fn handle_status(
                                     println!("  - {}", issue);
                                 }
                             }
+
+                            // Display cluster information if available
+                            if let Some(cluster) = health.cluster_info.as_ref() {
+                                println!("Cluster:");
+                                println!("  Instance ID: {}", cluster.instance_id);
+                                println!("  Cluster Enabled: {}", cluster.cluster_enabled);
+                                println!("  Peers Connected: {}", cluster.peers_connected);
+                                if let Some(last_sync) = cluster.last_sync {
+                                    println!(
+                                        "  Last Sync: {}",
+                                        last_sync.format("%Y-%m-%d %H:%M:%S UTC")
+                                    );
+                                } else {
+                                    println!("  Last Sync: Never");
+                                }
+
+                                // Show force sync information
+                                if let Some(force_sync) = &cluster.force_sync_info {
+                                    if force_sync.in_progress {
+                                        println!("  Force Sync: IN PROGRESS");
+                                        if let Some(initiated) = force_sync.last_initiated {
+                                            println!(
+                                                "    Started: {}",
+                                                initiated.format("%Y-%m-%d %H:%M:%S UTC")
+                                            );
+                                        }
+                                        if let Some(who) = &force_sync.initiated_by {
+                                            println!("    Initiated by: {}", who);
+                                        }
+                                        if let Some(reason) = &force_sync.reason {
+                                            println!("    Reason: {}", reason);
+                                        }
+                                        println!("    Attempt #{}", force_sync.attempt_count);
+                                    } else if force_sync.attempt_count > 0 {
+                                        println!("  Force Sync:");
+                                        if let Some(result) = &force_sync.last_result {
+                                            match result {
+                                                crate::config::ForceSyncResult::Success {
+                                                    completed_at,
+                                                    peers_synced,
+                                                    conflicts_resolved,
+                                                } => {
+                                                    println!("    Last: ✓ Succeeded");
+                                                    println!(
+                                                        "    Completed: {}",
+                                                        completed_at
+                                                            .format("%Y-%m-%d %H:%M:%S UTC")
+                                                    );
+                                                    println!("    Peers synced: {}", peers_synced);
+                                                    if *conflicts_resolved > 0 {
+                                                        println!(
+                                                            "    Conflicts resolved: {}",
+                                                            conflicts_resolved
+                                                        );
+                                                    }
+                                                }
+                                                crate::config::ForceSyncResult::Failed {
+                                                    failed_at,
+                                                    error,
+                                                    peers_attempted,
+                                                } => {
+                                                    println!("    Last: ✗ Failed");
+                                                    println!(
+                                                        "    Failed: {}",
+                                                        failed_at.format("%Y-%m-%d %H:%M:%S UTC")
+                                                    );
+                                                    println!("    Error: {}", error);
+                                                    println!(
+                                                        "    Peers attempted: {}",
+                                                        peers_attempted
+                                                    );
+                                                }
+                                                _ => {}
+                                            }
+                                            println!(
+                                                "    Total attempts: {}",
+                                                force_sync.attempt_count
+                                            );
+                                        }
+                                    }
+                                }
+                            }
                             println!();
                         }
 
@@ -636,6 +718,78 @@ async fn handle_status(
                     println!("Issues:");
                     for issue in health.issues {
                         println!("  - {}", issue);
+                    }
+                }
+
+                // Display cluster information if available
+                if let Some(cluster) = health.cluster_info.as_ref() {
+                    println!("\nCluster:");
+                    println!("  Instance ID: {}", cluster.instance_id);
+                    println!("  Cluster Enabled: {}", cluster.cluster_enabled);
+                    println!("  Peers Connected: {}", cluster.peers_connected);
+                    if let Some(last_sync) = cluster.last_sync {
+                        println!("  Last Sync: {}", last_sync.format("%Y-%m-%d %H:%M:%S UTC"));
+                    } else {
+                        println!("  Last Sync: Never");
+                    }
+
+                    // Show force sync information
+                    if let Some(force_sync) = &cluster.force_sync_info {
+                        if force_sync.in_progress {
+                            println!("  Force Sync: IN PROGRESS");
+                            if let Some(initiated) = force_sync.last_initiated {
+                                println!(
+                                    "    Started: {}",
+                                    initiated.format("%Y-%m-%d %H:%M:%S UTC")
+                                );
+                            }
+                            if let Some(who) = &force_sync.initiated_by {
+                                println!("    Initiated by: {}", who);
+                            }
+                            if let Some(reason) = &force_sync.reason {
+                                println!("    Reason: {}", reason);
+                            }
+                            println!("    Attempt #{}", force_sync.attempt_count);
+                        } else if force_sync.attempt_count > 0 {
+                            println!("  Force Sync:");
+                            if let Some(result) = &force_sync.last_result {
+                                match result {
+                                    crate::config::ForceSyncResult::Success {
+                                        completed_at,
+                                        peers_synced,
+                                        conflicts_resolved,
+                                    } => {
+                                        println!("    Last: ✓ Succeeded");
+                                        println!(
+                                            "    Completed: {}",
+                                            completed_at.format("%Y-%m-%d %H:%M:%S UTC")
+                                        );
+                                        println!("    Peers synced: {}", peers_synced);
+                                        if *conflicts_resolved > 0 {
+                                            println!(
+                                                "    Conflicts resolved: {}",
+                                                conflicts_resolved
+                                            );
+                                        }
+                                    }
+                                    crate::config::ForceSyncResult::Failed {
+                                        failed_at,
+                                        error,
+                                        peers_attempted,
+                                    } => {
+                                        println!("    Last: ✗ Failed");
+                                        println!(
+                                            "    Failed: {}",
+                                            failed_at.format("%Y-%m-%d %H:%M:%S UTC")
+                                        );
+                                        println!("    Error: {}", error);
+                                        println!("    Peers attempted: {}", peers_attempted);
+                                    }
+                                    _ => {}
+                                }
+                                println!("    Total attempts: {}", force_sync.attempt_count);
+                            }
+                        }
                     }
                 }
                 println!();

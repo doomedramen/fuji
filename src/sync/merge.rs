@@ -148,6 +148,7 @@ impl ConfigMerger {
                 last_modified_by: Some(self.instance_id.clone()),
                 sync_version: latest_sync_version + 1,
                 pending_conflicts: conflicts.clone(),
+                force_sync_state: crate::config::ForceSyncState::default(),
             },
         });
 
@@ -169,6 +170,7 @@ impl ConfigMerger {
                 last_modified_by: Some(self.instance_id.clone()),
                 sync_version: sync_version + 1,
                 pending_conflicts: conflicts.clone(),
+                force_sync_state: crate::config::ForceSyncState::default(),
             },
             resolved_conflicts,
         })

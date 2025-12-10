@@ -12,6 +12,7 @@ use crate::cluster::ClusterInvitation;
 use crate::cluster::ClusterState;
 use crate::cluster::discovery::DiscoveryManager;
 use crate::network::tcp::TcpTransport;
+use crate::socket::{Request, Response, SocketClient};
 use crate::sync::coordinator::SyncCoordinator;
 
 /// Cluster management subcommands
@@ -346,19 +347,129 @@ async fn handle_sync_force(ctx: Arc<CliContext>) -> Result<()> {
             return Ok(());
         }
 
+        // Check if a force sync is already in progress
+        if let Some(force_sync_state) = config.get_force_sync_state() {
+            if force_sync_state.sync_in_progress {
+                println!("A force sync is already in progress:");
+                println!(
+                    "  Initiated by: {}",
+                    force_sync_state
+                        .initiated_by
+                        .as_ref()
+                        .unwrap_or(&"unknown".to_string())
+                );
+                println!("  Started at: {:?}", force_sync_state.last_force_sync_at);
+                println!(
+                    "  Reason: {}",
+                    force_sync_state
+                        .last_force_sync_reason
+                        .as_ref()
+                        .unwrap_or(&"manual".to_string())
+                );
+
+                // Show current progress if available
+                if let Some(result) = &force_sync_state.last_result {
+                    match result {
+                        crate::config::ForceSyncResult::InProgress {
+                            started_at: _,
+                            peers_attempted,
+                            peers_completed,
+                        } => {
+                            println!(
+                                "  Progress: {}/{} peers responded",
+                                peers_completed, peers_attempted
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+
+                return Ok(());
+            }
+
+            // Show last force sync result if available
+            if let Some(result) = &force_sync_state.last_result {
+                println!("Last force sync result:");
+                match result {
+                    crate::config::ForceSyncResult::Success {
+                        completed_at,
+                        peers_synced,
+                        conflicts_resolved,
+                    } => {
+                        println!(
+                            "  ✓ Succeeded at {}",
+                            completed_at.format("%Y-%m-%d %H:%M:%S UTC")
+                        );
+                        println!("  Peers synced: {}", peers_synced);
+                        println!("  Conflicts resolved: {}", conflicts_resolved);
+                    }
+                    crate::config::ForceSyncResult::Failed {
+                        failed_at,
+                        error,
+                        peers_attempted,
+                    } => {
+                        println!(
+                            "  ✗ Failed at {}",
+                            failed_at.format("%Y-%m-%d %H:%M:%S UTC")
+                        );
+                        println!("  Error: {}", error);
+                        println!("  Peers attempted: {}", peers_attempted);
+                    }
+                    _ => {}
+                }
+                println!();
+            }
+        }
+
         println!(
             "Forcing synchronization with {} peers...",
             cluster.peers.len()
         );
 
-        // TODO: Implement force sync functionality
-        println!("Note: Force sync functionality will be implemented in a future version");
-        println!(
-            "For now, sync happens automatically every {} minutes",
-            cluster.sync_interval.num_minutes()
-        );
+        // Connect to daemon to trigger force sync
+        drop(config); // Release read lock
+
+        // Create socket client
+        let socket_path = {
+            let platform = crate::platform::get_platform();
+            let cfg = crate::config::Config::load(platform.as_ref()).await?;
+            cfg.get_socket_path(platform.as_ref())?
+        };
+
+        let client = SocketClient::new(socket_path);
+
+        // Send force sync request to daemon
+        let response = client
+            .send_request(Request::ForceSync {
+                reason: Some("Manual force sync via CLI".to_string()),
+            })
+            .await;
+
+        match response {
+            Ok(Response::Success) => {
+                println!("✓ Force sync initiated successfully");
+                println!("Use 'fuji status' to monitor progress");
+            }
+            Ok(Response::Error(msg)) => {
+                error!("Force sync failed: {}", msg);
+                println!("Error: {}", msg);
+                return Err(anyhow::anyhow!("Force sync failed: {}", msg));
+            }
+            Err(e) => {
+                error!("Failed to send force sync request: {}", e);
+                println!("Failed to send force sync request: {}", e);
+                return Err(e);
+            }
+            _ => {
+                error!("Unexpected response from daemon");
+                println!("Unexpected response from daemon");
+                return Err(anyhow::anyhow!("Unexpected response"));
+            }
+        }
     } else {
         println!("Not part of any cluster");
+        println!("Use 'fuji cluster info' to create a new cluster or");
+        println!("Use 'fuji cluster join <invitation>' to join an existing one");
     }
 
     Ok(())

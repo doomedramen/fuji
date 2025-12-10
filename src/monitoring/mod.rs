@@ -5,6 +5,7 @@
 
 pub mod dependency;
 pub mod health_checks;
+pub mod mount_retry;
 pub mod persistence;
 pub mod retry;
 pub mod scheduler;

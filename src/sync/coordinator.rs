@@ -340,6 +340,16 @@ impl SyncCoordinator {
         // Extract values before moving
         let sync_version = merged.sync_metadata.sync_version;
         let mount_ids = merged.config.mounts.keys().cloned().collect();
+        let resolved_conflicts_count = merged.resolved_conflicts.len();
+
+        // Get the number of peers that responded
+        let peers_responded = {
+            let pending = self.pending_syncs.read().await;
+            pending
+                .get(&request_id)
+                .map(|p| p.responded_peers.len())
+                .unwrap_or(0)
+        };
 
         // Apply the merged configuration
         {
@@ -349,6 +359,11 @@ impl SyncCoordinator {
             // Update sync metadata
             if let Some(cluster) = config.get_cluster_config_mut() {
                 cluster.sync_metadata = merged.sync_metadata.clone();
+
+                // Check if this was a force sync and mark it as completed
+                if cluster.sync_metadata.force_sync_state.sync_in_progress {
+                    config.complete_force_sync(peers_responded, resolved_conflicts_count)?;
+                }
             }
 
             // Mark as modified by us
@@ -611,6 +626,116 @@ impl SyncCoordinator {
         }
 
         Ok(mount_conflicts)
+    }
+
+    /// Force sync with all peers immediately
+    pub async fn force_sync(&self, reason: String) -> Result<()> {
+        info!("Initiating force sync: {}", reason);
+
+        // Check if cluster is enabled
+        {
+            let config = self.config.read().await;
+            if config.cluster.is_none() || !config.cluster.as_ref().unwrap().enabled {
+                return Err(anyhow!("Cluster mode is not enabled"));
+            }
+        }
+
+        // Mark force sync as initiated in configuration
+        {
+            let mut config = self.config.write().await;
+            config.initiate_force_sync(reason, self.instance_id.clone())?;
+        }
+
+        // Get healthy peers
+        let peers = self
+            .cluster_state
+            .get_healthy_peers(
+                chrono::Duration::minutes(5), // Use standard interval for force sync
+            )
+            .await;
+
+        if peers.is_empty() {
+            let mut config = self.config.write().await;
+            config.fail_force_sync("No healthy peers available".to_string(), 0)?;
+            return Err(anyhow!("No healthy peers available for sync"));
+        }
+
+        info!("Force syncing with {} peers", peers.len());
+
+        // Generate a unique request ID for force sync
+        let request_id = format!(
+            "force-{}-{}",
+            self.instance_id,
+            Utc::now().timestamp_nanos_opt().unwrap_or(0)
+        );
+
+        // Create pending sync record
+        {
+            let mut pending = self.pending_syncs.write().await;
+            pending.insert(
+                request_id.clone(),
+                PendingSync {
+                    request_id: request_id.clone(),
+                    initiated_at: Utc::now(),
+                    responded_peers: Vec::new(),
+                    peer_configs: HashMap::new(),
+                    total_peers: peers.len(),
+                },
+            );
+        }
+
+        // Mark that we initiated a sync
+        self.cluster_state.mark_sync_initiated().await;
+
+        // Send force sync requests to all peers
+        let message = SyncMessage::sync_request(
+            request_id.clone(),
+            self.instance_id.clone(),
+            self.config
+                .read()
+                .await
+                .cluster
+                .as_ref()
+                .map(|c| c.sync_metadata.sync_version)
+                .unwrap_or(0),
+        );
+
+        let mut successful_peers = 0;
+        let mut failed_peers = Vec::new();
+
+        for peer in peers {
+            if let Err(e) = self.transport.send_message(&peer.id, &message).await {
+                warn!("Failed to send force sync request to {}: {}", peer.id, e);
+                failed_peers.push(peer.id);
+            } else {
+                successful_peers += 1;
+            }
+        }
+
+        if failed_peers.is_empty() {
+            info!("Force sync requests sent to all peers");
+        } else {
+            warn!("Failed to send force sync requests to: {:?}", failed_peers);
+        }
+
+        // Set a timeout for the force sync
+        let coordinator = self.clone();
+        tokio::spawn(async move {
+            sleep(StdDuration::from_secs(120)).await; // Longer timeout for force sync
+
+            let mut pending = coordinator.pending_syncs.write().await;
+            if pending.remove(&request_id).is_some() {
+                // Force sync timed out, mark as failed
+                let mut config = coordinator.config.write().await;
+                if let Err(e) =
+                    config.fail_force_sync("Force sync timed out".to_string(), successful_peers)
+                {
+                    error!("Failed to mark force sync as failed: {}", e);
+                }
+            }
+        });
+
+        Ok(())
     }
 
     /// Get cluster statistics

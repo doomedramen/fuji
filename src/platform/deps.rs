@@ -691,7 +691,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_dependency_check() {
-        let checker = SystemDepsChecker::new();
+        let mut checker = SystemDepsChecker::new();
 
         // Check sh (should exist)
         let mut custom_dep = SystemDependency {
