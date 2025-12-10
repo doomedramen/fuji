@@ -761,6 +761,7 @@ async fn handle_request(
             filter_url,
             filter_type,
             filter_point,
+            filter_status,
         } => {
             handle_status_request(StatusRequestParams {
                 verbose,
@@ -769,6 +770,7 @@ async fn handle_request(
                 filter_url,
                 filter_type,
                 filter_point,
+                filter_status,
                 config,
                 monitor,
                 sync_coordinator,
@@ -1208,6 +1210,7 @@ struct StatusRequestParams {
     filter_url: Option<String>,
     filter_type: Option<String>,
     filter_point: Option<String>,
+    filter_status: Option<String>,
     config: Arc<RwLock<Config>>,
     monitor: Arc<MountMonitor>,
     sync_coordinator: Option<Arc<SyncCoordinator>>,
@@ -1260,6 +1263,13 @@ async fn handle_status_request(params: StatusRequestParams) -> Response {
                 }
             };
             if !regex.is_match(&mount_point_str) {
+                continue;
+            }
+        }
+
+        if let Some(ref filter_status) = params.filter_status {
+            let status_str = format!("{:?}", mount.status);
+            if !filter_status.eq_ignore_ascii_case(&status_str) {
                 continue;
             }
         }

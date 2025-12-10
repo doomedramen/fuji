@@ -471,7 +471,7 @@ async fn handle_status(
     filter_point: Option<String>,
     filter_url: Option<String>,
     filter_type: Option<String>,
-    _filter_status: Option<String>, // TODO: Implement status filtering
+    filter_status: Option<String>,
     json: bool,
     platform: Box<dyn Platform>,
 ) -> Result<()> {
@@ -499,6 +499,7 @@ async fn handle_status(
                     filter_url: filter_url.clone(),
                     filter_type: filter_type.clone(),
                     filter_point: filter_point.clone(),
+                    filter_status: filter_status.clone(),
                 })
                 .await;
 
@@ -569,6 +570,7 @@ async fn handle_status(
         filter_url,
         filter_type,
         filter_point,
+        filter_status,
     };
     let client = create_socket_client(platform.as_ref()).await?;
     let response = client.send_request(request).await;

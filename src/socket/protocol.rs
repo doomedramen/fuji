@@ -35,6 +35,7 @@ pub enum Request {
         filter_url: Option<String>,
         filter_type: Option<String>,
         filter_point: Option<String>,
+        filter_status: Option<String>,
     },
 
     /// List all configured mounts
