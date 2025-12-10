@@ -6,7 +6,6 @@
 use fuji::mount::MountHandler;
 use fuji::mount::drivers::{
     MountOptionsValidator, MountUrlValidator, NfsHandler, SecureCommand, SmbHandler, SshfsHandler,
-    create_secure_mount_command,
 };
 
 #[test]

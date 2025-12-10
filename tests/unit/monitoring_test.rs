@@ -3,9 +3,10 @@
 use anyhow;
 use chrono::Utc;
 use fuji::monitoring::{
-    health_checks::run_check,
+    health_checks::{run_check, HealthCheckContext},
     retry::{CircuitBreakerState, RetryHandler, RetryPolicy, RetryResult},
 };
+use fuji::platform::current_platform;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
@@ -307,7 +308,33 @@ fn test_retry_result_failure() {
 async fn test_health_check_run_check_by_name() {
     // Test invalid check name - only test this since the valid checks
     // require persistence setup which is not available in unit tests
-    let result = run_check("test_mount", "invalid_check").await;
+    let platform = current_platform();
+    let mount_point = std::path::PathBuf::from("/test/mount");
+
+    // Create a minimal test mount config
+    let config = fuji::mount::MountConfig {
+        id: "test_mount".to_string(),
+        url: url::Url::parse("nfs://127.0.0.1/test").unwrap(),
+        mount_point: mount_point.clone(),
+        mount_type: fuji::mount::MountType::Nfs,
+        options: fuji::mount::MountOptions::default(),
+        status: fuji::mount::MountStatus::Active,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        metadata: std::collections::HashMap::new(),
+    };
+
+    let context = HealthCheckContext {
+        config: &config,
+        mount_point: &mount_point,
+        platform: platform.as_ref(),
+    let mount_point = std::path::PathBuf::from("/test/mount");
+    let context = HealthCheckContext {
+        mount_point: &mount_point,
+        platform: &platform,
+    };
+
+    let result = run_check("test_mount", "invalid_check", context).await;
     assert!(result.is_err());
     assert!(
         result
