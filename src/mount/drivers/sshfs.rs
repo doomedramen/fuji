@@ -64,32 +64,43 @@ impl MountHandler for SshfsHandler {
         let _port = parsed.port().map(|p| p.to_string());
 
         // Path on the remote server
-        let _remote_path = if parsed.path().is_empty() || parsed.path() == "/" {
+        let remote_path = if parsed.path().is_empty() || parsed.path() == "/" {
             "".to_string()
         } else {
             parsed.path().to_string()
         };
 
-        // For SSHFS, we'll use the SMB mount type as a temporary storage for connection info
-        // TODO: Add a dedicated SSHFS mount type to MountType enum
-        let share = format!("sshfs://{}", host);
-        Ok(MountType::Smb {
+        Ok(MountType::Sshfs {
             host,
-            share,
             username,
+            path: remote_path,
+            private_key: None,
             password: None,
-            domain: None,
             options: self.get_default_options(),
         })
     }
 
     fn validate_config(&self, config: &MountConfig) -> Result<()> {
         match &config.mount_type {
+            MountType::Sshfs {
+                host,
+                path,
+                ..
+            } => {
+                if host.is_empty() {
+                    return Err(anyhow!("SSHFS host cannot be empty"));
+                }
+                if path.is_empty() {
+                    return Err(anyhow!("SSHFS remote path cannot be empty"));
+                }
+                Ok(())
+            }
             MountType::Smb {
                 host,
                 share,
                 ..
             } => {
+                // Legacy support for old configs using SMB type for SSHFS
                 if host.is_empty() {
                     return Err(anyhow!("SSHFS host cannot be empty"));
                 }
@@ -112,60 +123,86 @@ impl MountHandler for SshfsHandler {
     async fn mount(&self, config: &MountConfig, mount_point: &Path) -> Result<()> {
         self.validate_config(config)?;
 
-        match &config.mount_type {
+        let (remote_source, options) = match &config.mount_type {
+            MountType::Sshfs {
+                host,
+                username,
+                path,
+                options,
+                ..
+            } => {
+                let mut user_part = String::new();
+                if let Some(user) = username {
+                    user_part.push_str(&format!("{}@", user));
+                }
+                let remote_path = if path.starts_with('/') {
+                    &path[1..]
+                } else {
+                    path
+                };
+                (
+                    format!("{}{}:{}", user_part, host, remote_path),
+                    options.clone(),
+                )
+            }
             MountType::Smb {
                 host: _,
                 share,
-                username: _,
-                password: _,
-                domain: _,
                 options,
+                ..
             } => {
-                if !self.check_sshfs().await {
-                    return Err(anyhow!("sshfs is not installed"));
-                }
-
-                info!("Mounting SSHFS {} to {}", share, mount_point.display());
-
-                // Validate and prepare mount options
-                let validator = MountOptionsValidator::new()?;
-                let mut mount_options = options.clone();
-
-                // Add default options if none specified
-                if mount_options.is_empty() {
-                    mount_options.extend(self.get_default_options());
-                }
-
-                // Validate all options
-                validator.validate_options("sshfs", &mount_options)?;
-
-                // Create secure mount command
-                let cmd = create_secure_mount_command(
-                    "sshfs",
-                    share,
-                    mount_point.to_str().unwrap(),
-                    &mount_options,
-                )?;
-
-                // Ensure mount point exists
-                fs::create_dir_all(mount_point).await?;
-
-                // Execute mount command
-                let output = cmd.output().await?;
-
-                // SecureCommand::output returns Result<String>, not a status object
-                // If we get here, the command succeeded
-                debug!("Mount command output: {}", output);
-
-                info!(
-                    "Successfully mounted SSHFS {} to {}",
-                    share,
-                    mount_point.display()
-                );
-                Ok(())
+                // Legacy support for old configs using SMB type for SSHFS
+                (share.clone(), options.clone())
             }
-            _ => Err(anyhow!("Invalid mount type for SSHFS handler")),
+            _ => return Err(anyhow!("Invalid mount type for SSHFS handler")),
+        };
+
+        if !self.check_sshfs().await {
+            return Err(anyhow!("sshfs is not installed"));
         }
+
+        info!(
+            "Mounting SSHFS {} to {}",
+            remote_source,
+            mount_point.display()
+        );
+
+        // Validate and prepare mount options
+        let validator = MountOptionsValidator::new()?;
+        let mut mount_options = options;
+
+        // Add default options if none specified
+        if mount_options.is_empty() {
+            mount_options.extend(self.get_default_options());
+        }
+
+        // Validate all options
+        validator.validate_options("sshfs", &mount_options)?;
+
+        // Create secure mount command
+        let cmd = create_secure_mount_command(
+            "sshfs",
+            &remote_source,
+            mount_point.to_str().unwrap(),
+            &mount_options,
+        )?;
+
+        // Ensure mount point exists
+        fs::create_dir_all(mount_point).await?;
+
+        // Execute mount command
+        let output = cmd.output().await?;
+
+        // SecureCommand::output returns Result<String>, not a status object
+        // If we get here, the command succeeded
+        debug!("Mount command output: {}", output);
+
+        info!(
+            "Successfully mounted SSHFS {} to {}",
+            remote_source,
+            mount_point.display()
+        );
+        Ok(())
     }
 
     async fn unmount(&self, mount_point: &Path) -> Result<()> {

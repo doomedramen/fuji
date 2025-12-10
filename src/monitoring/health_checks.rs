@@ -116,19 +116,10 @@ async fn run_ping_check(context: HealthCheckContext<'_>) -> Result<bool> {
             host,
             ..
         } => host.clone(),
-        // TODO: Remove this workaround when SSHFS is added to MountType enum
-        _ => {
-            // Try to extract host from URL as fallback
-            if let Some(stripped) = context.config.url.strip_prefix("sshfs://") {
-                if let Some(host_part) = stripped.split('/').next() {
-                    host_part.to_string()
-                } else {
-                    return Err(anyhow!("Cannot determine host for ping check"));
-                }
-            } else {
-                return Err(anyhow!("Cannot determine host for ping check"));
-            }
-        }
+        crate::mount::MountType::Sshfs {
+            host,
+            ..
+        } => host.clone(),
     };
 
     // Use tokio::task::spawn_blocking with timeout
@@ -172,14 +163,9 @@ async fn run_protocol_check(context: HealthCheckContext<'_>) -> Result<bool> {
         crate::mount::MountType::Smb {
             ..
         } => "smb",
-        // TODO: Remove this workaround when SSHFS is added to MountType enum
-        _ => {
-            if context.config.url.starts_with("sshfs://") {
-                "sshfs"
-            } else {
-                return Err(anyhow!("Unsupported mount type for protocol check"));
-            }
-        }
+        crate::mount::MountType::Sshfs {
+            ..
+        } => "sshfs",
     };
 
     let handler = get_mount_handler(protocol)?;

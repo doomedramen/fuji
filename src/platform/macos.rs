@@ -193,6 +193,9 @@ impl Platform for MacOSPlatform {
             MountType::Smb {
                 ..
             } => Err(anyhow!("SMB/CIFS not yet implemented")),
+            MountType::Sshfs {
+                ..
+            } => Err(anyhow!("SSHFS should use sshfs command, not mount")),
         }
     }
 

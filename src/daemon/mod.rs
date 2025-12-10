@@ -470,6 +470,22 @@ impl Daemon {
                     }
                 }
             }
+            MountType::Sshfs {
+                host,
+                ..
+            } => {
+                // Check SSH port (22)
+                if let Ok(output) = tokio::process::Command::new("nc")
+                    .args(&["-z", "-w2", host, "22"])
+                    .output()
+                    .await
+                {
+                    if !output.status.success() {
+                        health_score = health_score.saturating_sub(20);
+                        error_messages.push(format!("SSH port 22 not accessible on: {}", host));
+                    }
+                }
+            }
         }
 
         // Check 4: Test file write if accessible
@@ -622,6 +638,23 @@ impl Daemon {
                                 health_score = health_score.saturating_sub(20);
                                 error_messages
                                     .push(format!("SMB port 445 not accessible on: {}", host));
+                            }
+                        }
+                    }
+                    MountType::Sshfs {
+                        host,
+                        ..
+                    } => {
+                        // Check SSH port (22)
+                        if let Ok(output) = tokio::process::Command::new("nc")
+                            .args(&["-z", "-w2", host, "22"])
+                            .output()
+                            .await
+                        {
+                            if !output.status.success() {
+                                health_score = health_score.saturating_sub(20);
+                                error_messages
+                                    .push(format!("SSH port 22 not accessible on: {}", host));
                             }
                         }
                     }
@@ -1038,6 +1071,12 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
         } => {
             *options = parsed_options.raw.clone();
         }
+        MountType::Sshfs {
+            options,
+            ..
+        } => {
+            *options = parsed_options.raw.clone();
+        }
     }
 
     let mut mount_config = MountConfig::new(params.url.clone(), mount_type, mount_point.clone());
@@ -1247,6 +1286,9 @@ async fn handle_status_request(params: StatusRequestParams) -> Response {
                 crate::mount::MountType::Smb {
                     ..
                 } => "smb",
+                crate::mount::MountType::Sshfs {
+                    ..
+                } => "sshfs",
             };
             if !filter_type.eq_ignore_ascii_case(mount_type_str) {
                 continue;
@@ -1419,6 +1461,9 @@ async fn handle_list_request(
                     crate::mount::MountType::Smb {
                         ..
                     } => "smb",
+                    crate::mount::MountType::Sshfs {
+                        ..
+                    } => "sshfs",
                 };
                 filter_type.eq_ignore_ascii_case(mount_type_str)
             } else {
@@ -1468,6 +1513,10 @@ async fn handle_discover_request(url: String) -> Response {
             ..
         } => host,
         crate::mount::MountType::Smb {
+            host,
+            ..
+        } => host,
+        crate::mount::MountType::Sshfs {
             host,
             ..
         } => host,

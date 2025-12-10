@@ -33,6 +33,15 @@ pub enum MountType {
         domain: Option<String>,
         options: Vec<String>,
     },
+    /// SSHFS (SSH File System)
+    Sshfs {
+        host: String,
+        username: Option<String>,
+        path: String,
+        private_key: Option<String>,
+        password: Option<String>,
+        options: Vec<String>,
+    },
 }
 
 /// Mount status

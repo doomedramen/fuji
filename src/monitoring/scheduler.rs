@@ -481,6 +481,14 @@ impl HealthCheckScheduler {
                     interval = "*/15 * * * * *".to_string(); // Every 15 seconds
                 }
             }
+            crate::mount::MountType::Sshfs {
+                ..
+            } => {
+                // SSHFS mounts benefit from moderate frequency checks
+                if interval == self.default_interval {
+                    interval = "*/30 * * * * *".to_string(); // Every 30 seconds
+                }
+            }
         }
 
         Ok(interval)
