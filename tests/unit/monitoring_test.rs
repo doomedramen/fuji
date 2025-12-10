@@ -6,7 +6,6 @@ use fuji::monitoring::{
     health_checks::{HealthCheckContext, run_check},
     retry::{CircuitBreakerState, RetryHandler, RetryPolicy, RetryResult},
 };
-use fuji::platform::get_platform;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
@@ -308,7 +307,7 @@ fn test_retry_result_failure() {
 async fn test_health_check_run_check_by_name() {
     // Test invalid check name - only test this since the valid checks
     // require persistence setup which is not available in unit tests
-    let platform = current_platform();
+    let platform = fuji::platform::get_platform();
     let mount_point = std::path::PathBuf::from("/test/mount");
 
     // Create a minimal test mount config
