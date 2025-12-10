@@ -540,11 +540,11 @@ impl MountOptionParser {
                 }
                 if !options.contains_key("rsize") {
                     options.insert("rsize".to_string(), "1048576".to_string()); // 1MB
-                    performance.rsize = Some(1048576);
+                    performance.rsize = Some(1_048_576);
                 }
                 if !options.contains_key("wsize") {
                     options.insert("wsize".to_string(), "1048576".to_string()); // 1MB
-                    performance.wsize = Some(1048576);
+                    performance.wsize = Some(1_048_576);
                 }
                 if !options.contains_key("timeo") {
                     options.insert("timeo".to_string(), "600".to_string()); // 10 minutes
@@ -563,11 +563,11 @@ impl MountOptionParser {
                 }
                 if !options.contains_key("rsize") {
                     options.insert("rsize".to_string(), "1048576".to_string());
-                    performance.rsize = Some(1048576);
+                    performance.rsize = Some(1_048_576);
                 }
                 if !options.contains_key("wsize") {
                     options.insert("wsize".to_string(), "1048576".to_string());
-                    performance.wsize = Some(1048576);
+                    performance.wsize = Some(1_048_576);
                 }
             }
             "sshfs" => {
@@ -614,7 +614,7 @@ impl MountOptionParser {
                 if rsize < 1024 {
                     bail!("rsize too small: {} (minimum 1024)", rsize);
                 }
-                if rsize > 104857600 {
+                if rsize > 104_857_600 {
                     bail!("rsize too large: {} (maximum 100MB)", rsize);
                 }
             }
@@ -623,7 +623,7 @@ impl MountOptionParser {
                 if wsize < 1024 {
                     bail!("wsize too small: {} (minimum 1024)", wsize);
                 }
-                if wsize > 104857600 {
+                if wsize > 104_857_600 {
                     bail!("wsize too large: {} (maximum 100MB)", wsize);
                 }
             }
@@ -642,7 +642,7 @@ impl MountOptionParser {
                 if rsize < 1024 {
                     bail!("rsize too small: {} (minimum 1024)", rsize);
                 }
-                if rsize > 104857600 {
+                if rsize > 104_857_600 {
                     bail!("rsize too large: {} (maximum 100MB)", rsize);
                 }
             }
@@ -651,7 +651,7 @@ impl MountOptionParser {
                 if wsize < 1024 {
                     bail!("wsize too small: {} (minimum 1024)", wsize);
                 }
-                if wsize > 104857600 {
+                if wsize > 104_857_600 {
                     bail!("wsize too large: {} (maximum 100MB)", wsize);
                 }
             }

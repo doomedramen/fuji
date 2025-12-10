@@ -99,10 +99,10 @@ pub struct ReconnectionConfig {
     #[validate(range(min = 1, max = 100))]
     pub max_retries: u32,
     /// Initial delay between reconnection attempts (in milliseconds)
-    #[validate(range(min = 100, max = 300000))]
+    #[validate(range(min = 100, max = 300_000))]
     pub initial_delay_ms: u64,
     /// Maximum delay between reconnection attempts (in milliseconds)
-    #[validate(range(min = 1000, max = 3600000))]
+    #[validate(range(min = 1000, max = 3_600_000))]
     pub max_delay_ms: u64,
     /// Backoff multiplier
     #[validate(range(min = 1.0, max = 10.0))]

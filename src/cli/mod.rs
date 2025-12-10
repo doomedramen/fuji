@@ -1,5 +1,8 @@
 //! CLI implementation for Fuji
 
+#![allow(clippy::print_stdout)]
+#![allow(clippy::print_stderr)]
+
 use crate::platform::Platform;
 use crate::socket::{Request, Response, SocketClient};
 use anyhow::{Context, Result, anyhow};
@@ -444,13 +447,13 @@ async fn handle_mount(
             mount_point,
         }) => {
             if dry_run {
-                println!("Would mount {} to:", url);
-                println!("  Mount ID: {}", mount_id);
-                println!("  Mount point: {}", mount_point.display());
+                eprintln!("Would mount {url} to:");
+                eprintln!("  Mount ID: {mount_id}");
+                eprintln!("  Mount point: {}", mount_point.display());
             } else {
-                println!("Successfully mounted {} to:", url);
-                println!("  Mount ID: {}", mount_id);
-                println!("  Mount point: {}", mount_point.display());
+                eprintln!("Successfully mounted {url} to:");
+                eprintln!("  Mount ID: {mount_id}");
+                eprintln!("  Mount point: {}", mount_point.display());
             }
             Ok(())
         }

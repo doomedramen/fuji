@@ -572,13 +572,12 @@ impl MountCommandsAllowlist {
                         arg_key,
                         command.name
                     ));
-                } else {
-                    warn!(
-                        "Allowing potentially unsafe argument '{}' for command '{}'",
-                        arg_key, command.name
-                    );
-                    return Ok(());
                 }
+                warn!(
+                    "Allowing potentially unsafe argument '{}' for command '{}'",
+                    arg_key, command.name
+                );
+                return Ok(());
             }
 
             // If it has a value, validate it against the regex pattern
