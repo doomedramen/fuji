@@ -1,5 +1,6 @@
 use chrono::{Duration, Utc};
-use fuji::config::{ClusterConfig, Config, MountConfig, MountConfigWrapper, MountStatus};
+use fuji::config::{ClusterConfig, Config, MountConfigWrapper};
+use fuji::mount::{MountConfig, MountStatus};
 use fuji::sync::merge::{ConfigMerger, ConflictResolutionStrategy};
 use std::collections::HashMap;
 
@@ -71,10 +72,15 @@ async fn test_merge_with_timestamp_conflicts() {
     // Should have the most recent version (instance-2's version)
     assert_eq!(result.config.mounts.len(), 1);
     let mount = result.config.mounts.get("shared-mount").unwrap();
-    assert_eq!(
-        mount.config.options.as_ref().unwrap().get(0),
-        Some(&"option2=value2".to_string())
-    );
+    if let fuji::mount::MountType::Nfs {
+        options,
+        ..
+    } = &mount.config.mount_type
+    {
+        assert_eq!(options.get(0), Some(&"option2=value2".to_string()));
+    } else {
+        panic!("Expected NFS mount type");
+    }
 }
 
 #[tokio::test]
@@ -111,9 +117,9 @@ async fn test_merge_with_concurrent_modifications() {
 
     // Should detect and resolve conflict
     assert_eq!(result.config.mounts.len(), 1);
-    assert_eq!(result.conflicts.len(), 1);
+    assert_eq!(result.resolved_conflicts.len(), 1);
 
-    let conflict = &result.conflicts[0];
+    let conflict = &result.resolved_conflicts[0];
     assert_eq!(conflict.mount_id, "conflicting-mount");
     assert_eq!(conflict.conflicting_instances.len(), 2);
     assert!(
@@ -268,20 +274,26 @@ fn add_mount(config: &mut Config, mount_id: &str, updated_at: chrono::DateTime<U
     let mount_config = MountConfig {
         id: mount_id.to_string(),
         url: format!("nfs://server/{}/{}", mount_id, mount_id),
-        mount_point: Some(format!("/mnt/{}", mount_id)),
-        options: None,
+        mount_point: std::path::PathBuf::from(format!("/mnt/{}", mount_id)),
+        mount_type: fuji::mount::MountType::Nfs {
+            host: "server".to_string(),
+            share: mount_id.to_string(),
+            options: vec![],
+        },
         enabled: true,
-        status: MountStatus::Unmounted,
-        created_at: updated_at - Duration::minutes(5),
+        status: MountStatus::Active,
+        created_at: updated_at - chrono::Duration::minutes(5),
         updated_at,
+        last_connected: None,
+        reconnect_attempts: 0,
+        metadata: std::collections::HashMap::new(),
     };
 
     config.mounts.insert(
         mount_id.to_string(),
         MountConfigWrapper {
             config: mount_config,
-            source_instance: Some("test".to_string()),
-            last_sync_version: None,
+            sync_metadata: None,
         },
     );
 }
@@ -292,23 +304,30 @@ fn add_mount_with_config(
     updated_at: chrono::DateTime<Utc>,
     option: Option<&str>,
 ) {
+    let options = option.map(|o| vec![o.to_string()]).unwrap_or_default();
     let mount_config = MountConfig {
         id: mount_id.to_string(),
         url: format!("nfs://server/{}/{}", mount_id, mount_id),
-        mount_point: Some(format!("/mnt/{}", mount_id)),
-        options: option.map(|o| vec![o.to_string()]),
+        mount_point: std::path::PathBuf::from(format!("/mnt/{}", mount_id)),
+        mount_type: fuji::mount::MountType::Nfs {
+            host: "server".to_string(),
+            share: mount_id.to_string(),
+            options,
+        },
         enabled: true,
-        status: MountStatus::Unmounted,
-        created_at: updated_at - Duration::minutes(5),
+        status: MountStatus::Active,
+        created_at: updated_at - chrono::Duration::minutes(5),
         updated_at,
+        last_connected: None,
+        reconnect_attempts: 0,
+        metadata: std::collections::HashMap::new(),
     };
 
     config.mounts.insert(
         mount_id.to_string(),
         MountConfigWrapper {
             config: mount_config,
-            source_instance: Some("test".to_string()),
-            last_sync_version: None,
+            sync_metadata: None,
         },
     );
 }

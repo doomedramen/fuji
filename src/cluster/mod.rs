@@ -11,7 +11,6 @@ pub mod instance;
 
 use crate::config::{ClusterConfig, PeerInfo, PeerStatus};
 use anyhow::Result;
-use base64::Engine as _;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -20,7 +19,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 // Re-export common types
-pub use instance::{InstanceInfo, InstanceManager, generate_psk, sign_data, verify_signature};
+// pub use instance::{InstanceInfo, InstanceManager, generate_psk, sign_data, verify_signature};
 
 /// Cluster state management
 pub struct ClusterState {

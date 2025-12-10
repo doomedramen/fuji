@@ -470,7 +470,6 @@ impl AuthResponse {
 mod tests {
     use super::*;
     use std::net::{IpAddr, Ipv4Addr};
-    use tokio::time::{Duration, sleep};
 
     #[tokio::test]
     async fn test_tcp_transport_creation() {

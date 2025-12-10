@@ -51,7 +51,7 @@ pub struct InstanceManager {
 impl InstanceManager {
     /// Create a new instance manager
     pub fn new(config_dir: PathBuf) -> Self {
-        // Try to load from existing config or create new
+        // Try to load from existing instance file or create new
         let instance_info = Self::load_or_create(&config_dir);
 
         Self {
@@ -69,11 +69,43 @@ impl InstanceManager {
         &self.instance_info
     }
 
+    /// Save instance info to disk
+    pub fn save(&self, config_dir: &PathBuf) -> Result<()> {
+        let instance_path = config_dir.join("instance.toml");
+        let content = toml::to_string_pretty(&self.instance_info)?;
+        fs::write(&instance_path, content)?;
+        debug!("Saved instance info to {:?}", instance_path);
+        Ok(())
+    }
+
     /// Load existing instance info or create new
     fn load_or_create(config_dir: &PathBuf) -> InstanceInfo {
-        // Try to load from existing config file
-        let config_path = config_dir.join("mounts.toml");
+        // Try to load from instance file first
+        let instance_path = config_dir.join("instance.toml");
 
+        if instance_path.exists() {
+            match fs::read_to_string(&instance_path) {
+                Ok(content) => {
+                    match toml::from_str::<InstanceInfo>(&content) {
+                        Ok(mut info) => {
+                            debug!("Loaded existing instance ID: {}", info.id);
+                            // Update started_at time
+                            info.started_at = Utc::now();
+                            return info;
+                        }
+                        Err(e) => {
+                            warn!("Failed to parse instance file: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to read instance file: {}", e);
+                }
+            }
+        }
+
+        // Try to load from mounts.toml for backward compatibility
+        let config_path = config_dir.join("mounts.toml");
         if config_path.exists() {
             match fs::read_to_string(&config_path) {
                 Ok(content) => {
@@ -81,13 +113,18 @@ impl InstanceManager {
                         Ok(config) => {
                             if let Some(cluster_config) = config.cluster {
                                 debug!(
-                                    "Loaded existing instance ID: {}",
+                                    "Migrating instance ID from config: {}",
                                     cluster_config.instance_id
                                 );
                                 // Create instance info with existing ID
                                 let mut info = InstanceInfo::default();
                                 info.id = cluster_config.instance_id;
                                 info.started_at = Utc::now();
+                                // Save to new location
+                                let instance_path = config_dir.join("instance.toml");
+                                if let Ok(content) = toml::to_string_pretty(&info) {
+                                    let _ = fs::write(&instance_path, content);
+                                }
                                 return info;
                             }
                         }
@@ -105,6 +142,13 @@ impl InstanceManager {
         // Create new instance info
         let info = InstanceInfo::default();
         info!("Creating new instance with ID: {}", info.id);
+
+        // Save the new instance info
+        let instance_path = config_dir.join("instance.toml");
+        if let Ok(content) = toml::to_string_pretty(&info) {
+            let _ = fs::write(&instance_path, content);
+        }
+
         info
     }
 
@@ -200,7 +244,6 @@ pub fn verify_signature(key: &str, data: &str, signature: &str) -> Result<bool> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
     use tempfile::TempDir;
 
     #[test]
