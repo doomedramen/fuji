@@ -663,7 +663,7 @@ async fn handle_status(
             }
 
             tokio::select! {
-                _ = interval.tick() => continue,
+                _ = interval.tick() => {}
                 _ = tokio::signal::ctrl_c() => {
                     println!("\nStopping watch mode...");
                     break;
@@ -1791,7 +1791,7 @@ fn format_health_state(state: &crate::monitoring::HealthState) -> &'static str {
 }
 
 /// Systemd service file template
-const SYSTEMD_SERVICE_TEMPLATE: &str = r#"[Unit]
+const SYSTEMD_SERVICE_TEMPLATE: &str = r"[Unit]
 Description=Fuji Network File System Manager
 Documentation=https://github.com/fuji-fs/fuji
 After=network.target network-online.target
@@ -1819,7 +1819,7 @@ LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
-"#;
+";
 
 /// Generate systemd service file content
 fn generate_systemd_service(

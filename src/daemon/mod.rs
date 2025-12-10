@@ -2023,7 +2023,7 @@ async fn handle_get_logs_request(lines: Option<usize>) -> Response {
                         lines,
                     };
                 }
-                Err(_) => continue,
+                Err(_) => {}
             }
         }
     }

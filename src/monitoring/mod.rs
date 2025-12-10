@@ -6,7 +6,6 @@
 pub mod dependency;
 pub mod health_checks;
 pub mod mount_retry;
-pub mod persistence;
 pub mod retry;
 pub mod scheduler;
 
@@ -14,7 +13,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 use crate::mount::MountConfig;
 
@@ -25,8 +24,6 @@ pub struct MonitoringManager {
     /// Retry logic handler
     #[allow(dead_code)]
     retry_handler: Arc<retry::RetryHandler>,
-    /// Persistence layer
-    persistence: Arc<persistence::PersistenceManager>,
     /// Dependency graph manager
     dependency_graph: Arc<dependency::DependencyGraph>,
     /// Mount configurations being monitored
@@ -41,13 +38,11 @@ impl MonitoringManager {
     pub fn new() -> Result<Self> {
         let scheduler = Arc::new(scheduler::HealthCheckScheduler::new()?);
         let retry_handler = Arc::new(retry::RetryHandler::new());
-        let persistence = Arc::new(persistence::PersistenceManager::new()?);
         let dependency_graph = Arc::new(dependency::DependencyGraph::new());
 
         Ok(Self {
             scheduler,
             retry_handler,
-            persistence,
             dependency_graph,
             mounts: Arc::new(RwLock::new(Vec::new())),
             running: Arc::new(RwLock::new(false)),
@@ -56,7 +51,8 @@ impl MonitoringManager {
 
     /// Initialize the monitoring manager (async version)
     pub async fn initialize(&self) -> Result<()> {
-        self.persistence.initialize().await
+        // Nothing to initialize anymore
+        Ok(())
     }
 
     /// Start the monitoring system
@@ -71,9 +67,6 @@ impl MonitoringManager {
 
         // Start the scheduler
         self.scheduler.start().await?;
-
-        // Load persisted mount states
-        self.load_persisted_states().await?;
 
         *running = true;
         info!("Monitoring manager started successfully");
@@ -110,9 +103,6 @@ impl MonitoringManager {
         // Register health checks before moving
         self.scheduler.register_health_checks(&mount_config).await?;
 
-        // Add to persistence
-        self.persistence.save_mount_state(&mount_config).await?;
-
         // Add to memory
         let mut mounts = self.mounts.write().await;
         mounts.push(mount_config);
@@ -126,9 +116,6 @@ impl MonitoringManager {
 
         // Unregister health checks
         self.scheduler.unregister_health_checks(mount_id).await?;
-
-        // Remove from persistence
-        self.persistence.delete_mount_state(mount_id).await?;
 
         // Remove from memory
         let mut mounts = self.mounts.write().await;
@@ -177,23 +164,6 @@ impl MonitoringManager {
     /// Get dependency graph
     pub fn dependency_graph(&self) -> &dependency::DependencyGraph {
         &self.dependency_graph
-    }
-
-    /// Load persisted mount states
-    async fn load_persisted_states(&self) -> Result<()> {
-        debug!("Loading persisted mount states");
-        let states = self.persistence.load_all_mount_states().await?;
-
-        let mut mounts = self.mounts.write().await;
-        for state in states {
-            // Reconstruct MountConfig from persisted state
-            if let Some(config) = self.persistence.state_to_config(&state) {
-                mounts.push(config);
-            }
-        }
-
-        debug!("Loaded {} persisted mount states", mounts.len());
-        Ok(())
     }
 }
 
