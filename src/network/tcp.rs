@@ -33,6 +33,7 @@ pub struct TcpTransport {
 
 /// Active connection to a peer
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct PeerConnection {
     /// Peer ID
     peer_id: String,
@@ -48,6 +49,7 @@ pub struct PeerConnection {
 
 /// Connection status
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum ConnectionStatus {
     /// Connecting
     Connecting,
@@ -458,6 +460,7 @@ impl AuthResponse {
         }
     }
 
+    #[allow(dead_code)]
     fn failure(error: String) -> Self {
         Self {
             success: false,

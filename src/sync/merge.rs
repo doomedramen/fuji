@@ -54,13 +54,19 @@ struct MountVersion {
     updated_at: DateTime<Utc>,
 }
 
-impl ConfigMerger {
-    /// Create a new config merger
-    pub fn new() -> Self {
+impl Default for ConfigMerger {
+    fn default() -> Self {
         Self {
             instance_id: "unknown".to_string(),
             conflict_strategy: ConflictResolutionStrategy::InstanceIdTieBreak,
         }
+    }
+}
+
+impl ConfigMerger {
+    /// Create a new config merger
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Create a new config merger with specific instance ID

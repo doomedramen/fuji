@@ -76,7 +76,7 @@ impl ClusterInvitation {
         let result = mac.finalize();
         let code_bytes = result.into_bytes();
 
-        Ok(base64::engine::general_purpose::STANDARD.encode(&code_bytes))
+        Ok(base64::engine::general_purpose::STANDARD.encode(code_bytes))
     }
 
     /// Verify the invitation signature
@@ -93,12 +93,14 @@ impl ClusterInvitation {
     }
 
     /// Convert invitation to a base64 string for easy sharing
+    #[allow(clippy::inherent_to_string)]
     pub fn to_string(&self) -> String {
         let json = serde_json::to_string(self).unwrap();
         base64::engine::general_purpose::STANDARD.encode(json.as_bytes())
     }
 
     /// Parse invitation from a base64 string
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self> {
         let json = base64::engine::general_purpose::STANDARD
             .decode(s)

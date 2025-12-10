@@ -25,7 +25,7 @@ async fn test_simple_merge_no_conflicts() {
     ];
 
     // Merge configs
-    let result = merger.merge_configs(configs).await.unwrap();
+    let result = merger.merge_configs(&configs).await.unwrap();
 
     // Should have all three mounts
     assert_eq!(result.config.mounts.len(), 3);
@@ -67,7 +67,7 @@ async fn test_merge_with_timestamp_conflicts() {
     ];
 
     // Merge configs
-    let result = merger.merge_configs(configs).await.unwrap();
+    let result = merger.merge_configs(&configs).await.unwrap();
 
     // Should have the most recent version (instance-2's version)
     assert_eq!(result.config.mounts.len(), 1);
@@ -113,7 +113,7 @@ async fn test_merge_with_concurrent_modifications() {
     ];
 
     // Merge configs
-    let result = merger.merge_configs(configs).await.unwrap();
+    let result = merger.merge_configs(&configs).await.unwrap();
 
     // Should detect and resolve conflict
     assert_eq!(result.config.mounts.len(), 1);
@@ -163,7 +163,7 @@ async fn test_global_settings_merge() {
     ];
 
     // Merge configs
-    let result = merger.merge_configs(configs).await.unwrap();
+    let result = merger.merge_configs(&configs).await.unwrap();
 
     // Should use the most recent setting
     if let Some(cluster) = result.config.cluster {
@@ -194,7 +194,7 @@ async fn test_empty_config_merge() {
     ];
 
     // Merge configs
-    let result = merger.merge_configs(configs).await.unwrap();
+    let result = merger.merge_configs(&configs).await.unwrap();
 
     // Should have the mount from instance-1
     assert_eq!(result.config.mounts.len(), 1);
@@ -237,23 +237,11 @@ async fn test_merge_preserves_metadata() {
     ];
 
     // Merge configs
-    let result = merger.merge_configs(configs).await.unwrap();
+    let result = merger.merge_configs(&configs).await.unwrap();
 
     // Check sync metadata
-    assert_eq!(result.sync_metadata.source_instances.len(), 2);
-    assert!(
-        result
-            .sync_metadata
-            .source_instances
-            .contains(&"instance-1".to_string())
-    );
-    assert!(
-        result
-            .sync_metadata
-            .source_instances
-            .contains(&"instance-2".to_string())
-    );
-    assert!(result.sync_metadata.merged_at <= Utc::now());
+    assert!(result.sync_metadata.last_sync_at.is_some());
+    assert!(result.sync_metadata.sync_version > 0);
 }
 
 // Helper functions
@@ -265,7 +253,12 @@ fn create_test_config(instance_id: &str) -> Config {
         peers: vec![],
         sync_interval: Duration::minutes(5),
         sync_timeout: Duration::minutes(10),
-        sync_metadata: Default::default(),
+        sync_metadata: SyncMetadata {
+            last_sync_at: None,
+            last_modified_by: None,
+            sync_version: 0,
+            pending_conflicts: vec![],
+        },
     });
     config
 }

@@ -70,6 +70,7 @@ impl InstanceManager {
     }
 
     /// Save instance info to disk
+    #[allow(clippy::ptr_arg)]
     pub fn save(&self, config_dir: &PathBuf) -> Result<()> {
         let instance_path = config_dir.join("instance.toml");
         let content = toml::to_string_pretty(&self.instance_info)?;
@@ -79,6 +80,8 @@ impl InstanceManager {
     }
 
     /// Load existing instance info or create new
+    #[allow(clippy::ptr_arg)]
+    #[allow(clippy::field_reassign_with_default)]
     fn load_or_create(config_dir: &PathBuf) -> InstanceInfo {
         // Try to load from instance file first
         let instance_path = config_dir.join("instance.toml");
@@ -117,6 +120,7 @@ impl InstanceManager {
                                     cluster_config.instance_id
                                 );
                                 // Create instance info with existing ID
+                                #[allow(clippy::field_reassign_with_default)]
                                 let mut info = InstanceInfo::default();
                                 info.id = cluster_config.instance_id;
                                 info.started_at = Utc::now();
@@ -163,6 +167,7 @@ impl InstanceManager {
     }
 
     /// Generate a new instance ID (for recovery situations)
+    #[allow(clippy::field_reassign_with_default)]
     pub fn regenerate_id() -> InstanceInfo {
         let mut info = InstanceInfo::default();
         info.id = Uuid::new_v4().to_string();

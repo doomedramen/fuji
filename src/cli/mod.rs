@@ -1590,7 +1590,7 @@ async fn handle_service(command: ServiceCommand, _platform: &dyn Platform) -> Re
 
             // Get configuration
             let _service_name = name.unwrap_or_else(|| "fuji-daemon".to_string());
-            let current_user = user.unwrap_or_else(|| whoami::username());
+            let current_user = user.unwrap_or_else(whoami::username);
             let group = current_user.clone(); // Simplified: assume group name is same as username
             let executable_path = std::env::current_exe()
                 .context("Failed to get fuji executable path")?

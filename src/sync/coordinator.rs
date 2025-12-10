@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tokio::time::{Duration as TokioDuration, sleep};
+use tokio::time::{Duration as StdDuration, sleep};
 use tracing::{debug, error, info, warn};
 
 use crate::cluster::{ClusterInvitation, ClusterState};
@@ -34,6 +34,7 @@ pub struct SyncCoordinator {
 
 /// Information about a pending sync operation
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct PendingSync {
     /// Sync request ID
     request_id: String,
@@ -372,7 +373,7 @@ impl SyncCoordinator {
         let coordinator = self.clone(); // Arc clone
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(TokioDuration::from_secs(60));
+            let mut interval = tokio::time::interval(StdDuration::from_secs(60));
 
             loop {
                 interval.tick().await;
@@ -464,7 +465,7 @@ impl SyncCoordinator {
         // Set a timeout for the sync
         let coordinator = self.clone();
         tokio::spawn(async move {
-            sleep(TokioDuration::from_secs(60)).await;
+            sleep(StdDuration::from_secs(60)).await;
 
             let mut pending = coordinator.pending_syncs.write().await;
             if pending.remove(&request_id).is_some() {
