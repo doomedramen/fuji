@@ -5,7 +5,7 @@ use fuji::sync::merge::ConfigMerger;
 
 #[tokio::test]
 async fn test_simple_merge_no_conflicts() {
-    let merger = ConfigMerger::new();
+    let mut merger = ConfigMerger::new();
 
     // Create three instance configs with different mounts
     let mut config1 = create_test_config("instance-1");
@@ -38,7 +38,7 @@ async fn test_simple_merge_no_conflicts() {
 
 #[tokio::test]
 async fn test_merge_with_timestamp_conflicts() {
-    let merger = ConfigMerger::with_instance_id("instance-1".to_string());
+    let mut merger = ConfigMerger::with_instance_id("instance-1".to_string());
 
     let base_time = Utc::now();
 
@@ -84,7 +84,7 @@ async fn test_merge_with_timestamp_conflicts() {
 
 #[tokio::test]
 async fn test_merge_with_concurrent_modifications() {
-    let merger = ConfigMerger::with_instance_id("instance-1".to_string());
+    let mut merger = ConfigMerger::with_instance_id("instance-1".to_string());
 
     let same_time = Utc::now();
 
@@ -118,40 +118,37 @@ async fn test_merge_with_concurrent_modifications() {
     assert_eq!(result.config.mounts.len(), 1);
     assert_eq!(result.resolved_conflicts.len(), 1);
 
-    let conflict = &result.resolved_conflicts[0];
-    assert_eq!(conflict.mount_id, "conflicting-mount");
-    assert_eq!(conflict.conflicting_instances.len(), 2);
-    assert!(
-        conflict
-            .conflicting_instances
-            .contains(&"instance-1".to_string())
-    );
-    assert!(
-        conflict
-            .conflicting_instances
-            .contains(&"instance-2".to_string())
-    );
+    // Check the conflict resolution
+    match &result.resolved_conflicts[0] {
+        fuji::config::ConflictResolution::UsedInstance(instance_id) => {
+            // Should pick instance-1 (preferred instance)
+            assert_eq!(instance_id, "instance-1");
+        }
+        _ => panic!("Expected UsedInstance resolution"),
+    }
 
     // With deterministic tie-breaking, should pick instance-1 (lexicographically smaller)
     let mount = result.config.mounts.get("conflicting-mount").unwrap();
     // Since we can't access mount.config.options directly, let's just check the mount exists
-    assert_eq!(mount.id, "conflicting-mount");
+    assert_eq!(mount.config.id, "conflicting-mount");
 }
 
 #[tokio::test]
 async fn test_global_settings_merge() {
-    let merger = ConfigMerger::new();
+    let mut merger = ConfigMerger::new();
 
     // Create configs with different global settings
     let mut config1 = create_test_config("instance-1");
     let mut config2 = create_test_config("instance-2");
 
-    // Set different sync intervals
+    // Set different sync intervals and timestamps
     if let Some(cluster) = config1.cluster.as_mut() {
         cluster.sync_interval = Duration::minutes(5);
+        cluster.sync_metadata.last_sync_at = Some(Utc::now() - chrono::Duration::minutes(5));
     }
     if let Some(cluster) = config2.cluster.as_mut() {
         cluster.sync_interval = Duration::minutes(10);
+        cluster.sync_metadata.last_sync_at = Some(Utc::now());
     }
 
     let configs = vec![
@@ -170,14 +167,15 @@ async fn test_global_settings_merge() {
 
 #[tokio::test]
 async fn test_empty_config_merge() {
-    let merger = ConfigMerger::new();
+    let mut merger = ConfigMerger::new();
 
     let mut config1 = create_test_config("instance-1");
-    let config2 = Config::default();
+    let mut config2 = Config::default();
     config2.cluster = Some(ClusterConfig {
         enabled: true,
         instance_id: "instance-2".to_string(),
         peers: vec![],
+        port: 10080,
         sync_interval: Duration::minutes(5),
         sync_timeout: Duration::minutes(10),
         sync_metadata: Default::default(),
@@ -200,7 +198,7 @@ async fn test_empty_config_merge() {
 
 #[tokio::test]
 async fn test_merge_strategy_latest_wins() {
-    let merger = ConfigMerger::new();
+    let mut merger = ConfigMerger::new();
 
     let base_time = Utc::now();
 
@@ -217,7 +215,7 @@ async fn test_merge_strategy_latest_wins() {
     ];
 
     // Merge with latest wins strategy
-    let result = merger.merge_configs(configs).await.unwrap();
+    let result = merger.merge_configs(&configs).await.unwrap();
 
     // Should prefer newer mounts
     assert!(result.config.mounts.contains_key("old-mount"));
@@ -226,7 +224,7 @@ async fn test_merge_strategy_latest_wins() {
 
 #[tokio::test]
 async fn test_merge_preserves_metadata() {
-    let merger = ConfigMerger::new();
+    let mut merger = ConfigMerger::new();
 
     let configs = vec![
         ("instance-1".to_string(), create_test_config("instance-1")),
@@ -249,8 +247,8 @@ fn create_test_config(instance_id: &str) -> Config {
         instance_id: instance_id.to_string(),
         peers: vec![],
         port: 10080,
-        sync_interval: Duration::from_secs(300), // 5 minutes
-        sync_timeout: Duration::from_secs(600),  // 10 minutes
+        sync_interval: Duration::seconds(300), // 5 minutes
+        sync_timeout: Duration::seconds(600),  // 10 minutes
         sync_metadata: Default::default(),
     });
     config

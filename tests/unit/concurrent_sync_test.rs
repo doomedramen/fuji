@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::RwLock;
 
 use fuji::cluster::ClusterState;
@@ -40,7 +39,7 @@ async fn test_sync_coordinator_basic_functionality() {
         "127.0.0.1:9000".parse().unwrap(),
     ));
 
-    let coordinator = SyncCoordinator::new(instance_id, cluster_state, transport, config);
+    let _coordinator = SyncCoordinator::new(instance_id, cluster_state, transport, config);
 
     // Basic coordinator creation test
     assert!(true); // If we get here, creation succeeded

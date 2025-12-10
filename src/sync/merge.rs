@@ -135,8 +135,8 @@ impl ConfigMerger {
         // Merge global settings (use latest)
         self.merge_global_settings(&mut merged_config, instance_configs)?;
 
-        // Update sync metadata
-        merged_config.cluster = Some(crate::config::ClusterConfig {
+        // Merge cluster settings from the most recent config
+        let mut merged_cluster = crate::config::ClusterConfig {
             enabled: true,
             instance_id: self.instance_id.clone(),
             peers: Vec::new(), // Peers are managed separately
@@ -150,7 +150,25 @@ impl ConfigMerger {
                 pending_conflicts: conflicts.clone(),
                 force_sync_state: crate::config::ForceSyncState::default(),
             },
-        });
+        };
+
+        // Find the most recent cluster config
+        let mut latest_cluster_time = 0i64;
+        for (_instance_id, config) in instance_configs {
+            if let Some(cluster) = &config.cluster {
+                if let Some(last_sync) = cluster.sync_metadata.last_sync_at {
+                    let time = last_sync.timestamp_millis();
+                    if time > latest_cluster_time {
+                        latest_cluster_time = time;
+                        merged_cluster.sync_interval = cluster.sync_interval;
+                        merged_cluster.sync_timeout = cluster.sync_timeout;
+                        merged_cluster.port = cluster.port;
+                    }
+                }
+            }
+        }
+
+        merged_config.cluster = Some(merged_cluster);
 
         info!(
             "Merge completed. New sync version: {}",
@@ -189,30 +207,74 @@ impl ConfigMerger {
         let latest_timestamp = latest.updated_at;
 
         // Check for timestamp conflicts (same timestamp, different content)
-        let mut timestamp_conflicts: Vec<_> = versions
+        let same_timestamp: Vec<_> = versions
             .iter()
             .filter(|v| v.updated_at == latest_timestamp)
-            .filter(|v| v.config.config != latest.config.config)
             .collect();
 
-        if !timestamp_conflicts.is_empty() {
+        // Check if there are actually different configs with the same timestamp
+        let has_real_conflicts = same_timestamp
+            .iter()
+            .any(|v| v.config.config != latest.config.config);
+
+        if has_real_conflicts && !same_timestamp.is_empty() {
             // We have a timestamp conflict
             match &self.conflict_strategy {
                 ConflictResolutionStrategy::LatestWins => {
                     debug!("Using latest version for mount {} (latest wins)", mount_id);
+                    // Report the conflict resolution
+                    return Ok(ResolvedMount {
+                        config: latest.config.clone(),
+                        conflict: Some(SyncConflict {
+                            mount_id: mount_id.to_string(),
+                            conflict_type: ConflictType::ConcurrentModification,
+                            conflicting_instances: same_timestamp
+                                .iter()
+                                .map(|v| v.instance_id.clone())
+                                .collect(),
+                            resolution: ConflictResolution::UsedLatest,
+                        }),
+                    });
                 }
                 ConflictResolutionStrategy::PreferInstance(prefer_id) => {
-                    if let Some(_preferred) = versions.iter().find(|v| v.instance_id == *prefer_id)
+                    if let Some(preferred) =
+                        same_timestamp.iter().find(|v| v.instance_id == *prefer_id)
                     {
                         debug!(
                             "Using preferred instance {} for mount {}",
                             prefer_id, mount_id
                         );
+                        // Report the conflict resolution
+                        return Ok(ResolvedMount {
+                            config: preferred.config.clone(),
+                            conflict: Some(SyncConflict {
+                                mount_id: mount_id.to_string(),
+                                conflict_type: ConflictType::ConcurrentModification,
+                                conflicting_instances: same_timestamp
+                                    .iter()
+                                    .map(|v| v.instance_id.clone())
+                                    .collect(),
+                                resolution: ConflictResolution::UsedInstance(prefer_id.clone()),
+                            }),
+                        });
                     } else {
                         warn!(
                             "Preferred instance {} not found for mount {}, using latest",
                             prefer_id, mount_id
                         );
+                        // Still report the conflict even though we're using latest
+                        return Ok(ResolvedMount {
+                            config: latest.config.clone(),
+                            conflict: Some(SyncConflict {
+                                mount_id: mount_id.to_string(),
+                                conflict_type: ConflictType::ConcurrentModification,
+                                conflicting_instances: same_timestamp
+                                    .iter()
+                                    .map(|v| v.instance_id.clone())
+                                    .collect(),
+                                resolution: ConflictResolution::UsedLatest,
+                            }),
+                        });
                     }
                 }
                 ConflictResolutionStrategy::Manual => {
@@ -222,7 +284,7 @@ impl ConfigMerger {
                         conflict: Some(SyncConflict {
                             mount_id: mount_id.to_string(),
                             conflict_type: ConflictType::ConcurrentModification,
-                            conflicting_instances: timestamp_conflicts
+                            conflicting_instances: same_timestamp
                                 .iter()
                                 .map(|v| v.instance_id.clone())
                                 .collect(),
@@ -231,13 +293,30 @@ impl ConfigMerger {
                     });
                 }
                 ConflictResolutionStrategy::InstanceIdTieBreak => {
-                    // Sort by instance ID for deterministic tie-breaking
-                    timestamp_conflicts.sort_by(|a, b| a.instance_id.cmp(&b.instance_id));
-                    if let Some(selected) = timestamp_conflicts.first() {
+                    // Sort all same-timestamp versions by instance ID for deterministic tie-breaking
+                    let mut owned_conflicts: Vec<MountVersion> =
+                        same_timestamp.iter().map(|&v| v.clone()).collect();
+                    owned_conflicts.sort_by(|a, b| a.instance_id.cmp(&b.instance_id));
+                    if let Some(selected) = owned_conflicts.first() {
                         debug!(
                             "Using instance {} as tie-breaker for mount {}",
                             selected.instance_id, mount_id
                         );
+                        // Report the conflict resolution
+                        return Ok(ResolvedMount {
+                            config: selected.config.clone(),
+                            conflict: Some(SyncConflict {
+                                mount_id: mount_id.to_string(),
+                                conflict_type: ConflictType::ConcurrentModification,
+                                conflicting_instances: owned_conflicts
+                                    .iter()
+                                    .map(|v| v.instance_id.clone())
+                                    .collect(),
+                                resolution: ConflictResolution::UsedInstance(
+                                    selected.instance_id.clone(),
+                                ),
+                            }),
+                        });
                     }
                 }
             }

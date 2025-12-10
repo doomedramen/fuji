@@ -27,7 +27,7 @@ fn test_system_deps_creation() {
 
 #[test]
 fn test_add_custom_dependency() {
-    let checker = SystemDepsChecker::new();
+    let mut checker = SystemDepsChecker::new();
 
     let mut install_instructions = HashMap::new();
     install_instructions.insert(
@@ -90,7 +90,7 @@ fn test_get_os_family() {
 
 #[tokio::test]
 async fn test_dependency_check() {
-    let checker = SystemDepsChecker::new();
+    let mut checker = SystemDepsChecker::new();
 
     // Create a test dependency for 'sh' which should exist
     let mut install_instructions = HashMap::new();
@@ -116,7 +116,7 @@ async fn test_dependency_check() {
 
 #[tokio::test]
 async fn test_missing_dependency_check() {
-    let checker = SystemDepsChecker::new();
+    let mut checker = SystemDepsChecker::new();
 
     // Create a test dependency for a non-existent binary
     let mut install_instructions = HashMap::new();
