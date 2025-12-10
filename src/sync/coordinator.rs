@@ -6,6 +6,7 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
+use serde_json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -16,7 +17,11 @@ use crate::cluster::{ClusterInvitation, ClusterState};
 use crate::config::{Config, PeerInfo, PeerStatus};
 use crate::network::tcp::TcpTransport;
 use crate::sync::merge::ConfigMerger;
-use crate::sync::protocol::{ConfigUpdate, SyncComplete, SyncMessage, SyncRequest, SyncResponse};
+use crate::sync::protocol::{
+    ConfigUpdate, ConflictResolution as ProtocolConflictResolution,
+    ConflictType as ProtocolConflictType, MountConflict, MountVersion, SyncComplete, SyncMessage,
+    SyncRequest, SyncResponse,
+};
 
 /// Synchronization coordinator
 pub struct SyncCoordinator {
@@ -196,12 +201,19 @@ impl SyncCoordinator {
             .merge_configs(&[(self.instance_id.clone(), config.clone())])
             .await?;
 
+        // Convert SyncConflicts to MountConflicts
+        let mount_conflicts = self.convert_sync_to_mount_conflicts(
+            &merged_config.sync_metadata.pending_conflicts,
+            &config,
+            &config, // Local and remote are the same here
+        )?;
+
         // Create response
         Ok(SyncMessage::sync_response(
             request.request_id.clone(),
             merged_config.config,
             merged_config.sync_metadata.sync_version,
-            vec![], // TODO: Convert SyncConflict to MountConflict
+            mount_conflicts,
         ))
     }
 
@@ -514,6 +526,93 @@ impl SyncCoordinator {
         )
     }
 
+    /// Convert SyncConflict to MountConflict for protocol communication
+    fn convert_sync_to_mount_conflicts(
+        &self,
+        sync_conflicts: &[crate::config::SyncConflict],
+        local_config: &Config,
+        remote_config: &Config,
+    ) -> Result<Vec<MountConflict>> {
+        let mut mount_conflicts = Vec::new();
+
+        for sync_conflict in sync_conflicts {
+            // Convert conflict type
+            let conflict_type = match sync_conflict.conflict_type {
+                crate::config::ConflictType::ConcurrentModification => {
+                    ProtocolConflictType::ConcurrentModification
+                }
+                crate::config::ConflictType::DeleteModifyConflict => {
+                    ProtocolConflictType::DeleteModifyConflict
+                }
+                crate::config::ConflictType::MountPointConflict => {
+                    ProtocolConflictType::MountPointConflict
+                }
+            };
+
+            // Convert resolution
+            let suggested_resolution = match sync_conflict.resolution {
+                crate::config::ConflictResolution::UsedLatest => {
+                    ProtocolConflictResolution::UseLatest
+                }
+                crate::config::ConflictResolution::UsedInstance(ref instance_id) => {
+                    ProtocolConflictResolution::UseInstance(instance_id.clone())
+                }
+                crate::config::ConflictResolution::RequiresManualIntervention => {
+                    ProtocolConflictResolution::Manual
+                }
+            };
+
+            // Create local version
+            let local_version = MountVersion {
+                instance_id: self.instance_id.clone(),
+                updated_at: local_config
+                    .mounts
+                    .get(&sync_conflict.mount_id)
+                    .map(|w| w.config.updated_at)
+                    .unwrap_or_else(|| chrono::Utc::now()),
+                mount_data: local_config
+                    .mounts
+                    .get(&sync_conflict.mount_id)
+                    .and_then(|w| serde_json::to_value(&w.config).ok())
+                    .unwrap_or(serde_json::Value::Null),
+            };
+
+            // Create remote versions for each conflicting instance
+            let mut remote_versions = Vec::new();
+            for instance_id in &sync_conflict.conflicting_instances {
+                if instance_id != &self.instance_id {
+                    let mount_data = remote_config
+                        .mounts
+                        .get(&sync_conflict.mount_id)
+                        .and_then(|w| serde_json::to_value(&w.config).ok())
+                        .unwrap_or(serde_json::Value::Null);
+
+                    let updated_at = remote_config
+                        .mounts
+                        .get(&sync_conflict.mount_id)
+                        .map(|w| w.config.updated_at)
+                        .unwrap_or_else(|| chrono::Utc::now());
+
+                    remote_versions.push(MountVersion {
+                        instance_id: instance_id.clone(),
+                        updated_at,
+                        mount_data,
+                    });
+                }
+            }
+
+            mount_conflicts.push(MountConflict {
+                mount_id: sync_conflict.mount_id.clone(),
+                conflict_type,
+                local_version,
+                remote_versions,
+                suggested_resolution,
+            });
+        }
+
+        Ok(mount_conflicts)
+    }
+
     /// Get cluster statistics
     pub async fn get_stats(&self) -> crate::cluster::ClusterStats {
         self.cluster_state.get_stats().await
@@ -536,7 +635,11 @@ impl Clone for SyncCoordinator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::{MountConfigWrapper, MountSyncMetadata};
+    use crate::mount::{MountConfig, MountStatus, MountType};
+    use std::collections::HashMap;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::path::PathBuf;
 
     #[tokio::test]
     async fn test_coordinator_creation() {
@@ -568,5 +671,78 @@ mod tests {
         assert_eq!(sync.request_id, "test-123");
         assert_eq!(sync.responded_peers.len(), 1);
         assert_eq!(sync.total_peers, 2);
+    }
+
+    #[tokio::test]
+    async fn test_sync_to_mount_conflict_conversion() {
+        // Create a coordinator
+        let cluster_state = Arc::new(ClusterState::new());
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
+        let transport = Arc::new(TcpTransport::new(addr));
+        let config = Arc::new(RwLock::new(Config::default()));
+
+        let coordinator =
+            SyncCoordinator::new("instance-1".to_string(), cluster_state, transport, config);
+
+        // Create test configs with mount data
+        let mut local_config = Config::default();
+        let remote_config = Config::default();
+
+        let test_mount = MountConfig {
+            id: "test-mount".to_string(),
+            url: "nfs://server.example.com/share".to_string(),
+            mount_type: MountType::Nfs {
+                host: "server.example.com".to_string(),
+                share: "/share".to_string(),
+                options: vec!["rw".to_string()],
+            },
+            mount_point: PathBuf::from("/mnt/test"),
+            enabled: true,
+            status: MountStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_connected: None,
+            reconnect_attempts: 0,
+            metadata: HashMap::new(),
+        };
+
+        local_config.mounts.insert(
+            "test-mount".to_string(),
+            MountConfigWrapper {
+                config: test_mount.clone(),
+                sync_metadata: Some(MountSyncMetadata {
+                    last_modified_by: Some("instance-1".to_string()),
+                    version: 1,
+                }),
+            },
+        );
+
+        // Create a sync conflict
+        let sync_conflict = crate::config::SyncConflict {
+            mount_id: "test-mount".to_string(),
+            conflict_type: crate::config::ConflictType::ConcurrentModification,
+            conflicting_instances: vec!["instance-2".to_string()],
+            resolution: crate::config::ConflictResolution::UsedLatest,
+        };
+
+        // Convert to mount conflict
+        let mount_conflicts = coordinator
+            .convert_sync_to_mount_conflicts(&[sync_conflict], &local_config, &remote_config)
+            .unwrap();
+
+        assert_eq!(mount_conflicts.len(), 1);
+        let conflict = &mount_conflicts[0];
+        assert_eq!(conflict.mount_id, "test-mount");
+        assert!(matches!(
+            conflict.conflict_type,
+            ProtocolConflictType::ConcurrentModification
+        ));
+        assert!(matches!(
+            conflict.suggested_resolution,
+            ProtocolConflictResolution::UseLatest
+        ));
+        assert_eq!(conflict.local_version.instance_id, "instance-1");
+        assert_eq!(conflict.remote_versions.len(), 1);
+        assert_eq!(conflict.remote_versions[0].instance_id, "instance-2");
     }
 }
