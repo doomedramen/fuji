@@ -1,6 +1,3 @@
-// Allow dead code - health monitoring features
-#![allow(dead_code)]
-
 //! Mount monitoring and health tracking
 
 use crate::mount::MountState;

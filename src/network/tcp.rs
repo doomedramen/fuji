@@ -437,9 +437,6 @@ impl TcpTransport {
                     sender_id, heartbeat.status
                 );
             }
-            _ => {
-                debug!("Received unhandled message type from {}", sender_id);
-            }
         }
 
         Ok(())

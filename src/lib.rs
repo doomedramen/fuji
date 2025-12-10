@@ -5,6 +5,7 @@
 pub mod cli;
 pub mod cluster;
 pub mod config;
+pub mod constants;
 pub mod daemon;
 pub mod monitoring;
 pub mod mount;
@@ -16,5 +17,6 @@ pub mod sync;
 
 // Re-export main types for external use
 pub use config::Config;
+pub use constants::*;
 pub use mount::{MountConfig, MountType};
 pub use platform::Platform;

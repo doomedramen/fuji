@@ -242,10 +242,6 @@ pub struct ClusterStats {
 // Re-export ClusterInvitation from discovery module
 pub use crate::cluster::discovery::ClusterInvitation;
 
-/// Default cluster port
-#[allow(dead_code)]
-pub const DEFAULT_CLUSTER_PORT: u16 = 10080;
-
 /// Cluster health check interval
 #[allow(dead_code)]
 pub const HEALTH_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);

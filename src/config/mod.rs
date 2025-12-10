@@ -22,7 +22,7 @@ pub struct Config {
     pub version: String,
     /// Mount configurations indexed by ID
     #[serde(flatten)]
-    #[validate(custom = "validate_mounts")]
+    #[validate(custom(function = "crate::config::validate_mounts"))]
     pub mounts: HashMap<String, MountConfigWrapper>,
     /// Reconnection settings
     pub reconnection: ReconnectionConfig,
@@ -114,7 +114,7 @@ pub struct GlobalConfig {
     #[validate(range(min = 5, max = 3600))]
     pub health_check_interval_secs: u64,
     /// Log level
-    #[validate(custom = "validate_log_level")]
+    #[validate(custom(function = "crate::config::validate_log_level"))]
     pub log_level: String,
     /// Whether to automatically mount enabled shares on startup
     pub auto_mount: bool,
@@ -136,8 +136,8 @@ pub struct PlatformConfig {
 /// Resource limits configuration for the global config
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct ResourceLimitsConfig {
-    /// Maximum memory usage in bytes (0 = no limit)
-    #[validate(range(min = 0, max = 17179869184))] // 16GB max
+    /// Maximum memory usage in MB (0 = no limit)
+    #[validate(range(min = 0, max = 16384))] // 16GB max in MB
     pub max_memory_mb: u32,
     /// Maximum CPU usage percentage (0-100, 0 = no limit)
     #[validate(range(min = 0, max = 100))]

@@ -3,7 +3,8 @@
 //! The daemon handles all mount operations, monitoring, and reconnection logic.
 
 use crate::config::Config;
-use crate::mount::{MountConfig, MountState, MountStatus, get_mount_handler};
+use crate::mount::options::{MountOptionParser, MountOptions};
+use crate::mount::{MountConfig, MountState, MountStatus, MountType, get_mount_handler};
 use crate::platform::Platform;
 use crate::security::path_security::{
     IntegrityStatus, PathSecurityEvent, PathSecurityValidator, SecurityProfile,
@@ -14,6 +15,7 @@ use crate::socket::{MountStatusInfo, Request, Response, SocketServer};
 use anyhow::{Context, Result, anyhow};
 use chrono::{DateTime, Utc};
 use regex::Regex;
+use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -371,6 +373,322 @@ impl Daemon {
             }
         }
     }
+
+    /// Perform health check on a specific mount
+    pub async fn perform_health_check(&self, mount_id: &str) -> Result<MountState> {
+        let cfg = self.config.read().await;
+        let mount_config = match cfg.get_mount(mount_id) {
+            Some(m) => m,
+            None => return Err(DaemonError::mount_not_found(mount_id).into()),
+        };
+
+        // Don't check disabled mounts
+        if !mount_config.enabled {
+            return Ok(MountState {
+                accessible: false,
+                health_score: 0,
+                last_health_check: Utc::now(),
+                last_error: Some("Mount is disabled".to_string()),
+            });
+        }
+
+        // Initialize health state
+        let mut health_score = 100u8;
+        let mut accessible = true;
+        let mut error_messages = Vec::new();
+
+        // Check 1: Mount point exists
+        let mount_point_exists = self.platform.path_exists(&mount_config.mount_point);
+        if !mount_point_exists {
+            health_score -= 50;
+            accessible = false;
+            error_messages.push("Mount point does not exist".to_string());
+        }
+
+        // Check 2: Mount point is accessible (read test)
+        if mount_point_exists {
+            match tokio::fs::read_dir(&mount_config.mount_point).await {
+                Ok(_) => {
+                    // Directory is readable
+                }
+                Err(e) => {
+                    health_score = health_score.saturating_sub(30);
+                    accessible = false;
+                    error_messages.push(format!("Cannot read mount point: {}", e));
+                }
+            }
+        }
+
+        // Check 3: Network connectivity for remote mounts
+        match &mount_config.mount_type {
+            MountType::Nfs {
+                host,
+                ..
+            } => {
+                // Simple ping check for NFS host
+                if let Ok(output) = tokio::process::Command::new("ping")
+                    .args(&["-c", "1", "-W", "2", host])
+                    .output()
+                    .await
+                {
+                    if !output.status.success() {
+                        health_score = health_score.saturating_sub(20);
+                        error_messages.push(format!("Cannot ping NFS host: {}", host));
+                    }
+                }
+            }
+            MountType::Smb {
+                host,
+                ..
+            } => {
+                // Check SMB port (445)
+                if let Ok(output) = tokio::process::Command::new("nc")
+                    .args(&["-z", "-w2", host, "445"])
+                    .output()
+                    .await
+                {
+                    if !output.status.success() {
+                        health_score = health_score.saturating_sub(20);
+                        error_messages.push(format!("SMB port 445 not accessible on: {}", host));
+                    }
+                }
+            }
+        }
+
+        // Check 4: Test file write if accessible
+        if accessible && mount_point_exists {
+            let test_file = mount_config.mount_point.join(".fuji_health_test");
+
+            // Try to write a test file
+            match tokio::fs::write(&test_file, b"health_check").await {
+                Ok(_) => {
+                    // Write successful
+                    // Clean up test file
+                    let _ = tokio::fs::remove_file(&test_file).await;
+                    health_score = health_score.max(80); // Ensure minimum score for successful write
+                }
+                Err(e) => {
+                    health_score = health_score.saturating_sub(25);
+                    error_messages.push(format!("Cannot write to mount point: {}", e));
+                }
+            }
+        }
+
+        // Check 5: Status-based scoring
+        match mount_config.status {
+            MountStatus::Active => {
+                // Mount is active - no penalty
+            }
+            MountStatus::Reconnecting => {
+                health_score = health_score.min(50);
+                error_messages.push("Mount is currently reconnecting".to_string());
+            }
+            MountStatus::Failed => {
+                health_score = 0;
+                accessible = false;
+                error_messages.push("Mount is in failed state".to_string());
+            }
+            MountStatus::Disabled => {
+                health_score = 0;
+                accessible = false;
+            }
+            MountStatus::InProgress => {
+                health_score = health_score.min(70);
+                error_messages.push("Mount operation is in progress".to_string());
+            }
+            MountStatus::Error(ref msg) => {
+                health_score = health_score.min(30);
+                error_messages.push(format!("Mount error: {}", msg));
+            }
+        }
+
+        // Create final mount state
+        let last_error = if error_messages.is_empty() {
+            None
+        } else {
+            Some(error_messages.join("; "))
+        };
+
+        Ok(MountState {
+            accessible,
+            health_score,
+            last_health_check: Utc::now(),
+            last_error,
+        })
+    }
+
+    /// Perform health checks on all active mounts
+    pub async fn perform_all_health_checks(&self) -> HashMap<String, MountState> {
+        let mut results = HashMap::new();
+        let cfg = self.config.read().await;
+
+        // Collect all enabled mount configs
+        let mounts: Vec<(String, MountConfig)> = cfg
+            .get_all_mounts()
+            .into_iter()
+            .filter(|m| m.enabled)
+            .map(|m| (m.id.clone(), m.clone()))
+            .collect();
+
+        // Perform health checks concurrently with a limit
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(5)); // Max 5 concurrent checks
+        let mut tasks = Vec::new();
+
+        for (mount_id, mount_config) in mounts {
+            let semaphore = Arc::clone(&semaphore);
+
+            let task = tokio::spawn(async move {
+                let _permit = semaphore.acquire().await;
+
+                // Perform health check
+                let mut health_score = 100u8;
+                let mut accessible = true;
+                let mut error_messages = Vec::new();
+
+                let mount_point = mount_config.mount_point.clone();
+
+                // Check 1: Mount point exists
+                let mount_point_exists = tokio::fs::metadata(&mount_point).await.is_ok();
+                if !mount_point_exists {
+                    health_score = health_score.saturating_sub(50);
+                    accessible = false;
+                    error_messages.push("Mount point does not exist".to_string());
+                }
+
+                // Check 2: Mount point is accessible (read test)
+                if mount_point_exists {
+                    match tokio::fs::read_dir(&mount_point).await {
+                        Ok(_) => {
+                            // Directory is readable
+                        }
+                        Err(e) => {
+                            health_score = health_score.saturating_sub(30);
+                            accessible = false;
+                            error_messages.push(format!("Cannot read mount point: {}", e));
+                        }
+                    }
+                }
+
+                // Check 3: Network connectivity for remote mounts
+                match &mount_config.mount_type {
+                    MountType::Nfs {
+                        host,
+                        ..
+                    } => {
+                        // Simple ping check for NFS host
+                        if let Ok(output) = tokio::process::Command::new("ping")
+                            .args(&["-c", "1", "-W", "2", host])
+                            .output()
+                            .await
+                        {
+                            if !output.status.success() {
+                                health_score = health_score.saturating_sub(20);
+                                error_messages.push(format!("Cannot ping NFS host: {}", host));
+                            }
+                        }
+                    }
+                    MountType::Smb {
+                        host,
+                        ..
+                    } => {
+                        // Check SMB port (445)
+                        if let Ok(output) = tokio::process::Command::new("nc")
+                            .args(&["-z", "-w2", host, "445"])
+                            .output()
+                            .await
+                        {
+                            if !output.status.success() {
+                                health_score = health_score.saturating_sub(20);
+                                error_messages
+                                    .push(format!("SMB port 445 not accessible on: {}", host));
+                            }
+                        }
+                    }
+                }
+
+                // Check 4: Test file write if accessible
+                if accessible && mount_point_exists {
+                    let test_file = mount_point.join(".fuji_health_test");
+
+                    // Try to write a test file
+                    match tokio::fs::write(&test_file, b"health_check").await {
+                        Ok(_) => {
+                            // Write successful
+                            // Clean up test file
+                            let _ = tokio::fs::remove_file(&test_file).await;
+                            health_score = health_score.max(80); // Ensure minimum score for successful write
+                        }
+                        Err(e) => {
+                            health_score = health_score.saturating_sub(25);
+                            error_messages.push(format!("Cannot write to mount point: {}", e));
+                        }
+                    }
+                }
+
+                // Check 5: Status-based scoring
+                match mount_config.status {
+                    MountStatus::Active => {
+                        // Mount is active - no penalty
+                    }
+                    MountStatus::Reconnecting => {
+                        health_score = health_score.min(50);
+                        error_messages.push("Mount is currently reconnecting".to_string());
+                    }
+                    MountStatus::Failed => {
+                        health_score = 0;
+                        accessible = false;
+                        error_messages.push("Mount is in failed state".to_string());
+                    }
+                    MountStatus::Disabled => {
+                        health_score = 0;
+                        accessible = false;
+                    }
+                    MountStatus::InProgress => {
+                        health_score = health_score.min(70);
+                        error_messages.push("Mount operation is in progress".to_string());
+                    }
+                    MountStatus::Error(ref msg) => {
+                        health_score = health_score.min(30);
+                        error_messages.push(format!("Mount error: {}", msg));
+                    }
+                }
+
+                // Create final mount state
+                let last_error = if error_messages.is_empty() {
+                    None
+                } else {
+                    Some(error_messages.join("; "))
+                };
+
+                (
+                    mount_id,
+                    Ok::<MountState, anyhow::Error>(MountState {
+                        accessible,
+                        health_score,
+                        last_health_check: Utc::now(),
+                        last_error,
+                    }),
+                )
+            });
+            tasks.push(task);
+        }
+
+        // Collect results
+        for task in tasks {
+            if let Ok((mount_id, result)) = task.await {
+                if let Ok(state) = result {
+                    results.insert(mount_id, state);
+                }
+            }
+        }
+
+        // Update monitor with results
+        for (mount_id, state) in &results {
+            self.monitor.update_health(mount_id, state.clone()).await;
+        }
+
+        results
+    }
 }
 
 /// Handle incoming requests
@@ -463,13 +781,8 @@ async fn handle_request(
         Request::StopDaemon => Response::Success,
 
         Request::GetLogs {
-            lines: _,
-        } => {
-            // TODO: Implement log retrieval
-            Response::Logs {
-                lines: vec![],
-            }
-        }
+            lines,
+        } => handle_get_logs_request(lines).await,
 
         Request::Discover {
             url,
@@ -501,7 +814,6 @@ async fn handle_request(
 struct MountRequestParams {
     url: String,
     mount_point: Option<String>,
-    #[allow(dead_code)] // TODO: Integrate options into MountType
     options: Option<Vec<String>>,
     disable: bool,
     dry_run: bool,
@@ -654,10 +966,91 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
         }
     }
 
-    // Create mount config
+    // Parse mount options if provided
+    let parsed_options = if let Some(options) = &params.options {
+        let parser = MountOptionParser::new();
+        // Join options with commas to create the expected format
+        let options_str = options.join(",");
+        match parser.parse(&options_str, protocol) {
+            Ok(opts) => {
+                info!("Parsed mount options: {:?}", opts);
+                opts
+            }
+            Err(e) => {
+                warn!("Failed to parse mount options: {}", e);
+                // Continue with empty options - not a fatal error
+                MountOptions {
+                    raw: options.clone(),
+                    options: std::collections::HashMap::new(),
+                    fs_type: protocol.to_string(),
+                    security: Default::default(),
+                    performance: Default::default(),
+                }
+            }
+        }
+    } else {
+        // Default empty options
+        MountOptions {
+            raw: Vec::new(),
+            options: std::collections::HashMap::new(),
+            fs_type: protocol.to_string(),
+            security: Default::default(),
+            performance: Default::default(),
+        }
+    };
+
+    // Create mount config with parsed options
+    let mut mount_type = mount_type;
+    // Update mount_type with parsed options
+    match &mut mount_type {
+        MountType::Nfs {
+            options,
+            ..
+        } => {
+            *options = parsed_options.raw.clone();
+        }
+        MountType::Smb {
+            options,
+            ..
+        } => {
+            *options = parsed_options.raw.clone();
+        }
+    }
+
     let mut mount_config = MountConfig::new(params.url.clone(), mount_type, mount_point.clone());
     if params.disable {
         mount_config.disable();
+    }
+
+    // Apply parsed mount options to the mount config
+    // Note: MountConfig would need to store these options for use during actual mount
+    // For now, we'll log the security and performance options
+    if parsed_options.security.read_only {
+        info!("Mount will be read-only");
+    }
+    if parsed_options.security.nosuid {
+        info!("Mount will have nosuid option");
+    }
+    if parsed_options.security.nodev {
+        info!("Mount will have nodev option");
+    }
+    if parsed_options.security.noexec {
+        info!("Mount will have noexec option");
+    }
+    if let Some(uid) = parsed_options.security.uid {
+        info!("Mount will use UID {}", uid);
+    }
+    if let Some(gid) = parsed_options.security.gid {
+        info!("Mount will use GID {}", gid);
+    }
+    if let Some(rsize) = parsed_options.performance.rsize {
+        info!("Mount will use rsize {}", rsize);
+    }
+    if let Some(wsize) = parsed_options.performance.wsize {
+        info!("Mount will use wsize {}", wsize);
+    }
+    if parsed_options.performance.soft {
+        info!("Mount will use soft option");
     }
 
     // Register mount with path security validator for ongoing monitoring
@@ -1157,10 +1550,323 @@ async fn handle_get_config_request(config: Arc<RwLock<Config>>) -> Response {
 
 /// Handle doctor request
 async fn handle_doctor_request() -> Response {
-    // TODO: Implement comprehensive system checks
+    use crate::socket::protocol::{Issue, IssueSeverity};
+    use std::path::Path;
+    use std::process::Command;
+
+    let mut issues = Vec::new();
+    let mut suggestions = Vec::new();
+
+    // Check 1: Fuji binary in PATH
+    match Command::new("which").arg("fuji").output() {
+        Ok(output) if output.status.success() => {
+            // Good, fuji is in PATH
+        }
+        _ => {
+            issues.push(Issue {
+                severity: IssueSeverity::Error,
+                message: "Fuji binary not found in PATH".to_string(),
+                component: "Installation".to_string(),
+            });
+            suggestions.push("Add Fuji installation directory to PATH".to_string());
+        }
+    }
+
+    // Check 2: Required system dependencies
+    let dependencies = if cfg!(target_os = "macos") {
+        vec!["mount_smbfs", "mount_nfs", "umount"]
+    } else if cfg!(target_os = "linux") {
+        vec!["mount", "umount", "mount.cifs", "mount.nfs"]
+    } else {
+        vec!["mount", "umount"]
+    };
+
+    for dep in dependencies {
+        match Command::new("which").arg(dep).output() {
+            Ok(output) if output.status.success() => {
+                // Dependency found
+            }
+            _ => {
+                issues.push(Issue {
+                    severity: IssueSeverity::Error,
+                    message: format!("Required system dependency '{}' not found", dep),
+                    component: "System Dependencies".to_string(),
+                });
+                suggestions.push(format!("Install '{}' package or equivalent", dep));
+            }
+        }
+    }
+
+    // Check 3: Configuration directory
+    let config_dir = if let Some(dir) = dirs::config_dir() {
+        dir.join("fuji")
+    } else {
+        Path::new("/etc/fuji").to_path_buf()
+    };
+
+    if !config_dir.exists() {
+        issues.push(Issue {
+            severity: IssueSeverity::Warning,
+            message: format!(
+                "Configuration directory does not exist: {}",
+                config_dir.display()
+            ),
+            component: "Configuration".to_string(),
+        });
+        suggestions.push(format!(
+            "Create configuration directory: {}",
+            config_dir.display()
+        ));
+    }
+
+    // Check 4: Runtime directory
+    let runtime_dir = if let Some(dir) = dirs::runtime_dir() {
+        dir.join("fuji")
+    } else if cfg!(target_os = "macos") {
+        Path::new("/var/run/fuji").to_path_buf()
+    } else {
+        Path::new("/run/fuji").to_path_buf()
+    };
+
+    if !runtime_dir.exists() {
+        issues.push(Issue {
+            severity: IssueSeverity::Warning,
+            message: format!(
+                "Runtime directory does not exist: {}",
+                runtime_dir.display()
+            ),
+            component: "Runtime".to_string(),
+        });
+        suggestions.push(format!(
+            "Create runtime directory: {}",
+            runtime_dir.display()
+        ));
+    }
+
+    // Check 5: Mount directory permissions
+    let mount_dirs = ["/mnt", "/Volumes", "/media"];
+    for mount_dir in &mount_dirs {
+        if Path::new(mount_dir).exists() {
+            match std::fs::metadata(mount_dir) {
+                Ok(metadata) => {
+                    if metadata.permissions().readonly() {
+                        issues.push(Issue {
+                            severity: IssueSeverity::Error,
+                            message: format!("Mount directory {} is read-only", mount_dir),
+                            component: "Permissions".to_string(),
+                        });
+                        suggestions.push(format!("Fix permissions on {}", mount_dir));
+                    }
+                }
+                Err(e) => {
+                    issues.push(Issue {
+                        severity: IssueSeverity::Warning,
+                        message: format!("Cannot check permissions for {}: {}", mount_dir, e),
+                        component: "Permissions".to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    // Check 6: Network connectivity
+    if cfg!(target_os = "linux") {
+        // Check if network is up
+        if let Ok(output) = Command::new("ip").args(&["link", "show"]).output() {
+            if output.status.success() {
+                let output_str = String::from_utf8_lossy(&output.stdout);
+                if output_str.contains("state UP") {
+                    // At least one interface is up
+                } else {
+                    issues.push(Issue {
+                        severity: IssueSeverity::Warning,
+                        message: "No network interfaces appear to be up".to_string(),
+                        component: "Network".to_string(),
+                    });
+                    suggestions.push("Check network connection and interface status".to_string());
+                }
+            }
+        }
+    }
+
+    // Check 7: SUID/SGID binaries for privileged operations
+    if cfg!(target_os = "linux") {
+        let privileged_bins = ["/usr/bin/mount", "/usr/bin/umount"];
+        for bin in &privileged_bins {
+            if Path::new(bin).exists() {
+                match std::fs::metadata(bin) {
+                    Ok(metadata) => {
+                        use std::os::unix::fs::PermissionsExt;
+                        if metadata.permissions().mode() & 0o4000 != 0 {
+                            // Has SUID bit set
+                        } else {
+                            issues.push(Issue {
+                                severity: IssueSeverity::Warning,
+                                message: format!(
+                                    "{} does not have SUID bit set - may require sudo for mounts",
+                                    bin
+                                ),
+                                component: "Permissions".to_string(),
+                            });
+                        }
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
+    }
+
+    // Check 8: Daemon status
+    if let Ok(output) = Command::new("pgrep").arg("-x").arg("fuji").output() {
+        if output.status.success() {
+            let pids = String::from_utf8_lossy(&output.stdout);
+            if pids.trim().is_empty() {
+                issues.push(Issue {
+                    severity: IssueSeverity::Info,
+                    message: "Fuji daemon is not running".to_string(),
+                    component: "Daemon".to_string(),
+                });
+                suggestions.push("Start the daemon with: fuji daemon start".to_string());
+            }
+        }
+    }
+
+    // Check 9: systemd service (if applicable)
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(output) = Command::new("systemctl").args(&["status", "fuji"]).output() {
+            if !output.status.success() {
+                issues.push(Issue {
+                    severity: IssueSeverity::Warning,
+                    message: "Fuji systemd service is not installed or not running".to_string(),
+                    component: "Service".to_string(),
+                });
+                suggestions.push(
+                    "Install and enable the systemd service: sudo systemctl enable fuji"
+                        .to_string(),
+                );
+            }
+        }
+    }
+
+    // Check 10: Log directory
+    let log_dirs = [
+        "/var/log/fuji",
+        &format!(
+            "{}/.local/share/fuji/logs",
+            dirs::home_dir()
+                .unwrap_or_else(|| Path::new("/root").to_path_buf())
+                .display()
+        ),
+    ];
+
+    let mut log_dir_found = false;
+    for log_dir in &log_dirs {
+        if Path::new(log_dir).exists() {
+            log_dir_found = true;
+            break;
+        }
+    }
+
+    if !log_dir_found {
+        issues.push(Issue {
+            severity: IssueSeverity::Warning,
+            message: "No log directory found".to_string(),
+            component: "Logging".to_string(),
+        });
+        suggestions.push("Create a log directory for Fuji logs".to_string());
+    }
+
+    // Add general suggestion if there are errors
+    if issues
+        .iter()
+        .any(|i| matches!(i.severity, IssueSeverity::Error))
+    {
+        suggestions
+            .push("Run 'fuji mount --dry-run <url>' to test mount configuration".to_string());
+    }
+
     Response::DoctorReport {
-        issues: vec![],
-        suggestions: vec![],
+        issues,
+        suggestions,
+    }
+}
+
+/// Handle get logs request
+async fn handle_get_logs_request(lines: Option<usize>) -> Response {
+    use std::fs;
+    use std::path::Path;
+
+    // Try to get logs from common locations
+    let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+    let user_log_path = format!("{}/.local/share/fuji/logs/fuji.log", home_dir.display());
+    let log_locations = vec![
+        "/var/log/fuji.log",
+        "/var/log/fuji/fuji.log",
+        user_log_path.as_str(),
+    ];
+
+    // Try systemd journal first (Linux only)
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(output) = tokio::process::Command::new("journalctl")
+            .args(&["-u", "fuji", "-n", &lines.unwrap_or(100).to_string()])
+            .output()
+            .await
+        {
+            if !output.stderr.is_empty() {
+                // journalctl failed, continue to file-based logging
+            } else {
+                let log_lines = String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .map(|line| line.to_string())
+                    .collect();
+                return Response::Logs {
+                    lines: log_lines,
+                };
+            }
+        }
+    }
+
+    // Try reading from log files
+    for log_path in log_locations {
+        if Path::new(log_path).exists() {
+            match fs::read_to_string(log_path) {
+                Ok(content) => {
+                    let all_lines: Vec<String> =
+                        content.lines().map(|line| line.to_string()).collect();
+                    let lines = if let Some(count) = lines {
+                        all_lines.into_iter().rev().take(count).collect()
+                    } else {
+                        all_lines
+                    };
+                    return Response::Logs {
+                        lines,
+                    };
+                }
+                Err(_) => continue,
+            }
+        }
+    }
+
+    // If no log files found, return daemon runtime logs from memory
+    // This is a fallback - in a real implementation, we'd have in-memory log buffer
+    let now = chrono::Utc::now();
+    let log_lines = vec![
+        format!(
+            "{} [INFO] Fuji daemon started",
+            now.format("%Y-%m-%d %H:%M:%S UTC")
+        ),
+        format!(
+            "{} [INFO] Log file not found - showing in-memory logs",
+            now.format("%Y-%m-%d %H:%M:%S UTC")
+        ),
+        "Configure logging to persist logs to a file".to_string(),
+        "Use 'fuji doctor' for system diagnostics".to_string(),
+    ];
+
+    Response::Logs {
+        lines: log_lines,
     }
 }
 

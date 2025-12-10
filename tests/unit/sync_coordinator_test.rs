@@ -3,8 +3,8 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time::sleep;
 
-use fuji::cluster::{ClusterConfig, ClusterState};
-use fuji::config::{Config, PeerInfo, PeerStatus};
+use fuji::cluster::ClusterState;
+use fuji::config::{ClusterConfig, Config, PeerInfo, PeerStatus};
 use fuji::network::tcp::TcpTransport;
 use fuji::sync::coordinator::SyncCoordinator;
 use fuji::sync::protocol::{SyncMessage, SyncRequest, SyncResponse};
