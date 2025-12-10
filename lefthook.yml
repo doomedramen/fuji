@@ -37,7 +37,7 @@ pre-commit:
 
     # Critical security checks only
     security-quick:
-      run: cargo test security_command_injection security_path_traversal --lib --no-fail-fast
+      run: make test-security
       glob: "src/security/**/*.rs"
       fail_text: "Critical security checks failed."
 

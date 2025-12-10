@@ -3,10 +3,10 @@
 use anyhow;
 use chrono::Utc;
 use fuji::monitoring::{
-    health_checks::{run_check, HealthCheckContext},
+    health_checks::{HealthCheckContext, run_check},
     retry::{CircuitBreakerState, RetryHandler, RetryPolicy, RetryResult},
 };
-use fuji::platform::current_platform;
+use fuji::platform::get_platform;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
@@ -314,13 +314,19 @@ async fn test_health_check_run_check_by_name() {
     // Create a minimal test mount config
     let config = fuji::mount::MountConfig {
         id: "test_mount".to_string(),
-        url: url::Url::parse("nfs://127.0.0.1/test").unwrap(),
+        url: "nfs://127.0.0.1/test".to_string(),
         mount_point: mount_point.clone(),
-        mount_type: fuji::mount::MountType::Nfs,
-        options: fuji::mount::MountOptions::default(),
+        mount_type: fuji::mount::MountType::Nfs {
+            host: "127.0.0.1".to_string(),
+            share: "test".to_string(),
+            options: vec![],
+        },
+        enabled: true,
         status: fuji::mount::MountStatus::Active,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
+        last_connected: None,
+        reconnect_attempts: 0,
         metadata: std::collections::HashMap::new(),
     };
 
@@ -328,10 +334,6 @@ async fn test_health_check_run_check_by_name() {
         config: &config,
         mount_point: &mount_point,
         platform: platform.as_ref(),
-    let mount_point = std::path::PathBuf::from("/test/mount");
-    let context = HealthCheckContext {
-        mount_point: &mount_point,
-        platform: &platform,
     };
 
     let result = run_check("test_mount", "invalid_check", context).await;

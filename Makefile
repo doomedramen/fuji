@@ -30,7 +30,7 @@ test: test-unit test-security
 
 # Run unit tests only
 test-unit:
-	cargo test --all-features --lib --bins --no-fail-fast
+	cargo test --all-features --no-fail-fast
 
 # Run security tests only
 test-security:
@@ -99,7 +99,7 @@ fmt:
 
 # Run clippy lints
 clippy:
-	cargo clippy --lib --bins --all-features -- -A warnings
+	cargo clippy --all-targets --all-features -- -A warnings
 
 # Run full CI checks locally
 ci: fmt clippy test
