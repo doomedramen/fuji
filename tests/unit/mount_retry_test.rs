@@ -163,10 +163,10 @@ async fn test_mount_retry_with_metadata() {
         "/tmp/mount_test".into(),
     );
 
-    // Add custom retry configuration
+    // Add custom retry configuration with much shorter delays for testing
     mount.metadata.insert(
         "retry_policy".to_string(),
-        "max_attempts=10,initial_delay=5s,max_delay=300s".to_string(),
+        "max_attempts=2,initial_delay=10ms,max_delay=50ms".to_string(),
     );
 
     // Create config
