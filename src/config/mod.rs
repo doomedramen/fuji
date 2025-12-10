@@ -169,6 +169,9 @@ pub struct ClusterConfig {
     pub instance_id: String,
     /// List of cluster peers
     pub peers: Vec<PeerInfo>,
+    /// TCP port for cluster communication
+    #[serde(default = "default_cluster_port")]
+    pub port: u16,
     /// Sync interval (how often to check if we should initiate)
     #[serde(with = "duration_serde")]
     pub sync_interval: Duration,
@@ -324,6 +327,11 @@ impl Default for GlobalConfig {
             resource_limits: ResourceLimitsConfig::default(),
         }
     }
+}
+
+/// Default cluster port
+fn default_cluster_port() -> u16 {
+    10080
 }
 
 #[allow(dead_code)]
@@ -643,6 +651,7 @@ impl Config {
             enabled: true,
             instance_id: instance_id.clone(),
             peers: Vec::new(),
+            port: 10080,                         // Default cluster port
             sync_interval: Duration::minutes(5), // Default 5 minutes
             sync_timeout: Duration::minutes(10), // Default 10 minutes
             sync_metadata: SyncMetadata {

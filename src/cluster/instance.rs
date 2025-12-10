@@ -65,12 +65,14 @@ impl InstanceManager {
     }
 
     /// Get the current instance information
+    #[allow(dead_code)]
     pub fn get_instance_info(&self) -> &InstanceInfo {
         &self.instance_info
     }
 
     /// Save instance info to disk
     #[allow(clippy::ptr_arg)]
+    #[allow(dead_code)]
     pub fn save(&self, config_dir: &PathBuf) -> Result<()> {
         let instance_path = config_dir.join("instance.toml");
         let content = toml::to_string_pretty(&self.instance_info)?;
@@ -157,6 +159,7 @@ impl InstanceManager {
     }
 
     /// Update instance information (returns new instance info)
+    #[allow(dead_code)]
     pub fn update_info<F>(&self, updater: F) -> InstanceInfo
     where
         F: FnOnce(&mut InstanceInfo),
@@ -168,6 +171,7 @@ impl InstanceManager {
 
     /// Generate a new instance ID (for recovery situations)
     #[allow(clippy::field_reassign_with_default)]
+    #[allow(dead_code)]
     pub fn regenerate_id() -> InstanceInfo {
         let mut info = InstanceInfo::default();
         info.id = Uuid::new_v4().to_string();
@@ -178,6 +182,7 @@ impl InstanceManager {
     }
 
     /// Check if this instance has been running for longer than the specified duration
+    #[allow(dead_code)]
     pub fn uptime(&self) -> chrono::Duration {
         Utc::now() - self.instance_info.started_at
     }

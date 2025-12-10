@@ -136,6 +136,7 @@ impl ConfigMerger {
             enabled: true,
             instance_id: self.instance_id.clone(),
             peers: Vec::new(), // Peers are managed separately
+            port: 10080,       // Default cluster port
             sync_interval: chrono::Duration::minutes(5),
             sync_timeout: chrono::Duration::minutes(10),
             sync_metadata: SyncMetadata {

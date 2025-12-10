@@ -1,6 +1,6 @@
 //! Cluster management CLI commands
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::Subcommand;
 use comfy_table::{Cell, Table, presets::UTF8_FULL};
@@ -174,9 +174,14 @@ async fn handle_join(invitation: String, ctx: Arc<CliContext>) -> Result<()> {
     // Save configuration
     ctx.save_config().await?;
 
-    // Initialize sync coordinator
+    // Initialize sync coordinator with configurable port
     let cluster_state = Arc::new(ClusterState::new());
-    let local_addr = "0.0.0.0:8080".parse()?; // TODO: Make configurable
+    let config = ctx.config.read().await;
+    let cluster_port = config.cluster.as_ref().map(|c| c.port).unwrap_or(10080);
+    drop(config);
+    let local_addr = format!("0.0.0.0:{}", cluster_port)
+        .parse()
+        .with_context(|| format!("Invalid cluster port: {}", cluster_port))?;
     let transport = Arc::new(TcpTransport::new(local_addr));
     let coordinator = SyncCoordinator::new(
         instance_id,

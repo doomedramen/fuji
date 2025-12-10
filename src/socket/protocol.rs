@@ -165,6 +165,16 @@ pub struct DaemonHealthInfo {
     pub uptime: Option<std::time::Duration>,
     pub last_check: Option<DateTime<Utc>>,
     pub issues: Vec<String>,
+    pub cluster_info: Option<ClusterInfo>,
+}
+
+/// Cluster information for daemon status
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClusterInfo {
+    pub instance_id: String,
+    pub cluster_enabled: bool,
+    pub peers_connected: usize,
+    pub last_sync: Option<DateTime<Utc>>,
 }
 
 /// System issue identified by doctor

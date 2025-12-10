@@ -397,22 +397,49 @@ impl TcpTransport {
 
         match message {
             SyncMessage::SyncRequest(req) => {
-                // TODO: Handle sync request
-                debug!("Sync request {} from {}", req.request_id, req.requester_id);
+                // Handle sync request - log details
+                info!(
+                    "Received sync request {} from {} for version {}",
+                    req.request_id, req.requester_id, req.known_version
+                );
+                // Note: In a full implementation, this would be forwarded to the sync coordinator
             }
             SyncMessage::SyncResponse(resp) => {
-                // TODO: Handle sync response
-                debug!("Sync response {} with config", resp.request_id);
+                // Handle sync response - log details
+                info!(
+                    "Received sync response {} with config version {} and {} conflicts",
+                    resp.request_id,
+                    resp.sync_version,
+                    resp.conflicts.len()
+                );
+                // Note: In a full implementation, this would be forwarded to the sync coordinator
             }
             SyncMessage::ConfigUpdate(update) => {
-                // TODO: Handle config update
-                debug!("Config update with sync version {}", update.sync_version);
+                // Handle config update - log details
+                info!(
+                    "Received config update with sync version {} from {}",
+                    update.sync_version, sender_id
+                );
+                // Note: In a full implementation, this would be forwarded to the sync coordinator
             }
             SyncMessage::SyncComplete(comp) => {
-                // TODO: Handle sync complete
-                debug!("Sync complete with version {}", comp.sync_version);
+                // Handle sync complete - log details
+                info!(
+                    "Received sync complete notification for version {} from {}",
+                    comp.sync_version, sender_id
+                );
+                // Note: In a full implementation, this would be forwarded to the sync coordinator
             }
-            _ => {}
+            SyncMessage::Heartbeat(heartbeat) => {
+                // Handle heartbeat
+                debug!(
+                    "Received heartbeat from {} (status: {:?})",
+                    sender_id, heartbeat.status
+                );
+            }
+            _ => {
+                debug!("Received unhandled message type from {}", sender_id);
+            }
         }
 
         Ok(())

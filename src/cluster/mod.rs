@@ -33,6 +33,7 @@ pub struct ClusterState {
     last_peer_request: Arc<RwLock<Option<DateTime<Utc>>>>,
 }
 
+#[allow(dead_code)]
 impl ClusterState {
     /// Create a new cluster state
     pub fn new() -> Self {
@@ -221,6 +222,7 @@ impl Default for ClusterState {
 }
 
 /// Cluster statistics
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClusterStats {
     /// Total number of peers
@@ -241,10 +243,13 @@ pub struct ClusterStats {
 pub use crate::cluster::discovery::ClusterInvitation;
 
 /// Default cluster port
-pub const DEFAULT_CLUSTER_PORT: u16 = 8080;
+#[allow(dead_code)]
+pub const DEFAULT_CLUSTER_PORT: u16 = 10080;
 
 /// Cluster health check interval
+#[allow(dead_code)]
 pub const HEALTH_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// Peer connection timeout
+#[allow(dead_code)]
 pub const PEER_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);

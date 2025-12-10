@@ -233,6 +233,7 @@ impl DiscoveryManager {
     }
 
     /// Clean up expired invitations
+    #[allow(dead_code)]
     pub async fn cleanup_expired_invitations(&self) {
         let mut invitations = self.issued_invitations.write().await;
         let mut to_remove = Vec::new();
@@ -250,6 +251,7 @@ impl DiscoveryManager {
     }
 
     /// Get list of issued invitations
+    #[allow(dead_code)]
     pub async fn get_issued_invitations(&self) -> Vec<ClusterInvitation> {
         self.issued_invitations
             .read()

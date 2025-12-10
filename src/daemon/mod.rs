@@ -9,9 +9,9 @@ use crate::security::path_security::{
     IntegrityStatus, PathSecurityEvent, PathSecurityValidator, SecurityProfile,
 };
 use crate::security::resource_limits::ResourceLimitsManager;
-use crate::socket::protocol::DaemonHealthInfo;
+use crate::socket::protocol::{ClusterInfo, DaemonHealthInfo};
 use crate::socket::{MountStatusInfo, Request, Response, SocketServer};
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use chrono::{DateTime, Utc};
 use regex::Regex;
 use std::path::Path;
@@ -20,7 +20,12 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{RwLock, oneshot};
 use tokio::time::{Duration as StdDuration, interval};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
+
+// Cluster imports
+use crate::cluster::{ClusterState, instance::InstanceManager};
+use crate::network::tcp::TcpTransport;
+use crate::sync::coordinator::SyncCoordinator;
 
 lazy_static::lazy_static! {
     /// A fallback regex that matches nothing - used when user-provided regex is invalid
@@ -50,6 +55,14 @@ pub struct Daemon {
     shutdown_rx: Arc<RwLock<Option<oneshot::Receiver<()>>>>,
     /// Daemon start time for uptime tracking
     start_time: Instant,
+    /// Instance manager for cluster identification
+    instance_manager: Option<Arc<InstanceManager>>,
+    /// Cluster state for multi-instance synchronization
+    cluster_state: Option<Arc<ClusterState>>,
+    /// TCP transport for cluster communication
+    transport: Option<Arc<TcpTransport>>,
+    /// Sync coordinator for configuration synchronization
+    sync_coordinator: Option<Arc<SyncCoordinator>>,
 }
 
 /// Internal mount state tracking
@@ -84,6 +97,60 @@ impl Daemon {
 
         let start_time = Instant::now();
 
+        // Check if cluster mode is enabled
+        let config_read = config.read().await;
+        let cluster_enabled = config_read.cluster.is_some();
+        drop(config_read);
+
+        // Initialize cluster components if enabled
+        let (instance_manager, cluster_state, transport, sync_coordinator) = if cluster_enabled {
+            debug!("Initializing cluster components");
+
+            // Get config directory for instance manager
+            let config_dir = platform.get_config_dir();
+
+            // Initialize instance manager
+            let instance_manager = Arc::new(InstanceManager::new(config_dir));
+            let instance_id = instance_manager.get_instance_id().to_string();
+            let instance_id_for_log = instance_id.clone();
+
+            // Initialize cluster state
+            let cluster_state = Arc::new(ClusterState::new());
+
+            // Initialize TCP transport with configurable port
+            let cfg = config.read().await;
+            let cluster_port = cfg.cluster.as_ref().map(|c| c.port).unwrap_or(10080);
+            drop(cfg);
+
+            let local_addr = format!("127.0.0.1:{}", cluster_port)
+                .parse()
+                .with_context(|| format!("Invalid cluster port: {}", cluster_port))?;
+            let transport = Arc::new(TcpTransport::new(local_addr));
+
+            // Initialize sync coordinator
+            let sync_coordinator = Arc::new(SyncCoordinator::new(
+                instance_id,
+                cluster_state.clone(),
+                transport.clone(),
+                config.clone(),
+            ));
+
+            info!(
+                "Cluster components initialized with instance ID: {}",
+                instance_id_for_log
+            );
+
+            (
+                Some(instance_manager),
+                Some(cluster_state),
+                Some(transport),
+                Some(sync_coordinator),
+            )
+        } else {
+            debug!("Cluster mode not enabled, running in single-instance mode");
+            (None, None, None, None)
+        };
+
         Ok(Self {
             platform,
             config,
@@ -92,6 +159,10 @@ impl Daemon {
             resource_limits,
             shutdown_rx: Arc::new(RwLock::new(None)),
             start_time,
+            instance_manager,
+            cluster_state,
+            transport,
+            sync_coordinator,
         })
     }
 
@@ -135,12 +206,34 @@ impl Daemon {
         let (_shutdown_tx, shutdown_rx) = oneshot::channel();
         *self.shutdown_rx.write().await = Some(shutdown_rx);
 
+        // Initialize cluster if enabled
+        if let (Some(sync_coordinator), Some(cluster_state), Some(_transport)) =
+            (&self.sync_coordinator, &self.cluster_state, &self.transport)
+        {
+            info!("Initializing cluster synchronization");
+
+            // Initialize cluster state with config
+            let config_read = self.config.read().await;
+            if let Some(cluster_config) = &config_read.cluster {
+                cluster_state.initialize(cluster_config.clone()).await?;
+            }
+            drop(config_read);
+
+            // Initialize and start sync coordinator
+            sync_coordinator.initialize().await?;
+
+            info!("Cluster synchronization started");
+        }
+
         // Start socket server
         let server = SocketServer::new(&socket_path).await?;
         let config = Arc::clone(&self.config);
         let monitor = Arc::clone(&self.monitor);
         let path_security = Arc::clone(&self.path_security);
         let resource_limits = Arc::clone(&self.resource_limits);
+        let sync_coordinator = self.sync_coordinator.clone();
+        let instance_manager = self.instance_manager.clone();
+        let cluster_state = self.cluster_state.clone();
         let _platform = self.platform.as_ref() as *const dyn Platform;
 
         let start_time = self.start_time;
@@ -151,6 +244,9 @@ impl Daemon {
                     let monitor = Arc::clone(&monitor);
                     let path_security = Arc::clone(&path_security);
                     let resource_limits = Arc::clone(&resource_limits);
+                    let sync_coordinator = sync_coordinator.clone();
+                    let instance_manager = instance_manager.clone();
+                    let cluster_state = cluster_state.clone();
 
                     async move {
                         handle_request(
@@ -159,6 +255,9 @@ impl Daemon {
                             monitor,
                             path_security,
                             resource_limits,
+                            sync_coordinator,
+                            instance_manager,
+                            cluster_state,
                             start_time,
                         )
                         .await
@@ -281,6 +380,9 @@ async fn handle_request(
     monitor: Arc<MountMonitor>,
     path_security: Arc<PathSecurityValidator>,
     resource_limits: Arc<ResourceLimitsManager>,
+    sync_coordinator: Option<Arc<SyncCoordinator>>,
+    instance_manager: Option<Arc<InstanceManager>>,
+    cluster_state: Option<Arc<ClusterState>>,
     start_time: Instant,
 ) -> Response {
     match request {
@@ -330,6 +432,9 @@ async fn handle_request(
                 filter_point,
                 config,
                 monitor,
+                sync_coordinator,
+                instance_manager,
+                cluster_state,
                 start_time,
             })
             .await
@@ -691,6 +796,9 @@ struct StatusRequestParams {
     filter_point: Option<String>,
     config: Arc<RwLock<Config>>,
     monitor: Arc<MountMonitor>,
+    sync_coordinator: Option<Arc<SyncCoordinator>>,
+    instance_manager: Option<Arc<InstanceManager>>,
+    cluster_state: Option<Arc<ClusterState>>,
     start_time: Instant,
 }
 
@@ -781,11 +889,55 @@ async fn handle_status_request(params: StatusRequestParams) -> Response {
         issues.push(format!("{} mounts are in failed state", failed_count));
     }
 
+    // Get cluster information if available
+    let cluster_info = if let Some(instance_manager) = &params.instance_manager {
+        let cfg = params.config.read().await;
+        let cluster_enabled = cfg.cluster.is_some();
+        drop(cfg);
+
+        // Get actual peer count and sync info from sync coordinator if available
+        let (peers_connected, last_sync) = if let Some(sync_coordinator) = &params.sync_coordinator
+        {
+            // Use sync coordinator to get real cluster statistics
+            let stats = sync_coordinator.get_stats().await;
+            (stats.connected_peers, stats.last_sync_initiation)
+        } else if let Some(cluster_state) = &params.cluster_state {
+            // Fallback to cluster state
+            let peers = cluster_state.get_peers().await;
+            let connected = peers
+                .iter()
+                .filter(|p| matches!(p.status, crate::config::PeerStatus::Connected))
+                .count();
+
+            // Get sync configuration
+            let sync_config = cluster_state.get_sync_config().await;
+            let last_sync = if let Some((_, interval)) = sync_config {
+                Some(Utc::now() - interval) // Approximate last sync
+            } else {
+                None
+            };
+
+            (connected, last_sync)
+        } else {
+            (0, None)
+        };
+
+        Some(ClusterInfo {
+            instance_id: instance_manager.get_instance_id().to_string(),
+            cluster_enabled,
+            peers_connected,
+            last_sync,
+        })
+    } else {
+        None
+    };
+
     let daemon_health = DaemonHealthInfo {
         healthy: failed_count == 0,
         uptime: Some(uptime),
         last_check: Some(Utc::now()),
         issues,
+        cluster_info,
     };
 
     Response::Status {
