@@ -1,12 +1,4 @@
-use std::time::Duration;
-use tokio::time::{sleep, timeout};
-
 use fuji::cluster::discovery::{ClusterInvitation, DiscoveryManager};
-use fuji::cluster::instance::InstanceInfo;
-use fuji::config::PeerInfo;
-use fuji::network::tcp::TcpTransport;
-use fuji::sync::coordinator::SyncCoordinator;
-use fuji::sync::protocol::{SyncMessage, SyncRequest, SyncResponse};
 
 #[tokio::test]
 async fn test_invitation_creation_and_verification() {
@@ -116,9 +108,6 @@ async fn test_invalid_invitation_acceptance() {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use std::net::SocketAddr;
-    use std::sync::Arc;
-    use tokio::sync::RwLock;
 
     #[tokio::test]
     async fn test_cluster_invitation_workflow() {

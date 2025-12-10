@@ -68,11 +68,13 @@ impl MountConfigWrapper {
     }
 
     /// Get a reference to the mount config
+    #[allow(dead_code)]
     pub fn mount(&self) -> &MountConfig {
         &self.config
     }
 
     /// Get a mutable reference to the mount config
+    #[allow(dead_code)]
     pub fn mount_mut(&mut self) -> &mut MountConfig {
         &mut self.config
     }
@@ -221,6 +223,17 @@ pub struct SyncMetadata {
     pub sync_version: u64,
     /// Pending conflicts to resolve
     pub pending_conflicts: Vec<SyncConflict>,
+}
+
+impl Default for SyncMetadata {
+    fn default() -> Self {
+        Self {
+            last_sync_at: None,
+            last_modified_by: None,
+            sync_version: 0,
+            pending_conflicts: Vec::new(),
+        }
+    }
 }
 
 /// Configuration sync conflict information

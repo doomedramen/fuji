@@ -137,6 +137,18 @@ impl Daemon {
                 config.clone(),
             ));
 
+            // Wire the sync coordinator to the transport for message handling
+            transport
+                .set_sync_coordinator(sync_coordinator.clone())
+                .await;
+
+            // Set cluster config on transport
+            let cfg = config.read().await;
+            if let Some(cluster_cfg) = cfg.cluster.clone() {
+                transport.set_cluster_config(cluster_cfg).await;
+            }
+            drop(cfg);
+
             info!(
                 "Cluster components initialized with instance ID: {}",
                 instance_id_for_log
@@ -375,6 +387,11 @@ impl Daemon {
     }
 
     /// Perform health check on a specific mount
+    ///
+    /// This method provides detailed health checking capabilities for a single mount.
+    /// Currently the scheduler uses a simpler approach, but this can be exposed
+    /// via socket API for on-demand detailed health checks.
+    #[allow(dead_code)] // Can be exposed via socket API for on-demand health checks
     pub async fn perform_health_check(&self, mount_id: &str) -> Result<MountState> {
         let cfg = self.config.read().await;
         let mount_config = match cfg.get_mount(mount_id) {
@@ -518,6 +535,10 @@ impl Daemon {
     }
 
     /// Perform health checks on all active mounts
+    ///
+    /// Concurrent health checks with semaphore limiting. Can be exposed
+    /// via socket API for comprehensive system health reports.
+    #[allow(dead_code)] // Can be exposed via socket API for system health reports
     pub async fn perform_all_health_checks(&self) -> HashMap<String, MountState> {
         let mut results = HashMap::new();
         let cfg = self.config.read().await;

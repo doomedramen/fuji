@@ -143,9 +143,10 @@ impl SyncCoordinator {
         message: SyncMessage,
     ) -> Result<SyncMessage> {
         debug!(
-            "Processing sync message from {}: {:?}",
+            "Processing sync message from {}: {} (id: {})",
             sender_id,
-            message.message_type()
+            message.message_type(),
+            message.message_id()
         );
 
         // Update peer's last seen time
@@ -357,6 +358,23 @@ impl SyncCoordinator {
         if let Err(failed_peers) = self.transport.broadcast_message(&update).await {
             warn!(
                 "Failed to notify some peers of config update: {:?}",
+                failed_peers
+            );
+        }
+
+        // Send sync complete notification to all peers
+        let participants: Vec<String> = configs.iter().map(|(id, _)| id.clone()).collect();
+        let complete = SyncMessage::sync_complete(
+            sync_version,
+            self.instance_id.clone(),
+            crate::sync::protocol::SyncResult::Success,
+            merged.resolved_conflicts.len() as u32,
+            participants,
+        );
+
+        if let Err(failed_peers) = self.transport.broadcast_message(&complete).await {
+            warn!(
+                "Failed to notify some peers of sync complete: {:?}",
                 failed_peers
             );
         }

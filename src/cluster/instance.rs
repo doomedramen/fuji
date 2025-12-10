@@ -3,7 +3,7 @@
 //! This module provides utilities for generating and managing unique instance IDs
 //! for Fuji daemon instances in a cluster.
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -217,44 +217,45 @@ fn get_local_ip_addresses() -> Vec<String> {
     ips
 }
 
-/// Generate a pre-shared key for cluster authentication
-pub fn generate_psk() -> Result<String> {
-    use rand::distributions::Alphanumeric;
-    use rand::{Rng, thread_rng};
-
-    let psk: String = thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(32)
-        .map(char::from)
-        .collect();
-
-    Ok(psk)
-}
-
-/// Sign data with HMAC-SHA256 using the provided key
-pub fn sign_data(key: &str, data: &str) -> Result<String> {
-    use hmac::{Hmac, Mac};
-    use sha2::Sha256;
-
-    type HmacSha256 = Hmac<Sha256>;
-
-    let mut mac = HmacSha256::new_from_slice(key.as_bytes())
-        .map_err(|e| anyhow!("Failed to create HMAC: {}", e))?;
-    mac.update(data.as_bytes());
-
-    Ok(format!("{:x}", mac.finalize().into_bytes()))
-}
-
-/// Verify HMAC signature
-pub fn verify_signature(key: &str, data: &str, signature: &str) -> Result<bool> {
-    let expected_signature = sign_data(key, data)?;
-    Ok(expected_signature == signature)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::anyhow;
     use tempfile::TempDir;
+
+    /// Test helper: Generate a PSK
+    fn generate_psk() -> Result<String> {
+        use rand::distributions::Alphanumeric;
+        use rand::{Rng, thread_rng};
+
+        let psk: String = thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect();
+
+        Ok(psk)
+    }
+
+    /// Test helper: Sign data with HMAC-SHA256
+    fn sign_data(key: &str, data: &str) -> Result<String> {
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+
+        type HmacSha256 = Hmac<Sha256>;
+
+        let mut mac = HmacSha256::new_from_slice(key.as_bytes())
+            .map_err(|e| anyhow!("Failed to create HMAC: {}", e))?;
+        mac.update(data.as_bytes());
+
+        Ok(format!("{:x}", mac.finalize().into_bytes()))
+    }
+
+    /// Test helper: Verify HMAC signature
+    fn verify_signature(key: &str, data: &str, signature: &str) -> Result<bool> {
+        let expected_signature = sign_data(key, data)?;
+        Ok(expected_signature == signature)
+    }
 
     #[test]
     fn test_instance_manager() {

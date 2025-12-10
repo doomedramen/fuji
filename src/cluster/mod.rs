@@ -202,7 +202,9 @@ impl ClusterState {
 
         // Log any peers that haven't been seen recently
         for peer in peers.values() {
-            if now - peer.last_seen > chrono::Duration::minutes(5) {
+            if now - peer.last_seen
+                > chrono::Duration::try_minutes(5).unwrap_or(chrono::Duration::seconds(300))
+            {
                 warn!(
                     "Peer {} hasn't been seen for {} minutes",
                     peer.id,
@@ -222,7 +224,6 @@ impl Default for ClusterState {
 }
 
 /// Cluster statistics
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClusterStats {
     /// Total number of peers
@@ -241,11 +242,3 @@ pub struct ClusterStats {
 
 // Re-export ClusterInvitation from discovery module
 pub use crate::cluster::discovery::ClusterInvitation;
-
-/// Cluster health check interval
-#[allow(dead_code)]
-pub const HEALTH_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
-
-/// Peer connection timeout
-#[allow(dead_code)]
-pub const PEER_CONNECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);

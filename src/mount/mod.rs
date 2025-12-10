@@ -100,6 +100,7 @@ pub struct MountState {
     /// Last error (if any)
     pub last_error: Option<String>,
     /// Time of last health check
+    #[allow(dead_code)] // Set by health monitoring, useful for debugging
     pub last_health_check: DateTime<Utc>,
     /// Connection health score (0-100)
     pub health_score: u8,
@@ -109,6 +110,7 @@ pub struct MountState {
 #[async_trait]
 pub trait MountHandler: Send + Sync {
     /// Get the protocol name
+    #[allow(dead_code)] // Part of trait interface, useful for debugging
     fn protocol(&self) -> &'static str;
 
     /// Parse a URL into a mount configuration
@@ -206,25 +208,9 @@ impl MountConfig {
         self.updated_at = Utc::now();
     }
 
-    /// Reset reconnection attempts
-    pub fn reset_reconnect_attempts(&mut self) {
-        self.reconnect_attempts = 0;
-        self.updated_at = Utc::now();
-    }
-
-    /// Check if the mount is in a failure state
-    pub fn is_failed(&self) -> bool {
-        matches!(self.status, MountStatus::Failed)
-    }
-
     /// Check if the mount is active
     pub fn is_active(&self) -> bool {
         matches!(self.status, MountStatus::Active)
-    }
-
-    /// Check if the mount is enabled
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
     }
 
     /// Enable the mount

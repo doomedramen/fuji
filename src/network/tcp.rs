@@ -17,6 +17,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 use crate::config::{ClusterConfig, PeerInfo};
+use crate::sync::coordinator::SyncCoordinator;
 use crate::sync::protocol::SyncMessage;
 
 /// TCP transport manager for cluster communication
@@ -29,6 +30,8 @@ pub struct TcpTransport {
     cluster_config: Arc<RwLock<Option<ClusterConfig>>>,
     /// Whether the server is running
     server_running: Arc<RwLock<bool>>,
+    /// Sync coordinator for handling messages
+    sync_coordinator: Arc<RwLock<Option<Arc<SyncCoordinator>>>>,
 }
 
 /// Active connection to a peer
@@ -69,12 +72,18 @@ impl TcpTransport {
             connections: Arc::new(RwLock::new(HashMap::new())),
             cluster_config: Arc::new(RwLock::new(None)),
             server_running: Arc::new(RwLock::new(false)),
+            sync_coordinator: Arc::new(RwLock::new(None)),
         }
     }
 
     /// Set cluster configuration
     pub async fn set_cluster_config(&self, config: ClusterConfig) {
         *self.cluster_config.write().await = Some(config);
+    }
+
+    /// Set the sync coordinator for message handling
+    pub async fn set_sync_coordinator(&self, coordinator: Arc<SyncCoordinator>) {
+        *self.sync_coordinator.write().await = Some(coordinator);
     }
 
     /// Start the TCP server
@@ -97,6 +106,7 @@ impl TcpTransport {
         let connections = self.connections.clone();
         let cluster_config = self.cluster_config.clone();
         let server_running = self.server_running.clone();
+        let sync_coordinator = self.sync_coordinator.clone();
 
         tokio::spawn(async move {
             while *server_running.read().await {
@@ -117,6 +127,7 @@ impl TcpTransport {
                         // Spawn handler for this connection
                         let connections_clone = connections.clone();
                         let cluster_config_clone = cluster_config.clone();
+                        let sync_coordinator_clone = sync_coordinator.clone();
 
                         tokio::spawn(async move {
                             if let Err(e) = Self::handle_connection(
@@ -125,6 +136,7 @@ impl TcpTransport {
                                 peer_id,
                                 connections_clone,
                                 cluster_config_clone,
+                                sync_coordinator_clone,
                             )
                             .await
                             {
@@ -147,6 +159,7 @@ impl TcpTransport {
     }
 
     /// Stop the TCP server
+    #[allow(dead_code)] // Called during daemon shutdown
     pub async fn stop_server(&self) -> Result<()> {
         {
             let mut running = self.server_running.write().await;
@@ -209,6 +222,7 @@ impl TcpTransport {
     }
 
     /// Disconnect from a peer
+    #[allow(dead_code)] // Called when peers leave cluster
     pub async fn disconnect_from_peer(&self, peer_id: &str) -> Result<()> {
         let mut connections = self.connections.write().await;
         if let Some(conn) = connections.remove(peer_id) {
@@ -277,12 +291,13 @@ impl TcpTransport {
     async fn handle_connection(
         mut stream: TokioTcpStream,
         addr: SocketAddr,
-        _peer_id: String,
-        _connections: Arc<RwLock<HashMap<String, PeerConnection>>>,
+        peer_id: String,
+        connections: Arc<RwLock<HashMap<String, PeerConnection>>>,
         cluster_config: Arc<RwLock<Option<ClusterConfig>>>,
+        sync_coordinator: Arc<RwLock<Option<Arc<SyncCoordinator>>>>,
     ) -> Result<()> {
         // Authenticate the connection
-        if let Err(e) = Self::authenticate_connection(&mut stream, &_peer_id, &cluster_config).await
+        if let Err(e) = Self::authenticate_connection(&mut stream, &peer_id, &cluster_config).await
         {
             error!("Authentication failed for {}: {}", addr, e);
             return Err(e);
@@ -321,18 +336,34 @@ impl TcpTransport {
             // Deserialize message
             let message: SyncMessage = serde_json::from_slice(&data)?;
 
-            // Handle the message
-            if let Err(e) =
-                Self::handle_message(&_peer_id, message, &_connections, &cluster_config).await
-            {
-                error!("Error handling message from {}: {}", addr, e);
+            // Handle the message and send response
+            match Self::handle_message(&peer_id, message, &sync_coordinator).await {
+                Ok(Some(response)) => {
+                    // Send response back to the peer
+                    let response_data = serde_json::to_vec(&response)?;
+                    let response_length = response_data.len() as u32;
+                    if let Err(e) = stream.write_all(&response_length.to_be_bytes()).await {
+                        error!("Failed to send response length to {}: {}", addr, e);
+                        break;
+                    }
+                    if let Err(e) = stream.write_all(&response_data).await {
+                        error!("Failed to send response data to {}: {}", addr, e);
+                        break;
+                    }
+                }
+                Ok(None) => {
+                    // No response needed
+                }
+                Err(e) => {
+                    error!("Error handling message from {}: {}", addr, e);
+                }
             }
         }
 
         // Clean up connection
         {
-            let mut conns = _connections.write().await;
-            conns.remove(&_peer_id);
+            let mut conns = connections.write().await;
+            conns.remove(&peer_id);
         }
 
         info!("Connection from {} closed", addr);
@@ -386,60 +417,36 @@ impl TcpTransport {
         }
     }
 
-    /// Handle received message
+    /// Handle received message by forwarding to sync coordinator
     async fn handle_message(
         sender_id: &str,
         message: SyncMessage,
-        _connections: &Arc<RwLock<HashMap<String, PeerConnection>>>,
-        _cluster_config: &Arc<RwLock<Option<ClusterConfig>>>,
-    ) -> Result<()> {
+        sync_coordinator: &Arc<RwLock<Option<Arc<SyncCoordinator>>>>,
+    ) -> Result<Option<SyncMessage>> {
         debug!("Received message from {}: {:?}", sender_id, message);
 
-        match message {
-            SyncMessage::SyncRequest(req) => {
-                // Handle sync request - log details
-                info!(
-                    "Received sync request {} from {} for version {}",
-                    req.request_id, req.requester_id, req.known_version
-                );
-                // Note: In a full implementation, this would be forwarded to the sync coordinator
+        // Get the sync coordinator
+        let coordinator_guard = sync_coordinator.read().await;
+        if let Some(coordinator) = coordinator_guard.as_ref() {
+            // Forward message to sync coordinator and get response
+            match coordinator.handle_sync_message(sender_id, message).await {
+                Ok(response) => Ok(Some(response)),
+                Err(e) => {
+                    error!(
+                        "Sync coordinator error handling message from {}: {}",
+                        sender_id, e
+                    );
+                    Err(e)
+                }
             }
-            SyncMessage::SyncResponse(resp) => {
-                // Handle sync response - log details
-                info!(
-                    "Received sync response {} with config version {} and {} conflicts",
-                    resp.request_id,
-                    resp.sync_version,
-                    resp.conflicts.len()
-                );
-                // Note: In a full implementation, this would be forwarded to the sync coordinator
-            }
-            SyncMessage::ConfigUpdate(update) => {
-                // Handle config update - log details
-                info!(
-                    "Received config update with sync version {} from {}",
-                    update.sync_version, sender_id
-                );
-                // Note: In a full implementation, this would be forwarded to the sync coordinator
-            }
-            SyncMessage::SyncComplete(comp) => {
-                // Handle sync complete - log details
-                info!(
-                    "Received sync complete notification for version {} from {}",
-                    comp.sync_version, sender_id
-                );
-                // Note: In a full implementation, this would be forwarded to the sync coordinator
-            }
-            SyncMessage::Heartbeat(heartbeat) => {
-                // Handle heartbeat
-                debug!(
-                    "Received heartbeat from {} (status: {:?})",
-                    sender_id, heartbeat.status
-                );
-            }
+        } else {
+            // No sync coordinator configured - log and continue (for backwards compatibility)
+            warn!(
+                "No sync coordinator configured, message from {} not processed",
+                sender_id
+            );
+            Ok(None)
         }
-
-        Ok(())
     }
 }
 

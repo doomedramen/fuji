@@ -1,6 +1,6 @@
 [package]
 name = "fuji"
-version = "0.1.10"
+version = "0.1.11"
 edition = "2021"
 rust-version = "1.80.0"
 authors = ["Martin Page <m@rtin.page>"]
@@ -209,3 +209,21 @@ panic = "abort"
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+[lints.rust]
+dead_code = "deny"
+unused_extern_crates = "deny"
+unused_imports = "deny"
+unused_variables = "deny"
+
+[lints.clippy]
+pedantic = "warn"
+nursery = "warn"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"

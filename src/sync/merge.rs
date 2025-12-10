@@ -23,10 +23,13 @@ pub struct ConfigMerger {
 #[derive(Debug, Clone)]
 pub enum ConflictResolutionStrategy {
     /// Always use the latest version (by timestamp)
+    #[allow(dead_code)] // Alternative conflict resolution strategy
     LatestWins,
     /// Use version from specific instance ID
+    #[allow(dead_code)] // Alternative conflict resolution strategy
     PreferInstance(String),
     /// Mark conflicts for manual resolution
+    #[allow(dead_code)] // Alternative conflict resolution strategy
     Manual,
     /// Automatic resolution using instance ID as tie-breaker
     InstanceIdTieBreak,
@@ -70,6 +73,7 @@ impl ConfigMerger {
     }
 
     /// Create a new config merger with specific instance ID
+    #[allow(dead_code)] // Alternative constructor
     pub fn with_instance_id(instance_id: String) -> Self {
         let mut merger = Self::new();
         merger.instance_id = instance_id;

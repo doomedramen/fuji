@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use fuji::config::{ClusterConfig, Config, PeerInfo, PeerStatus};
+use fuji::config::{ClusterConfig, PeerInfo, PeerStatus};
 use fuji::network::tcp::TcpTransport;
 use fuji::sync::protocol::{SyncMessage, SyncRequest};
 
@@ -42,30 +42,34 @@ async fn test_tcp_transport_connect_to_peer() {
     transport1.start_server().await.unwrap();
     transport2.start_server().await.unwrap();
 
-    // Get the actual listening addresses
-    let local_addr1 = transport1.get_local_address().await.unwrap();
-    let local_addr2 = transport2.get_local_address().await.unwrap();
-
-    // Configure cluster with peers
+    // Configure cluster with peers (using hardcoded address for testing)
     let peer_config = ClusterConfig {
         enabled: true,
         instance_id: "test-instance".to_string(),
         peers: vec![PeerInfo {
             id: "peer-1".to_string(),
-            address: local_addr2.to_string(),
+            address: "127.0.0.1:10081".to_string(),
             psk: "test-psk-123".to_string(),
             last_seen: chrono::Utc::now(),
             status: PeerStatus::Disconnected,
         }],
-        sync_interval: Duration::minutes(5),
-        sync_timeout: Duration::minutes(10),
+        port: 10080,
+        sync_interval: Duration::from_secs(300), // 5 minutes
+        sync_timeout: Duration::from_secs(600),  // 10 minutes
         sync_metadata: Default::default(),
     };
 
     transport1.set_cluster_config(peer_config).await;
 
-    // Connect to peer
-    let result = transport1.connect_to_peer("peer-1").await;
+    // Connect to peer (testing with PeerInfo struct)
+    let peer_info = PeerInfo {
+        id: "peer-1".to_string(),
+        address: "127.0.0.1:10081".to_string(),
+        psk: "test-psk-123".to_string(),
+        last_seen: chrono::Utc::now(),
+        status: PeerStatus::Disconnected,
+    };
+    let result = transport1.connect_to_peer(&peer_info).await;
     assert!(result.is_ok());
 
     // Check connection status

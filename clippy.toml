@@ -1,0 +1,24 @@
+# Clippy configuration for Fuji project
+# This file configures Rust lints to enforce code quality
+
+# Deny dead code to force proper integration
+dead_code = "deny"
+unused_extern_crates = "deny"
+unused_imports = "deny"
+unused_variables = "deny"
+
+# Additional clippy lints to enforce
+pedantic = "warn"
+nursery = "warn"
+
+# Specific clippy lints to deny
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+
+# Allow some pedantic lints that might be too strict
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"

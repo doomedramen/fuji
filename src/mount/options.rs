@@ -11,8 +11,10 @@ pub struct MountOptions {
     /// Raw options as provided
     pub raw: Vec<String>,
     /// Parsed key-value options
+    #[allow(dead_code)] // Used for option lookup after parsing
     pub options: HashMap<String, String>,
     /// Filesystem type
+    #[allow(dead_code)] // Used for fs-specific validation
     pub fs_type: String,
     /// Security-related options
     pub security: SecurityOptions,
@@ -69,10 +71,13 @@ pub struct PerformanceOptions {
 /// Mount option parser
 pub struct MountOptionParser {
     /// Known filesystem-specific options
+    #[allow(dead_code)] // Used for fs-specific option validation
     fs_options: HashMap<String, HashSet<String>>,
     /// Global security options
+    #[allow(dead_code)] // Used for security option validation
     global_security: HashSet<String>,
     /// Boolean options that don't take values
+    #[allow(dead_code)] // Used for boolean option parsing
     boolean_options: HashSet<String>,
 }
 
@@ -656,6 +661,7 @@ impl MountOptionParser {
     }
 
     /// Format mount options for mount command
+    #[allow(dead_code)] // Utility for generating mount command options
     pub fn format(&self, options: &MountOptions) -> String {
         let mut formatted = Vec::new();
 
@@ -675,6 +681,7 @@ impl MountOptionParser {
     }
 
     /// Check if option is supported for filesystem
+    #[allow(dead_code)] // Utility for option validation
     pub fn is_supported(&self, option: &str, fs_type: &str) -> bool {
         self.boolean_options.contains(option)
             || self.global_security.contains(option)

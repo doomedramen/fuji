@@ -282,6 +282,7 @@ async fn test_daemon_startup_with_resource_limits() {
             config_dir: Some(temp_dir.path().to_path_buf()),
             mount_dir: Some(temp_dir.path().join("mounts")),
         },
+        cluster: None,
     };
 
     // Save config to file

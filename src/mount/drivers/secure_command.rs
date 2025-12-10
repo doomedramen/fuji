@@ -73,47 +73,16 @@ impl SecureCommand {
         }
     }
 
-    /// Create a new secure command with seccomp profile
-    pub fn new_with_seccomp(program: &str, profile: SeccompProfile) -> Self {
-        Self {
-            program: program.to_string(),
-            args: Vec::new(),
-            seccomp_profile: Some(profile),
-        }
-    }
-
-    /// Set seccomp profile for the command
-    pub fn with_seccomp_profile(mut self, profile: SeccompProfile) -> Self {
-        self.seccomp_profile = Some(profile);
-        self
-    }
-
     /// Add an argument to the command
     pub fn arg<S: Into<String>>(mut self, arg: S) -> Self {
         self.args.push(arg.into());
         self
     }
 
-    /// Add multiple arguments to the command
-    pub fn args<I, S>(mut self, args: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        for arg in args {
-            self.args.push(arg.into());
-        }
+    /// Set seccomp profile for the command
+    pub fn with_seccomp_profile(mut self, profile: SeccompProfile) -> Self {
+        self.seccomp_profile = Some(profile);
         self
-    }
-
-    /// Get the program name (for testing)
-    pub fn get_program(&self) -> &str {
-        &self.program
-    }
-
-    /// Get the arguments (for testing)
-    pub fn get_args(&self) -> &[String] {
-        &self.args
     }
 
     /// Execute the command and return the output
@@ -172,39 +141,6 @@ impl SecureCommand {
         Ok(stdout.into_owned())
     }
 
-    /// Execute the command without capturing output
-    pub async fn spawn(&self) -> Result<()> {
-        trace!(
-            "Spawning secure command: {} {}",
-            self.program,
-            self.args.join(" ")
-        );
-
-        let mut child = Command::new(&self.program)
-            .args(&self.args)
-            .spawn()
-            .with_context(|| {
-                format!(
-                    "Failed to spawn command: {} {}",
-                    self.program,
-                    self.args.join(" ")
-                )
-            })?;
-
-        let status = child
-            .wait()
-            .with_context(|| "Failed to wait for command completion")?;
-
-        if !status.success() {
-            return Err(anyhow::anyhow!(
-                "Command failed with exit code: {}",
-                status.code().unwrap_or(-1)
-            ));
-        }
-
-        Ok(())
-    }
-
     /// Execute the command and get the status
     pub async fn status(&self) -> Result<bool> {
         trace!(
@@ -229,6 +165,7 @@ impl SecureCommand {
 }
 
 /// Escape a string for safe shell usage
+#[allow(dead_code)] // Security utility for shell command construction
 pub fn escape_shell_arg(arg: &str) -> Result<String> {
     // Use shlex to properly escape the argument
     let escaped = shlex::try_quote(arg)?.into_owned();
