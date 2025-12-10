@@ -27,6 +27,8 @@ pub struct HealthCheckScheduler {
     cleanup_interval: u64,
     /// Maximum age for health status entries (in seconds)
     max_status_age: u64,
+    /// Mount configurations for health checks
+    mount_configs: Arc<RwLock<HashMap<String, crate::mount::MountConfig>>>,
 }
 
 /// A health check job configuration
@@ -56,6 +58,7 @@ impl HealthCheckScheduler {
             default_interval: "*/30 * * * * *".to_string(), // Every 30 seconds
             cleanup_interval: 300,                          // 5 minutes
             max_status_age: 3600,                           // 1 hour
+            mount_configs: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -154,6 +157,12 @@ impl HealthCheckScheduler {
     ) -> Result<()> {
         let mount_id = mount_config.id.clone();
 
+        // Store mount configuration
+        {
+            let mut mount_configs = self.mount_configs.write().await;
+            mount_configs.insert(mount_id.clone(), mount_config.clone());
+        }
+
         // Determine check interval based on mount type and options
         let interval = self.determine_check_interval(mount_config)?;
 
@@ -196,6 +205,12 @@ impl HealthCheckScheduler {
                     }
                 }
             }
+        }
+
+        // Remove mount configuration
+        {
+            let mut mount_configs = self.mount_configs.write().await;
+            mount_configs.remove(mount_id);
         }
 
         // Remove last status
@@ -249,23 +264,28 @@ impl HealthCheckScheduler {
         let mount_id_for_job = mount_id.to_string();
         let health_checks_weak = Arc::downgrade(&self.health_checks);
         let last_statuses_weak = Arc::downgrade(&self.last_statuses);
+        let mount_configs_weak = Arc::downgrade(&self.mount_configs);
 
         // Create the job using the correct API
         let cron_job = Job::new_async(job.interval.as_str(), move |_uuid, _scheduler| {
             let mount_id = mount_id_for_job.clone();
             let health_checks_weak = health_checks_weak.clone();
             let last_statuses_weak = last_statuses_weak.clone();
+            let mount_configs_weak = mount_configs_weak.clone();
 
             Box::pin(async move {
                 // Try to upgrade weak references
-                let (health_checks, last_statuses) =
-                    match (health_checks_weak.upgrade(), last_statuses_weak.upgrade()) {
-                        (Some(hc), Some(ls)) => (hc, ls),
-                        _ => {
-                            // Scheduler has been dropped, exit
-                            return;
-                        }
-                    };
+                let (health_checks, last_statuses, mount_configs) = match (
+                    health_checks_weak.upgrade(),
+                    last_statuses_weak.upgrade(),
+                    mount_configs_weak.upgrade(),
+                ) {
+                    (Some(hc), Some(ls), Some(mc)) => (hc, ls, mc),
+                    _ => {
+                        // Scheduler has been dropped, exit
+                        return;
+                    }
+                };
 
                 // Get check types
                 let check_types = {
@@ -278,8 +298,22 @@ impl HealthCheckScheduler {
                     }
                 };
 
+                // Get mount configuration
+                let mount_config = {
+                    let mount_configs = mount_configs.read().await;
+                    match mount_configs.get(&mount_id) {
+                        Some(config) => config.clone(),
+                        None => {
+                            warn!("Mount configuration not found for {}", mount_id);
+                            return;
+                        }
+                    }
+                };
+
                 // Run health checks
-                match Self::run_health_checks_static(&mount_id, &check_types).await {
+                match Self::run_health_checks_static(&mount_id, &check_types, Some(mount_config))
+                    .await
+                {
                     Ok(status) => {
                         // Update last status
                         let mut last_statuses = last_statuses.write().await;
@@ -322,13 +356,20 @@ impl HealthCheckScheduler {
             }
         }
 
-        Self::run_health_checks_static(mount_id, check_types).await
+        // Get mount configuration
+        let mount_config = {
+            let mount_configs = self.mount_configs.read().await;
+            mount_configs.get(mount_id).cloned()
+        };
+
+        Self::run_health_checks_static(mount_id, check_types, mount_config).await
     }
 
     /// Static method to run health checks
     async fn run_health_checks_static(
         mount_id: &str,
         check_types: &[String],
+        mount_config: Option<crate::mount::MountConfig>,
     ) -> Result<HealthStatus> {
         debug!("Running health checks for mount {}", mount_id);
 
@@ -338,7 +379,25 @@ impl HealthCheckScheduler {
         let mut health_score: u32 = 100;
 
         for check_type in check_types {
-            match health_checks::run_check(mount_id, check_type).await {
+            let result = if let Some(ref config) = mount_config {
+                // Get platform and create health check context
+                let platform = crate::platform::get_platform();
+                let context = super::health_checks::HealthCheckContext {
+                    config,
+                    mount_point: &config.mount_point,
+                    platform: platform.as_ref(),
+                };
+                health_checks::run_check(mount_id, check_type, context).await
+            } else {
+                // Fallback to old API if no config available
+                warn!(
+                    "No mount configuration available for {}, using fallback",
+                    mount_id
+                );
+                Ok(false)
+            };
+
+            match result {
                 Ok(healthy) => {
                     if healthy {
                         healthy_count += 1;
