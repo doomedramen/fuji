@@ -4,6 +4,7 @@ use crate::mount::drivers::{
     MountOptionsValidator, MountUrlValidator, SecureCommand, create_secure_mount_command,
 };
 use crate::mount::{MountConfig, MountHandler, MountState, MountType};
+use crate::platform::deps::SystemDepsChecker;
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use std::path::{Path, PathBuf};
@@ -157,8 +158,24 @@ impl MountHandler for SshfsHandler {
             _ => return Err(anyhow!("Invalid mount type for SSHFS handler")),
         };
 
-        if !self.check_sshfs().await {
-            return Err(anyhow!("sshfs is not installed"));
+        // Check system dependencies with helpful error messages
+        let deps_checker = SystemDepsChecker::new();
+        match deps_checker.check_dependency("sshfs").await {
+            Ok(result) if !result.available => {
+                let mut error_msg = format!("sshfs is not installed or not found in PATH");
+                if let Some(ref instructions) = result.install_instructions {
+                    error_msg.push_str(&format!("\nTo install: {}", instructions));
+                }
+                return Err(anyhow!(error_msg));
+            }
+            Err(e) => {
+                warn!("Failed to check sshfs dependency: {}", e);
+                // Fall back to simple check
+                if !self.check_sshfs().await {
+                    return Err(anyhow!("sshfs is not installed"));
+                }
+            }
+            _ => {} // Dependency is available
         }
 
         info!(

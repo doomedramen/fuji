@@ -17,6 +17,14 @@ use crate::cluster::instance::InstanceManager;
 use crate::config::Config;
 use cluster::ClusterCommands;
 
+/// Mount type argument for CLI
+#[derive(Debug, Clone, clap::ValueEnum)]
+pub enum MountTypeArg {
+    Nfs,
+    Smb,
+    Sshfs,
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "fuji")]
 #[command(about = "A network file system mount manager", long_about = None)]
@@ -184,6 +192,21 @@ pub enum Commands {
         /// Dry run - show what would be executed
         #[arg(long)]
         dry_run: bool,
+    },
+
+    /// Check system dependencies
+    CheckSystem {
+        /// Check dependencies for a specific mount type only
+        #[arg(long, value_enum)]
+        mount_type: Option<MountTypeArg>,
+
+        /// Check only required dependencies
+        #[arg(long)]
+        required_only: bool,
+
+        /// Output in JSON format
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// Cluster management
@@ -379,6 +402,11 @@ pub async fn run(cli: Cli, platform: Box<dyn Platform>) -> Result<()> {
             continue_on_error,
             dry_run,
         } => handle_batch(file, continue_on_error, dry_run, platform).await,
+        Commands::CheckSystem {
+            mount_type,
+            required_only,
+            json,
+        } => handle_check_system(mount_type, required_only, json).await,
         Commands::Cluster {
             command,
         } => {
@@ -1135,46 +1163,129 @@ fn collect_keys(value: &toml::Value, prefix: String) -> Vec<String> {
 }
 
 /// Handle doctor command
-async fn handle_doctor(platform: &dyn Platform) -> Result<()> {
-    let client = create_socket_client(platform).await?;
-    let response = client.send_request(Request::Doctor).await;
+/// Handle check-system command
+async fn handle_check_system(
+    mount_type: Option<MountTypeArg>,
+    required_only: bool,
+    json: bool,
+) -> Result<()> {
+    use crate::mount::MountType;
+    use crate::platform::deps::SystemDepsChecker;
 
-    match response {
-        Ok(Response::DoctorReport {
-            issues,
-            suggestions,
-        }) => {
-            println!("System Diagnosis:\n");
+    let checker = SystemDepsChecker::new();
 
-            if issues.is_empty() {
-                println!("✓ No issues found");
-            } else {
-                for issue in issues {
-                    let icon = match issue.severity {
-                        crate::socket::protocol::IssueSeverity::Error => "❌",
-                        crate::socket::protocol::IssueSeverity::Warning => "⚠️",
-                        crate::socket::protocol::IssueSeverity::Info => "ℹ️",
-                    };
-                    println!("{} {}: {}", icon, issue.component, issue.message);
-                }
-            }
+    let result = if let Some(mount_type_arg) = mount_type {
+        // Check dependencies for a specific mount type
+        let mount_type = match mount_type_arg {
+            MountTypeArg::Nfs => MountType::Nfs {
+                host: "dummy".to_string(),
+                share: "/dummy".to_string(),
+                options: vec![],
+            },
+            MountTypeArg::Smb => MountType::Smb {
+                host: "dummy".to_string(),
+                share: "dummy".to_string(),
+                username: None,
+                password: None,
+                domain: None,
+                options: vec![],
+            },
+            MountTypeArg::Sshfs => MountType::Sshfs {
+                host: "dummy".to_string(),
+                username: None,
+                path: "/dummy".to_string(),
+                private_key: None,
+                password: None,
+                options: vec![],
+            },
+        };
 
-            if !suggestions.is_empty() {
-                println!("\nSuggestions:");
-                for suggestion in suggestions {
-                    println!("  • {}", suggestion);
-                }
-            }
+        checker.check_for_mount_type(&mount_type).await?
+    } else if required_only {
+        // Check only required dependencies
+        checker.check_required().await
+    } else {
+        // Check all dependencies
+        checker.check_all().await
+    };
 
-            Ok(())
-        }
-        Ok(Response::Error(msg)) => {
-            error!("Doctor failed: {}", msg);
-            Err(anyhow!(msg))
-        }
-        Ok(_) => Err(anyhow!("Unexpected response")),
-        Err(e) => Err(e),
+    if json {
+        // Output JSON format
+        println!("{}", serde_json::to_string_pretty(&result)?);
+    } else {
+        // Human-readable format
+        checker.print_report(&result);
     }
+
+    Ok(())
+}
+
+/// Handle doctor command
+async fn handle_doctor(platform: &dyn Platform) -> Result<()> {
+    use crate::platform::deps::SystemDepsChecker;
+
+    println!("Fuji System Diagnosis\n");
+    println!("=== Checking System Dependencies ===");
+
+    // Check system dependencies first
+    let deps_checker = SystemDepsChecker::new();
+    let deps_result = deps_checker.check_all().await;
+    deps_checker.print_report(&deps_result);
+
+    // Then check daemon if running
+    println!("\n=== Checking Daemon Status ===");
+    match create_socket_client(platform).await {
+        Ok(client) => match client.send_request(Request::Doctor).await {
+            Ok(Response::DoctorReport {
+                issues,
+                suggestions,
+            }) => {
+                if issues.is_empty() {
+                    println!("✓ Daemon reports no issues");
+                } else {
+                    for issue in issues {
+                        let icon = match issue.severity {
+                            crate::socket::protocol::IssueSeverity::Error => "❌",
+                            crate::socket::protocol::IssueSeverity::Warning => "⚠️",
+                            crate::socket::protocol::IssueSeverity::Info => "ℹ️",
+                        };
+                        println!("{} {}: {}", icon, issue.component, issue.message);
+                    }
+                }
+
+                if !suggestions.is_empty() {
+                    println!("\nSuggestions from daemon:");
+                    for suggestion in suggestions {
+                        println!("  • {}", suggestion);
+                    }
+                }
+            }
+            Ok(Response::Error(msg)) => {
+                println!("⚠️ Daemon returned error: {}", msg);
+            }
+            Ok(_) => {
+                println!("⚠️ Unexpected response from daemon");
+            }
+            Err(e) => {
+                println!("⚠️ Failed to communicate with daemon: {}", e);
+            }
+        },
+        Err(e) => {
+            println!("⚠️ Could not connect to daemon: {}", e);
+            println!("  The daemon may not be running. Start it with: fuji daemon start");
+        }
+    }
+
+    // Summary
+    println!("\n=== Summary ===");
+    if deps_result.all_required_available {
+        println!("✓ All required system dependencies are available");
+    } else {
+        println!("✗ Some required dependencies are missing");
+        println!("  Install them before using Fuji for mounting");
+    }
+
+    Ok(())
 }
 
 /// Create a socket client with the platform's socket path

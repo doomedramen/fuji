@@ -25,6 +25,9 @@ mod fallback;
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
 use fallback as platform_impl;
 
+/// System dependencies checker
+pub mod deps;
+
 /// Platform-specific operations
 /// This trait is object-safe and can be used as Box<dyn Platform>
 pub trait Platform: Send + Sync {
