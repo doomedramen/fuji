@@ -215,7 +215,7 @@ impl DiscoveryManager {
     /// Get the local network address
     async fn get_local_address(&self) -> Result<SocketAddr> {
         // Try to get a non-localhost IP address first
-        if let Some(addr) = local_ip::get() {
+        if let Ok(addr) = local_ip_address::local_ip() {
             if addr.is_ipv4() && !addr.is_loopback() {
                 return Ok(SocketAddr::new(addr, CLUSTER_PORT));
             }

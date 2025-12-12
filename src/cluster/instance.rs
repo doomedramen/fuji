@@ -197,20 +197,12 @@ fn get_local_ip_addresses() -> Vec<String> {
     ips.push("::1".to_string());
 
     // Try to get actual network interfaces
-    if let Ok(interfaces) = get_if_addrs::get_if_addrs() {
-        for iface in interfaces {
-            if iface.is_loopback() {
+    if let Ok(interfaces) = local_ip_address::list_afinet_netifas() {
+        for (_name, ip) in interfaces {
+            if ip.is_loopback() {
                 continue;
             }
-
-            match iface.addr {
-                get_if_addrs::IfAddr::V4(addr) => {
-                    ips.push(addr.ip.to_string());
-                }
-                get_if_addrs::IfAddr::V6(addr) => {
-                    ips.push(addr.ip.to_string());
-                }
-            }
+            ips.push(ip.to_string());
         }
     }
 
