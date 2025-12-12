@@ -69,7 +69,13 @@ impl ClusterInvitation {
         use hmac::{Hmac, Mac};
         use sha2::Sha256;
 
-        let data = format!("{}:{}:{}", instance_id, address, expires_at.timestamp());
+        // Use timestamp_nanos for higher precision to ensure unique signatures
+        let data = format!(
+            "{}:{}:{}",
+            instance_id,
+            address,
+            expires_at.timestamp_nanos_opt().unwrap_or(0)
+        );
         let mut mac = Hmac::<Sha256>::new_from_slice(b"fuji-cluster-invitation")
             .map_err(|e| anyhow!("Failed to create HMAC: {}", e))?;
         mac.update(data.as_bytes());
@@ -116,7 +122,11 @@ impl ClusterInvitation {
     pub fn hours_until_expiration(&self) -> i64 {
         let now = Utc::now();
         if self.expires_at > now {
-            (self.expires_at - now).num_hours()
+            // Use num_seconds() and divide to get more precise calculation
+            // This ensures we always return at least 1 if there's any time left
+            let seconds_left = (self.expires_at - now).num_seconds();
+            // Return at least 1 hour if there's any time left
+            std::cmp::max(1, seconds_left / 3600)
         } else {
             0
         }
