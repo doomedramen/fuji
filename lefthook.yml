@@ -52,7 +52,7 @@ pre-push:
 
     # All unit tests
     test-unit:
-      run: make test-unit
+      run: cargo test --all-features --no-fail-fast -- --test-threads=1 2>&1
       glob: "*.rs"
       fail_text: "Unit tests failed."
       timeout: 300
