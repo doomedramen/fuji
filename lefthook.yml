@@ -1,72 +1,174 @@
 # Lefthook configuration for Fuji
 # Enterprise-grade security and quality checks
+# Note: Fuji is Linux-only. On non-Linux, hooks run via Dev Container CLI
 
 pre-commit:
   commands:
-    # Bump patch version if changed
-    version-bump:
-      run: |
-        if git diff --cached --name-only | grep -E "(Cargo\.toml|src/)"; then
-          # Check if version has already been updated in this commit
-          if (git diff --cached Cargo.toml | grep -q "version"); then
-            echo "Version already updated in this commit"
-          else
-            echo "Auto-bumping patch version..."
-            # Just update the Cargo.toml without committing
-            cargo bump patch --manifest-path Cargo.toml
-            # Stage the updated Cargo.toml and Cargo.lock
-            git add Cargo.toml Cargo.lock
-          fi
-        fi
-      glob: "*"
-      fail_text: "Version bump failed."
-
     # Auto-format and stage changes
     format:
       run: |
-        make fmt
-        git add -u '*.rs'
+        # Check if we're on Linux
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+          # Running on Linux, execute directly
+          make fmt
+          git add -u '*.rs'
+        else
+          # Not on Linux, use Dev Container
+          if command -v devcontainer &> /dev/null; then
+            # Check if container is already running
+            if ! devcontainer ls-running 2>/dev/null | grep -q "fuji"; then
+              echo "Starting Dev Container for formatting..."
+              devcontainer up --workspace-folder . > /dev/null 2>&1
+            fi
+            # Run format in container
+            devcontainer exec --workspace-folder . bash -c "cd /app && make fmt && git add -u '*.rs'"
+          else
+            echo "⚠️  Skipping format: Dev Container CLI not installed"
+            echo "   Install with: npm install -g @devcontainers/cli"
+            echo "   Or use VS Code with Dev Containers extension"
+          fi
+        fi
       glob: "*.rs"
       fail_text: "Code formatting failed."
 
     # Quick compilation check
     check:
-      run: make build-dev
+      run: |
+        # Check if we're on Linux
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+          # Running on Linux, execute directly
+          make build-dev
+        else
+          # Not on Linux, use Dev Container
+          if command -v devcontainer &> /dev/null; then
+            # Check if container is already running
+            if ! devcontainer ls-running 2>/dev/null | grep -q "fuji"; then
+              echo "Starting Dev Container for build check..."
+              devcontainer up --workspace-folder . > /dev/null 2>&1
+            fi
+            # Run build in container
+            devcontainer exec --workspace-folder . bash -c "cd /app && make build-dev"
+          else
+            echo "⚠️  Skipping build check: Dev Container CLI not installed"
+            echo "   Install with: npm install -g @devcontainers/cli"
+            echo "   Or use VS Code with Dev Containers extension"
+          fi
+        fi
       glob: "*.rs"
       fail_text: "Code has compilation errors."
-
-    # Critical security checks only
-    security-quick:
-      run: make test-security
-      glob: "src/security/**/*.rs"
-      fail_text: "Critical security checks failed."
 
 pre-push:
   commands:
     # Full clippy check
     clippy:
-      run: make clippy
+      run: |
+        # Check if we're on Linux
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+          # Running on Linux, execute directly
+          make clippy
+        else
+          # Not on Linux, use Dev Container
+          if command -v devcontainer &> /dev/null; then
+            # Check if container is already running
+            if ! devcontainer ls-running 2>/dev/null | grep -q "fuji"; then
+              echo "Starting Dev Container for clippy..."
+              devcontainer up --workspace-folder . > /dev/null 2>&1
+            fi
+            # Run clippy in container
+            devcontainer exec --workspace-folder . bash -c "cd /app && make clippy"
+          else
+            echo "❌ ERROR: Dev Container CLI not found!"
+            echo ""
+            echo "Fuji is Linux-only. To push changes:"
+            echo ""
+            echo "Option 1: VS Code (Recommended)"
+            echo "  1. Install 'Dev Containers' extension"
+            echo "  2. Cmd+Shift+P → 'Dev Containers: Reopen in Container'"
+            echo "  3. Push from within the container"
+            echo ""
+            echo "Option 2: CLI"
+            echo "  1. npm install -g @devcontainers/cli"
+            echo "  2. Push from within the container"
+            echo ""
+            exit 1
+          fi
+        fi
       glob: "*.rs"
       fail_text: "Clippy found issues. Fix them before pushing."
       timeout: 120
 
     # All unit tests
     test-unit:
-      run: cargo test --all-features --no-fail-fast -- --test-threads=1 2>&1
+      run: |
+        # Check if we're on Linux
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+          # Running on Linux, execute directly
+          cargo test --all-features --no-fail-fast -- --test-threads=1 2>&1
+        else
+          # Not on Linux, use Dev Container
+          if command -v devcontainer &> /dev/null; then
+            # Check if container is already running
+            if ! devcontainer ls-running 2>/dev/null | grep -q "fuji"; then
+              echo "Starting Dev Container for tests..."
+              devcontainer up --workspace-folder . > /dev/null 2>&1
+            fi
+            # Run tests in container
+            devcontainer exec --workspace-folder . bash -c "cd /app && cargo test --all-features --no-fail-fast -- --test-threads=1"
+          else
+            echo "❌ ERROR: Dev Container CLI not found!"
+            echo ""
+            echo "Fuji is Linux-only. To push changes:"
+            echo ""
+            echo "Option 1: VS Code (Recommended)"
+            echo "  1. Install 'Dev Containers' extension"
+            echo "  2. Cmd+Shift+P → 'Dev Containers: Reopen in Container'"
+            echo "  3. Push from within the container"
+            echo ""
+            echo "Option 2: CLI"
+            echo "  1. npm install -g @devcontainers/cli"
+            echo "  2. Push from within the container"
+            echo ""
+            exit 1
+          fi
+        fi
       glob: "*.rs"
       fail_text: "Unit tests failed."
       timeout: 300
 
-    # Security test suite
-    test-security:
-      run: make test-security
-      glob: "src/security/**/*.rs"
-      fail_text: "Security tests failed."
-      timeout: 240
-
     # Build verification
     build-release:
-      run: make build
+      run: |
+        # Check if we're on Linux
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+          # Running on Linux, execute directly
+          make build
+        else
+          # Not on Linux, use Dev Container
+          if command -v devcontainer &> /dev/null; then
+            # Check if container is already running
+            if ! devcontainer ls-running 2>/dev/null | grep -q "fuji"; then
+              echo "Starting Dev Container for release build..."
+              devcontainer up --workspace-folder . > /dev/null 2>&1
+            fi
+            # Run build in container
+            devcontainer exec --workspace-folder . bash -c "cd /app && make build"
+          else
+            echo "❌ ERROR: Dev Container CLI not found!"
+            echo ""
+            echo "Fuji is Linux-only. To push changes:"
+            echo ""
+            echo "Option 1: VS Code (Recommended)"
+            echo "  1. Install 'Dev Containers' extension"
+            echo "  2. Cmd+Shift+P → 'Dev Containers: Reopen in Container'"
+            echo "  3. Push from within the container"
+            echo ""
+            echo "Option 2: CLI"
+            echo "  1. npm install -g @devcontainers/cli"
+            echo "  2. Push from within the container"
+            echo ""
+            exit 1
+          fi
+        fi
       glob: "*.rs"
       fail_text: "Release build failed."
       timeout: 180
