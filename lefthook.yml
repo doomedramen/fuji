@@ -39,24 +39,24 @@ pre-push:
       run: |
         if [[ "$OSTYPE" == "linux-gnu"* ]]; then
           # Running on Linux - execute directly
-          make clippy
+          CARGO_BUILD_JOBS=2 make clippy
         else
-          # Running on macOS - execute in dev container
-          devcontainer exec --workspace-folder . make clippy
+          # Running on macOS - execute in dev container with limited parallelism
+          devcontainer exec --workspace-folder . env CARGO_BUILD_JOBS=2 make clippy
         fi
       glob: "*.rs"
       fail_text: "Clippy found issues. Fix them before pushing."
       timeout: 120
 
-    # All unit tests
+    # Library unit tests (full integration tests run in CI)
     test-unit:
       run: |
         if [[ "$OSTYPE" == "linux-gnu"* ]]; then
           # Running on Linux - execute directly
-          cargo test --all-features --no-fail-fast -- --test-threads=1 2>&1
+          CARGO_BUILD_JOBS=2 cargo test --lib --all-features --no-fail-fast -- --test-threads=1
         else
-          # Running on macOS - execute in dev container
-          devcontainer exec --workspace-folder . cargo test --all-features --no-fail-fast -- --test-threads=1 2>&1
+          # Running on macOS - execute in dev container with limited parallelism to avoid OOM
+          devcontainer exec --workspace-folder . env CARGO_BUILD_JOBS=2 cargo test --lib --all-features --no-fail-fast -- --test-threads=1
         fi
       glob: "*.rs"
       fail_text: "Unit tests failed."
@@ -67,17 +67,17 @@ pre-push:
       run: |
         if [[ "$OSTYPE" == "linux-gnu"* ]]; then
           # Running on Linux - execute directly
-          make build
+          CARGO_BUILD_JOBS=2 make build
         else
-          # Running on macOS - execute in dev container
-          devcontainer exec --workspace-folder . make build
+          # Running on macOS - execute in dev container with limited parallelism
+          devcontainer exec --workspace-folder . env CARGO_BUILD_JOBS=2 make build
         fi
       glob: "*.rs"
       fail_text: "Release build failed."
       timeout: 180
 
-  # Execute commands in parallel where safe
-  parallel: true
+  # Execute commands sequentially to avoid OOM in dev container
+  parallel: false
 
 # Global settings
 skip_output:
