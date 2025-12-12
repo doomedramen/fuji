@@ -30,7 +30,7 @@ test: test-unit test-security
 
 # Run unit tests only
 test-unit:
-	cargo test --all-features --no-fail-fast
+	cargo test --all-features --no-fail-fast -- --test-threads=1
 
 # Run security tests only
 test-security:
