@@ -157,13 +157,14 @@ impl ConnectionLimiter {
 
     /// Attempt to acquire a connection permit
     pub async fn acquire_connection(&self, client_id: &str) -> Result<ConnectionPermit> {
-        // Check global limit
-        let global_permit = self
-            .global_semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(|_| anyhow!("Failed to acquire connection permit"))?;
+        // Check global limit (try_acquire_owned returns immediately if no permits available)
+        let global_permit = match self.global_semaphore.clone().try_acquire_owned() {
+            Ok(permit) => permit,
+            Err(_) => {
+                self.increment_rejected("global_limit").await;
+                return Err(anyhow!("Failed to acquire connection permit"));
+            }
+        };
 
         // Check client-specific limits
         {

@@ -200,37 +200,42 @@ async fn test_connection_cleanup_task() {
 #[tokio::test]
 async fn test_multiple_clients_concurrent() {
     let limits = ConnectionLimits {
-        max_connections: 10,
-        max_connections_per_client: 2,
+        max_connections: 5, // Lower global limit to ensure we hit it
+        max_connections_per_client: 3,
         connection_timeout: 30,
         idle_timeout: 300,
         rate_limit_window: 60,
-        rate_limit_max: 5,
+        rate_limit_max: 100, // High rate limit so we don't hit it
     };
 
     let limiter = Arc::new(ConnectionLimiter::new(limits));
 
-    // Spawn multiple concurrent connection attempts
+    // Use a barrier to ensure all tasks try to acquire simultaneously
+    let barrier = Arc::new(tokio::sync::Barrier::new(10));
+
+    // Spawn multiple concurrent connection attempts that all hold permits simultaneously
     let mut handles = Vec::new();
 
-    for i in 0..5 {
+    for i in 0..10 {
         let limiter_clone = limiter.clone();
+        let barrier_clone = barrier.clone();
         let handle = tokio::spawn(async move {
-            let client_id = format!("client{}", i);
+            let client_id = format!("client{}", i % 5); // 5 unique clients, 2 attempts each
 
-            // Each client tries to acquire multiple connections
-            let mut results = Vec::new();
-            for j in 0..3 {
-                let result = limiter_clone.acquire_connection(&client_id).await;
-                results.push((j, result.is_ok()));
+            // Wait for all tasks to be ready
+            barrier_clone.wait().await;
 
-                // Hold the permit briefly
-                if let Ok(permit) = result {
-                    sleep(Duration::from_millis(10)).await;
-                    drop(permit);
-                }
+            // Try to acquire a connection
+            let result = limiter_clone.acquire_connection(&client_id).await;
+            let success = result.is_ok();
+
+            // Hold the permit for a bit if acquired
+            if let Ok(_permit) = result {
+                sleep(Duration::from_millis(50)).await;
+                // permit dropped here
             }
-            results
+
+            success
         });
         handles.push(handle);
     }
@@ -240,23 +245,34 @@ async fn test_multiple_clients_concurrent() {
     let mut rejected_connections = 0;
 
     for handle in handles {
-        let results = handle.await.unwrap();
-        for (_, success) in results {
-            if success {
-                successful_connections += 1;
-            } else {
-                rejected_connections += 1;
-            }
+        let success = handle.await.unwrap();
+        if success {
+            successful_connections += 1;
+        } else {
+            rejected_connections += 1;
         }
     }
 
-    // Verify that limits were respected
-    assert!(successful_connections <= 10); // Global limit
-    assert!(rejected_connections > 0); // Some should be rejected due to per-client limits
+    // Verify that global limits were respected:
+    // - max_connections is 5, so at most 5 can succeed simultaneously
+    // - We spawned 10 concurrent attempts, so at least 5 should be rejected
+    assert!(
+        successful_connections <= 5,
+        "Expected at most 5 successful connections (global limit), got {}",
+        successful_connections
+    );
+    assert!(
+        rejected_connections >= 5,
+        "Expected at least 5 rejected connections, got {}",
+        rejected_connections
+    );
+
+    // Total should equal 10 (our total attempts)
+    assert_eq!(successful_connections + rejected_connections, 10);
 
     let metrics = limiter.get_metrics().await;
-    assert_eq!(metrics.total_connections, successful_connections);
-    assert_eq!(metrics.rejected_connections, rejected_connections);
+    assert_eq!(metrics.total_connections, successful_connections as u64);
+    assert_eq!(metrics.rejected_connections, rejected_connections as u64);
 }
 
 #[tokio::test]
