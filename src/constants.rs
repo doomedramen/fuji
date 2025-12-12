@@ -78,8 +78,6 @@ pub mod paths {
     pub const MNT: &str = "/mnt";
     /// /media directory
     pub const MEDIA: &str = "/media";
-    /// /Volumes directory (macOS)
-    pub const VOLUMES: &str = "/Volumes";
 
     /// Fuji-specific paths
     pub mod fuji {

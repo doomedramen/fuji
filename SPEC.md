@@ -409,10 +409,10 @@ operations:
 The daemon initialization follows a carefully ordered sequence to ensure reliable startup:
 
 #### 1.1 Platform Detection and Path Setup
-- Detects operating system (Linux, macOS, BSD)
+- Detects operating system (Linux, BSD)
 - Sets up platform-specific paths:
   - **Linux**: Config `/etc/fuji/mounts.toml`, Socket `$XDG_RUNTIME_DIR/fuji.sock` or `/tmp/fuji.sock`
-  - **macOS**: Config `~/Library/Application Support/fuji/mounts.toml`, Socket `/tmp/fuji.sock`
+  - **BSD**: Config `/etc/fuji/mounts.toml`, Socket `/var/run/fuji.sock` or `/tmp/fuji.sock`
   - **Runtime Directory**: Creates if doesn't exist with appropriate permissions
 
 #### 1.2 Single Instance Check
@@ -724,12 +724,6 @@ Once verified, nodes establish bidirectional TCP connections for ongoing communi
 - Systemd integration
 - Native NFS and SMB utilities
 - Complete security framework
-
-### macOS
-- Adapted security measures
-- Launch integration support
-- Native file system utilities
-- Partial seccomp emulation
 
 ## Development and Testing
 

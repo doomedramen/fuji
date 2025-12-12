@@ -348,17 +348,6 @@ mod tests {
             inherit: false,
         };
 
-        // On macOS, non-root users can't change ownership, so we expect this to fail
-        // This tests that the function correctly handles permission errors
-        #[cfg(target_os = "macos")]
-        {
-            let result = manager.create_mount_point(&mount_path, Some(&config));
-            assert!(result.is_err());
-            // The directory should still be created
-            assert!(mount_path.exists());
-        }
-
-        #[cfg(not(target_os = "macos"))]
         {
             // Try to create mount point, handle permission errors gracefully
             match manager.create_mount_point(&mount_path, Some(&config)) {

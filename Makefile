@@ -1,4 +1,4 @@
-.PHONY: help build build-dev test test-unit test-security test-integration clean install release check-version fmt clippy ci
+.PHONY: help build build-dev test test-unit test-security test-integration clean install release check-version fmt clippy ci devcontainer-up devcontainer-exec devcontainer-down devcontainer-compose-up
 
 # Default target
 help:
@@ -16,6 +16,10 @@ help:
 	@echo "  fmt            - Format code"
 	@echo "  clippy         - Run clippy lints"
 	@echo "  ci             - Run full CI checks locally"
+	@echo "  devcontainer-up - Start devcontainer (requires devcontainer CLI)"
+	@echo "  devcontainer-exec - Execute command in running devcontainer"
+	@echo "  devcontainer-down - Stop devcontainer"
+	@echo "  devcontainer-compose-up - Start devcontainer with compose services (NFS/SMB servers)"
 
 # Build the project in release mode
 build:
@@ -115,3 +119,20 @@ release: check-version build
 	echo "Pushing tag to origin..." && \
 	git push origin v$$version && \
 	echo "Release v$$version pushed successfully!"
+
+# DevContainer commands (requires devcontainer CLI: https://github.com/devcontainers/cli)
+devcontainer-up:
+	@echo "Starting devcontainer..."
+	@devcontainer up --workspace-folder . --config .devcontainer/devcontainer.json
+
+devcontainer-exec:
+	@echo "Connecting to devcontainer..."
+	@devcontainer exec --workspace-folder . --config .devcontainer/devcontainer.json bash
+
+devcontainer-down:
+	@echo "Stopping devcontainer..."
+	@devcontainer down --workspace-folder . --config .devcontainer/devcontainer.json
+
+devcontainer-compose-up:
+	@echo "Starting devcontainer with compose services (NFS/SMB servers)..."
+	@devcontainer up --workspace-folder . --config .devcontainer/docker-compose.devcontainer.json

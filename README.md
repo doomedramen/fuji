@@ -1,7 +1,7 @@
 # Fuji
 > /📁/🗻
 
-A daemon-based network file system mount manager for Linux and macOS.
+A daemon-based network file system mount manager for Linux (Debian/Ubuntu and other distributions).
 
 ## Features
 
@@ -12,13 +12,6 @@ A daemon-based network file system mount manager for Linux and macOS.
 - **Multi-instance**: Cluster support with automatic configuration synchronization
 
 ## Installation
-
-### Homebrew (macOS)
-
-```bash
-brew tap doomedramen/fuji
-brew install fuji
-```
 
 ### From Source
 

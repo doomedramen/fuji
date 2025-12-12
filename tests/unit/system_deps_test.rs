@@ -22,7 +22,6 @@ fn test_system_deps_creation() {
     assert!(nfs_dep.required);
     assert!(nfs_dep.install_instructions.contains_key("debian"));
     assert!(nfs_dep.install_instructions.contains_key("ubuntu"));
-    assert!(nfs_dep.install_instructions.contains_key("macos"));
 }
 
 #[test]
@@ -82,8 +81,7 @@ fn test_get_os_family() {
 
     // Should be a known OS family
     let known_os_families = [
-        "linux", "debian", "ubuntu", "rhel", "centos", "fedora", "arch", "alpine", "macos", "bsd",
-        "unknown",
+        "linux", "debian", "ubuntu", "rhel", "centos", "fedora", "arch", "alpine", "bsd", "unknown",
     ];
     assert!(known_os_families.contains(&os));
 }
@@ -191,7 +189,7 @@ fn test_install_instructions_coverage() {
 
     // Each dependency should have installation instructions for major platforms
     let platforms = [
-        "debian", "ubuntu", "rhel", "centos", "fedora", "arch", "alpine", "macos",
+        "debian", "ubuntu", "rhel", "centos", "fedora", "arch", "alpine",
     ];
 
     for (key, dep) in deps {

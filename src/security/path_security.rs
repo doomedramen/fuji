@@ -333,7 +333,7 @@ impl PathSecurityValidator {
                 });
             }
 
-            // Check canonicalized paths (for macOS where /etc -> /private/etc)
+            // Check canonicalized paths (for systems where /etc might be a symlink)
             if let Ok(canonical_dangerous) = std::fs::canonicalize(dangerous_path) {
                 if abs_path == canonical_dangerous || abs_path.starts_with(&canonical_dangerous) {
                     return Ok(ValidationResult {

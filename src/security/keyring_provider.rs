@@ -1,7 +1,6 @@
 //! Keyring credential provider for platform-specific secure storage
 //!
 //! Uses the keyring library to store credentials in:
-//! - macOS Keychain
 //! - Linux Secret Service (GNOME Keyring/KWallet)
 //! - Windows Credential Manager
 

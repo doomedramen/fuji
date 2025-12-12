@@ -1752,9 +1752,7 @@ async fn handle_doctor_request() -> Response {
     }
 
     // Check 2: Required system dependencies
-    let dependencies = if cfg!(target_os = "macos") {
-        vec!["mount_smbfs", "mount_nfs", "umount"]
-    } else if cfg!(target_os = "linux") {
+    let dependencies = if cfg!(target_os = "linux") {
         vec!["mount", "umount", "mount.cifs", "mount.nfs"]
     } else {
         vec!["mount", "umount"]
@@ -1801,8 +1799,6 @@ async fn handle_doctor_request() -> Response {
     // Check 4: Runtime directory
     let runtime_dir = if let Some(dir) = dirs::runtime_dir() {
         dir.join("fuji")
-    } else if cfg!(target_os = "macos") {
-        Path::new("/var/run/fuji").to_path_buf()
     } else {
         Path::new("/run/fuji").to_path_buf()
     };
