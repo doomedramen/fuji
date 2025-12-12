@@ -154,9 +154,9 @@ async fn test_mount_retry_with_metadata() {
 
     // Create mount with custom retry policy
     let mut mount = MountConfig::new(
-        "nfs://example.com/data".to_string(),
+        "nfs://invalid-host/data".to_string(),
         MountType::Nfs {
-            host: "example.com".to_string(),
+            host: "invalid-host".to_string(),
             share: "/data".to_string(),
             options: vec![],
         },
