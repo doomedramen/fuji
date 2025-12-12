@@ -6,8 +6,6 @@
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-#[cfg(target_os = "linux")]
-use std::path::Path;
 use tokio::process::Command;
 use tracing::{debug, info, warn};
 
