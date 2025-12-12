@@ -190,6 +190,50 @@ cargo test
 docker-compose up --build
 ```
 
+### Using DevContainers (Recommended)
+
+For consistent development environment across platforms, you can use Dev Containers either with VS Code or via the command-line interface.
+
+#### Using with VS Code:
+1. Install the "Dev Containers" extension in VS Code
+2. Open the command palette (`Ctrl+Shift+P` or `Cmd+Shift+P`)
+3. Select "Dev Containers: Reopen in Container"
+4. The container will build with all necessary dependencies
+
+#### Using with Dev Container CLI:
+1. Install the `devcontainer` CLI by following the [official installation guide](https://github.com/devcontainers/cli#installation)
+2. From your project directory, run:
+```bash
+devcontainer up --workspace-folder .
+# Or to connect to the running container:
+devcontainer exec --workspace-folder . bash
+```
+
+Once inside the container, you can run:
+```bash
+# Build the project
+make build
+
+# Run all tests
+make test
+
+# Run integration tests (with NFS/SMB test servers)
+make test-integration
+
+# Run CI checks locally
+make ci
+```
+
+Alternatively, you can use the compose-based devcontainer which includes NFS/SMB test servers (works with both VS Code and CLI):
+1. Using VS Code: Command Palette → "Dev Containers: Reopen in Container..." → Select docker-compose file → Choose `.devcontainer/docker-compose.devcontainer.json`
+2. Using CLI: `devcontainer up --config .devcontainer/docker-compose.devcontainer.json --workspace-folder .`
+
+When using the compose-based devcontainer (with NFS/SMB test servers), run integration tests directly without starting additional docker services:
+```bash
+# Run integration tests (the NFS/SMB servers are already running in the container environment)
+cargo test integration_tests --all-features
+```
+
 ## License
 
 ISC License

@@ -3,10 +3,11 @@
 use super::{MountInfo, Platform, Signal};
 use crate::mount::MountType;
 use anyhow::{Result, anyhow};
+use nix::unistd;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 pub struct FallbackPlatform;
 
@@ -48,12 +49,13 @@ impl Platform for FallbackPlatform {
 
     fn get_current_user(&self) -> Result<String> {
         std::env::var("USER")
+            .or_else(|_| std::env::var("LOGNAME"))
             .or_else(|_| std::env::var("USERNAME"))
-            .ok_or_else(|| anyhow!("Could not determine username"))
+            .map_err(|_| anyhow!("Could not determine username"))
     }
 
     fn get_current_pid(&self) -> u32 {
-        unistd::getpid().as_raw()
+        unistd::getpid().as_raw() as u32
     }
 
     fn is_root(&self) -> bool {
@@ -175,8 +177,8 @@ impl Platform for FallbackPlatform {
         }
 
         // Fallback: check if the directory exists and is not empty
-        Ok(path.exists()
-            && path
+        Ok(mount_point.exists()
+            && mount_point
                 .read_dir()
                 .map(|mut i| i.next().is_some())
                 .unwrap_or(false))

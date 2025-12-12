@@ -1,0 +1,28 @@
+{
+  "name": "Fuji Development Environment",
+  "dockerFile": "../docker/Dockerfile.debian",
+  "context": "..",
+  "workspaceFolder": "/app",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/app,type=bind,consistency=cached",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "rust-analyzer.cargo.loadOutDirsFromCheck": true,
+        "rust-analyzer.procMacro.enable": true
+      },
+      "extensions": [
+        "matklad.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "serayuzgur.crates",
+        "ms-vscode.vscode-json"
+      ]
+    }
+  },
+  "mounts": [
+    "source=fuji-cargo-cache,target=/root/.cargo/registry,type=volume",
+    "source=fuji-target-cache,target=/app/target,type=volume"
+  ],
+  "postCreateCommand": "rustc --version && cargo --version",
+  "remoteUser": "root"
+}

@@ -4,7 +4,7 @@
 //! Platform abstraction layer
 //!
 //! This module provides a platform-independent interface for OS-specific operations.
-//! It supports Linux/BSD and macOS, with the ability to add more platforms later.
+//! It supports Linux/BSD systems.
 
 use crate::mount::MountType;
 use anyhow::Result;
@@ -15,14 +15,9 @@ pub mod linux;
 #[cfg(target_os = "linux")]
 use linux as platform_impl;
 
-#[cfg(target_os = "macos")]
-mod macos;
-#[cfg(target_os = "macos")]
-use macos as platform_impl;
-
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(not(target_os = "linux"))]
 mod fallback;
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(not(target_os = "linux"))]
 use fallback as platform_impl;
 
 /// System dependencies checker

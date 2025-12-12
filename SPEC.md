@@ -2,7 +2,7 @@
 
 ## Overview
 
-Fuji is a sophisticated daemon-based network file system mount manager designed for Linux and macOS systems. It provides persistent, secure, and clustered management of network file system mounts with support for NFS, SMB/CIFS, and SSHFS protocols. The project is implemented in Rust with a focus on security, reliability, and enterprise-grade features.
+Fuji is a sophisticated daemon-based network file system mount manager designed for Linux systems. It provides persistent, secure, and clustered management of network file system mounts with support for NFS, SMB/CIFS, and SSHFS protocols. The project is implemented in Rust with a focus on security, reliability, and enterprise-grade features.
 
 ## Architecture
 

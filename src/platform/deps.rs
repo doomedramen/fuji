@@ -6,6 +6,8 @@
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+#[cfg(target_os = "linux")]
+use std::path::Path;
 use tokio::process::Command;
 use tracing::{debug, info, warn};
 
@@ -99,7 +101,6 @@ impl SystemDepsChecker {
         );
         nfs_install.insert("arch".to_string(), "sudo pacman -S nfs-utils".to_string());
         nfs_install.insert("alpine".to_string(), "sudo apk add nfs-utils".to_string());
-        nfs_install.insert("macos".to_string(), "NFS is built into macOS".to_string());
         nfs_install.insert("bsd".to_string(), "NFS is built into BSD".to_string());
 
         self.dependencies.insert(
@@ -139,7 +140,6 @@ impl SystemDepsChecker {
         );
         smb_install.insert("arch".to_string(), "sudo pacman -S smbclient".to_string());
         smb_install.insert("alpine".to_string(), "sudo apk add cifs-utils".to_string());
-        smb_install.insert("macos".to_string(), "brew install cifs-utils".to_string());
         smb_install.insert(
             "bsd".to_string(),
             "pkg install sysutils/fusefs-cifs".to_string(),
@@ -182,7 +182,6 @@ impl SystemDepsChecker {
         );
         sshfs_install.insert("arch".to_string(), "sudo pacman -S sshfs".to_string());
         sshfs_install.insert("alpine".to_string(), "sudo apk add sshfs-fuse".to_string());
-        sshfs_install.insert("macos".to_string(), "brew install sshfs".to_string());
         sshfs_install.insert("bsd".to_string(), "pkg install fusefs-sshfs".to_string());
 
         self.dependencies.insert(
@@ -219,10 +218,6 @@ impl SystemDepsChecker {
         );
         showmount_install.insert("arch".to_string(), "sudo pacman -S nfs-utils".to_string());
         showmount_install.insert("alpine".to_string(), "sudo apk add nfs-utils".to_string());
-        showmount_install.insert(
-            "macos".to_string(),
-            "showmount is built into macOS".to_string(),
-        );
         showmount_install.insert("bsd".to_string(), "showmount is built into BSD".to_string());
 
         self.dependencies.insert(
@@ -264,7 +259,6 @@ impl SystemDepsChecker {
             "alpine".to_string(),
             "sudo apk add samba-client".to_string(),
         );
-        smbclient_install.insert("macos".to_string(), "brew install smbclient".to_string());
         smbclient_install.insert("bsd".to_string(), "pkg install samba416".to_string());
 
         self.dependencies.insert(
@@ -375,60 +369,7 @@ impl SystemDepsChecker {
 
     /// Get the current OS family
     pub fn get_os_family() -> &'static str {
-        #[cfg(target_os = "linux")]
-        {
-            // Try to detect Linux distribution
-            if Path::new("/etc/debian_version").exists() {
-                "debian"
-            } else if Path::new("/etc/ubuntu-release").exists()
-                || Path::new("/etc/lsb-release").exists()
-            {
-                "ubuntu"
-            } else if Path::new("/etc/redhat-release").exists() {
-                "rhel"
-            } else if Path::new("/etc/centos-release").exists() {
-                "centos"
-            } else if Path::new("/etc/fedora-release").exists() {
-                "fedora"
-            } else if Path::new("/etc/arch-release").exists() {
-                "arch"
-            } else if Path::new("/etc/alpine-release").exists() {
-                "alpine"
-            } else {
-                "linux" // Generic Linux
-            }
-        }
-        #[cfg(target_os = "macos")]
-        {
-            "macos"
-        }
-        #[cfg(target_os = "freebsd")]
-        {
-            "bsd"
-        }
-        #[cfg(target_os = "netbsd")]
-        {
-            "bsd"
-        }
-        #[cfg(target_os = "openbsd")]
-        {
-            "bsd"
-        }
-        #[cfg(target_os = "dragonfly")]
-        {
-            "bsd"
-        }
-        #[cfg(not(any(
-            target_os = "linux",
-            target_os = "macos",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd",
-            target_os = "dragonfly"
-        )))]
-        {
-            "unknown"
-        }
+        "linux"
     }
 
     /// Check a single dependency
