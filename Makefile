@@ -1,16 +1,17 @@
-.PHONY: help build build-dev test test-unit test-security test-integration clean install release check-version fmt clippy ci devcontainer-up devcontainer-exec devcontainer-down devcontainer-compose-up
+.PHONY: help build build-dev test test-unit test-security test-integration clean install install-nextest release check-version fmt clippy ci devcontainer-up devcontainer-exec devcontainer-down devcontainer-compose-up
 
 # Default target
 help:
 	@echo "Available commands:"
 	@echo "  build          - Build the project in release mode"
 	@echo "  build-dev      - Build the project in development mode"
-	@echo "  test           - Run all tests"
-	@echo "  test-unit      - Run unit tests only"
-	@echo "  test-security  - Run security tests only"
+	@echo "  test           - Run all tests (using nextest)"
+	@echo "  test-unit      - Run unit tests only (using nextest)"
+	@echo "  test-security  - Run security tests only (using nextest)"
 	@echo "  test-integration - Run integration tests (requires Docker)"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  install        - Install the project"
+	@echo "  install-nextest - Install cargo-nextest for faster test execution"
 	@echo "  release        - Create a tagged release (bumps version by 0.0.1)"
 	@echo "  check-version  - Check current version"
 	@echo "  fmt            - Format code"
@@ -32,13 +33,16 @@ build-dev:
 # Run all tests
 test: test-unit test-security
 
-# Run unit tests only
+# Run unit tests only (using nextest for speed)
 test-unit:
-	cargo test --all-features --no-fail-fast -- --test-threads=1
+	@command -v cargo-nextest >/dev/null 2>&1 || { echo "Installing cargo-nextest..."; cargo install cargo-nextest; }
+	cargo nextest run --all-features --no-fail-fast
+	cargo test --doc --all-features
 
-# Run security tests only
+# Run security tests only (using nextest for speed)
 test-security:
-	cargo test security_* --all-features --no-fail-fast
+	@command -v cargo-nextest >/dev/null 2>&1 || { echo "Installing cargo-nextest..."; cargo install cargo-nextest; }
+	cargo nextest run -E 'test(security_)' --all-features --no-fail-fast
 
 # Run integration tests (requires Docker services)
 test-integration:
@@ -88,6 +92,13 @@ clean:
 # Install the project
 install: build
 	cargo install --path .
+
+# Install cargo-nextest for faster test execution
+install-nextest:
+	@echo "Installing cargo-nextest..."
+	cargo install cargo-nextest --locked
+	@echo "cargo-nextest installed successfully!"
+	@echo "You can now use 'cargo nextest run' for faster test execution"
 
 # Check current version
 check-version:

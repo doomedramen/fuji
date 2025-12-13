@@ -23,6 +23,6 @@
     "source=fuji-cargo-cache,target=/root/.cargo/registry,type=volume",
     "source=fuji-target-cache,target=/app/target,type=volume"
   ],
-  "postCreateCommand": "rustc --version && cargo --version",
+  "postCreateCommand": "rustc --version && cargo --version && cargo install cargo-nextest --locked",
   "remoteUser": "root"
 }
