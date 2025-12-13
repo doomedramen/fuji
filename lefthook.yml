@@ -34,8 +34,9 @@ pre-commit:
 
 pre-push:
   commands:
-    # Full clippy check
+    # Full clippy check (runs first to build artifacts)
     clippy:
+      priority: 1
       run: |
         if [[ "$OSTYPE" == "linux-gnu"* ]]; then
           # Running on Linux - execute directly
@@ -48,35 +49,27 @@ pre-push:
       fail_text: "Clippy found issues. Fix them before pushing."
       timeout: 120
 
-    # Library unit tests (full integration tests run in CI)
+    # Library unit tests (reuses clippy artifacts when run sequentially)
     test-unit:
+      priority: 2
       run: |
         if [[ "$OSTYPE" == "linux-gnu"* ]]; then
           # Running on Linux - execute directly
-          CARGO_BUILD_JOBS=2 cargo test --lib --all-features --no-fail-fast -- --test-threads=1
+          CARGO_BUILD_JOBS=2 cargo test --lib --all-features --no-fail-fast
         else
           # Running on macOS - execute in dev container with limited parallelism to avoid OOM
-          devcontainer exec --workspace-folder . env CARGO_BUILD_JOBS=2 cargo test --lib --all-features --no-fail-fast -- --test-threads=1
+          devcontainer exec --workspace-folder . env CARGO_BUILD_JOBS=2 cargo test --lib --all-features --no-fail-fast
         fi
       glob: "*.rs"
       fail_text: "Unit tests failed."
       timeout: 300
 
-    # Build verification
-    build-release:
-      run: |
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-          # Running on Linux - execute directly
-          CARGO_BUILD_JOBS=2 make build
-        else
-          # Running on macOS - execute in dev container with limited parallelism
-          devcontainer exec --workspace-folder . env CARGO_BUILD_JOBS=2 make build
-        fi
-      glob: "*.rs"
-      fail_text: "Release build failed."
-      timeout: 180
+    # Note: Release build moved to CI to save time locally
+    # Run manually with: make build
 
-  # Execute commands sequentially to avoid OOM in dev container
+  # Execute commands sequentially to:
+  # 1. Avoid OOM in dev container
+  # 2. Allow test-unit to reuse clippy's build artifacts
   parallel: false
 
 # Global settings
