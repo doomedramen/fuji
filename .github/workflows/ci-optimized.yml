@@ -50,8 +50,11 @@ jobs:
         with:
           tool: cargo-nextest
 
-      - name: Run tests
+      - name: Run unit and integration tests
         run: cargo nextest run --all-features --no-fail-fast
+
+      - name: Run doc tests
+        run: cargo test --doc --all-features
 
   # Stage 3: Security audit (runs in parallel with build)
   security:
