@@ -22,9 +22,17 @@ use std::collections::HashMap;
 use std::time::Duration as StdDuration;
 use tokio::time::sleep;
 
+/// Helper function to create test config with auto-response disabled
+/// This prevents 60-second delays that cause test timeouts
+fn test_config() -> IntrusionDetectionConfig {
+    let mut config = IntrusionDetectionConfig::default();
+    config.auto_response.enabled = false;
+    config
+}
+
 #[tokio::test]
 async fn test_intrusion_detection_engine_creation() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let _engine = IntrusionDetectionEngine::new(config).await?;
 
     // Engine created successfully if we reach here
@@ -33,7 +41,7 @@ async fn test_intrusion_detection_engine_creation() -> Result<()> {
 
 #[tokio::test]
 async fn test_detection_rule_management() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Add a detection rule
@@ -66,7 +74,7 @@ async fn test_detection_rule_management() -> Result<()> {
 
 #[tokio::test]
 async fn test_alert_generation() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Generate an alert
@@ -94,7 +102,7 @@ async fn test_alert_generation() -> Result<()> {
 
 #[tokio::test]
 async fn test_alert_status_update() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Generate an alert
@@ -128,7 +136,7 @@ async fn test_alert_status_update() -> Result<()> {
 
 #[tokio::test]
 async fn test_user_pattern_analysis() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Create test login events
@@ -169,7 +177,7 @@ async fn test_user_pattern_analysis() -> Result<()> {
 
 #[tokio::test]
 async fn test_frequency_based_detection() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Add frequency-based rule
@@ -233,7 +241,7 @@ async fn test_frequency_based_detection() -> Result<()> {
 
 #[tokio::test]
 async fn test_signature_based_detection() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Add signature-based rule
@@ -293,9 +301,9 @@ async fn test_signature_based_detection() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_statistical_anomaly_detection() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Create events with unusual pattern
@@ -326,7 +334,7 @@ async fn test_statistical_anomaly_detection() -> Result<()> {
     }
 
     // Check for anomaly alerts
-    sleep(StdDuration::from_millis(1000)).await;
+    sleep(StdDuration::from_millis(100)).await;
     let alerts = engine.get_active_alerts().await?;
 
     // May have generated anomaly alerts based on frequency
@@ -342,7 +350,7 @@ async fn test_statistical_anomaly_detection() -> Result<()> {
 
 #[tokio::test]
 async fn test_unusual_login_time_detection() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Establish normal login pattern (during business hours)
@@ -418,7 +426,7 @@ async fn test_unusual_login_time_detection() -> Result<()> {
 
 #[tokio::test]
 async fn test_report_generation() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Generate some alerts
@@ -580,7 +588,7 @@ async fn test_simple_ml_model() -> Result<()> {
 
 #[tokio::test]
 async fn test_alert_lifecycle() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Create an alert
@@ -628,6 +636,7 @@ async fn test_alert_lifecycle() -> Result<()> {
 
 #[tokio::test]
 async fn test_configuration_defaults() -> Result<()> {
+    // Use actual default config for this test
     let config = IntrusionDetectionConfig::default();
 
     // Check default values
@@ -654,7 +663,7 @@ async fn test_configuration_defaults() -> Result<()> {
 
 #[tokio::test]
 async fn test_multiple_rule_types() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Add different rule types
@@ -731,7 +740,7 @@ async fn test_multiple_rule_types() -> Result<()> {
 
 #[tokio::test]
 async fn test_edge_cases() -> Result<()> {
-    let config = IntrusionDetectionConfig::default();
+    let config = test_config();
     let engine = IntrusionDetectionEngine::new(config).await?;
 
     // Test with empty event
