@@ -21,6 +21,18 @@ use std::time::Duration as StdDuration;
 
 use tracing::info;
 
+/// Helper function to create test audit config with temp file path
+fn test_audit_config() -> AuditConfig {
+    AuditConfig {
+        log_file_path: std::env::temp_dir()
+            .join(format!("fuji_test_audit_{}.log", std::process::id())),
+        enable_signing: false,
+        enable_chaining: false,
+        enable_encryption: false,
+        ..Default::default()
+    }
+}
+
 /// Test comprehensive audit logging functionality
 #[tokio::test]
 async fn test_comprehensive_audit_logging() -> Result<()> {
@@ -150,7 +162,7 @@ async fn test_comprehensive_audit_logging() -> Result<()> {
 #[tokio::test]
 async fn test_real_time_monitoring() -> Result<()> {
     // Create audit logger
-    let _logger = AuditLogger::new()?;
+    let _logger = AuditLogger::with_config(test_audit_config())?;
 
     // Create audit monitor
     let monitoring_config = AuditMonitoringConfig {
@@ -236,7 +248,7 @@ async fn test_real_time_monitoring() -> Result<()> {
 #[tokio::test]
 async fn test_privilege_escalation_detection() -> Result<()> {
     // Create audit logger
-    let _logger = AuditLogger::new()?;
+    let _logger = AuditLogger::with_config(test_audit_config())?;
 
     // Create audit monitor
     let monitoring_config = AuditMonitoringConfig {
@@ -324,7 +336,7 @@ async fn test_privilege_escalation_detection() -> Result<()> {
 /// Test event filtering and export
 #[tokio::test]
 async fn test_event_filtering_and_export() -> Result<()> {
-    let logger = AuditLogger::new()?;
+    let logger = AuditLogger::with_config(test_audit_config())?;
 
     // Add custom filter for only critical events
     let filter = fuji::security::audit_logging::AuditEventFilter {
@@ -468,7 +480,7 @@ async fn test_log_rotation_and_retention() -> Result<()> {
 /// Test concurrent audit operations
 #[tokio::test]
 async fn test_concurrent_audit_operations() -> Result<()> {
-    let logger = Arc::new(AuditLogger::new()?);
+    let logger = Arc::new(AuditLogger::with_config(test_audit_config())?);
 
     // Create multiple concurrent logging operations
     let mut handles = vec![];
@@ -544,7 +556,7 @@ async fn test_concurrent_audit_operations() -> Result<()> {
 /// Test monitoring statistics
 #[tokio::test]
 async fn test_monitoring_statistics() -> Result<()> {
-    let logger = AuditLogger::new()?;
+    let logger = AuditLogger::with_config(test_audit_config())?;
 
     // Log events with different characteristics
     let source = AuditSource {
