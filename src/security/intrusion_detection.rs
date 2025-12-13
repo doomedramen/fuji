@@ -896,8 +896,14 @@ impl IntrusionDetectionEngine {
     async fn evaluate_rule(&self, rule: &DetectionRule, event: &AuditEvent) -> Result<bool> {
         match rule.rule_type {
             RuleType::Signature => {
-                // Simple pattern matching
-                Ok(rule.pattern.contains(&format!("'{}'", event.event_type)))
+                // Simple pattern matching - check if pattern matches event type or description
+                let event_type_str = format!("{:?}", event.event_type);
+                Ok(rule.pattern.contains(&event_type_str)
+                    || rule.pattern.contains(&event.description)
+                    || event.description.contains(&rule.pattern)
+                    || event_type_str
+                        .to_lowercase()
+                        .contains(&rule.pattern.to_lowercase()))
             }
             RuleType::FrequencyAnalysis => {
                 // Check frequency in time window
