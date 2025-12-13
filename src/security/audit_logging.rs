@@ -476,8 +476,19 @@ impl Clone for AuditEventFilter {
 #[allow(dead_code)]
 impl AuditLogger {
     /// Create new audit logger with default configuration
+    /// Falls back to temp directory if default path is not writable
     pub fn new() -> Result<Self> {
-        let config = AuditConfig::default();
+        let mut config = AuditConfig::default();
+
+        // Check if default path is writable, fall back to temp if not
+        if let Some(parent) = config.log_file_path.parent() {
+            if std::fs::create_dir_all(parent).is_err() {
+                // Default path not writable (e.g., in CI), use temp directory
+                config.log_file_path =
+                    std::env::temp_dir().join(format!("fuji_audit_{}.log", std::process::id()));
+            }
+        }
+
         Self::with_config(config)
     }
 

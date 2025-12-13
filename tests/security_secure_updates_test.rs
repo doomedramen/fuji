@@ -18,21 +18,22 @@ use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
-#[tokio::test]
-async fn test_secure_update_manager_creation() -> Result<()> {
-    let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
+/// Helper function to create test config with temp directories
+fn test_update_config(temp_dir: &TempDir) -> SecureUpdateConfig {
+    SecureUpdateConfig {
         update_directory: temp_dir.path().join("updates"),
         staging_directory: temp_dir.path().join("staging"),
         backup_directory: temp_dir.path().join("backup"),
-        max_concurrent_downloads: 2,
-        download_timeout_seconds: 60,
-        enable_auto_rollback: true,
-        enable_signature_verification: true,
-        enable_integrity_verification: true,
-        enable_security_scanning: true,
         ..Default::default()
-    };
+    }
+}
+
+#[tokio::test]
+async fn test_secure_update_manager_creation() -> Result<()> {
+    let temp_dir = TempDir::new()?;
+    let mut config = test_update_config(&temp_dir);
+    config.max_concurrent_downloads = 2;
+    config.download_timeout_seconds = 60;
 
     let manager = SecureUpdateManager::new(config).await?;
 
@@ -52,12 +53,7 @@ async fn test_secure_update_manager_creation() -> Result<()> {
 #[tokio::test]
 async fn test_create_security_patch_update() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
-        update_directory: temp_dir.path().join("updates"),
-        staging_directory: temp_dir.path().join("staging"),
-        backup_directory: temp_dir.path().join("backup"),
-        ..Default::default()
-    };
+    let config = test_update_config(&temp_dir);
 
     let manager = SecureUpdateManager::new(config).await?;
 
@@ -104,12 +100,7 @@ async fn test_create_security_patch_update() -> Result<()> {
 #[tokio::test]
 async fn test_create_feature_update() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
-        update_directory: temp_dir.path().join("updates"),
-        staging_directory: temp_dir.path().join("staging"),
-        backup_directory: temp_dir.path().join("backup"),
-        ..Default::default()
-    };
+    let config = test_update_config(&temp_dir);
 
     let manager = SecureUpdateManager::new(config).await?;
 
@@ -150,12 +141,7 @@ async fn test_create_feature_update() -> Result<()> {
 #[tokio::test]
 async fn test_trusted_key_management() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
-        update_directory: temp_dir.path().join("updates"),
-        staging_directory: temp_dir.path().join("staging"),
-        backup_directory: temp_dir.path().join("backup"),
-        ..Default::default()
-    };
+    let config = test_update_config(&temp_dir);
 
     let manager = SecureUpdateManager::new(config).await?;
 
@@ -194,12 +180,7 @@ async fn test_trusted_key_management() -> Result<()> {
 #[tokio::test]
 async fn test_download_update() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
-        update_directory: temp_dir.path().join("updates"),
-        staging_directory: temp_dir.path().join("staging"),
-        backup_directory: temp_dir.path().join("backup"),
-        ..Default::default()
-    };
+    let config = test_update_config(&temp_dir);
 
     let manager = SecureUpdateManager::new(config).await?;
 
@@ -460,12 +441,7 @@ async fn test_install_update_success() -> Result<()> {
 #[tokio::test]
 async fn test_rollback_update() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
-        update_directory: temp_dir.path().join("updates"),
-        staging_directory: temp_dir.path().join("staging"),
-        backup_directory: temp_dir.path().join("backup"),
-        ..Default::default()
-    };
+    let config = test_update_config(&temp_dir);
 
     let manager = SecureUpdateManager::new(config).await?;
 
@@ -496,12 +472,7 @@ async fn test_rollback_update() -> Result<()> {
 #[tokio::test]
 async fn test_cancel_update() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
-        update_directory: temp_dir.path().join("updates"),
-        staging_directory: temp_dir.path().join("staging"),
-        backup_directory: temp_dir.path().join("backup"),
-        ..Default::default()
-    };
+    let config = test_update_config(&temp_dir);
 
     let manager = SecureUpdateManager::new(config).await?;
 
@@ -563,12 +534,7 @@ async fn test_cancel_update() -> Result<()> {
 #[tokio::test]
 async fn test_cleanup_old_updates() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
-        update_directory: temp_dir.path().join("updates"),
-        staging_directory: temp_dir.path().join("staging"),
-        backup_directory: temp_dir.path().join("backup"),
-        ..Default::default()
-    };
+    let config = test_update_config(&temp_dir);
 
     let manager = SecureUpdateManager::new(config).await?;
 
@@ -611,12 +577,7 @@ async fn test_cleanup_old_updates() -> Result<()> {
 #[tokio::test]
 async fn test_component_update() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
-        update_directory: temp_dir.path().join("updates"),
-        staging_directory: temp_dir.path().join("staging"),
-        backup_directory: temp_dir.path().join("backup"),
-        ..Default::default()
-    };
+    let config = test_update_config(&temp_dir);
 
     let manager = SecureUpdateManager::new(config).await?;
 
@@ -663,12 +624,7 @@ async fn test_component_update() -> Result<()> {
 #[tokio::test]
 async fn test_update_stages_progress() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
-        update_directory: temp_dir.path().join("updates"),
-        staging_directory: temp_dir.path().join("staging"),
-        backup_directory: temp_dir.path().join("backup"),
-        ..Default::default()
-    };
+    let config = test_update_config(&temp_dir);
 
     let manager = SecureUpdateManager::new(config).await?;
 
@@ -831,12 +787,7 @@ async fn test_multiple_signature_algorithms() -> Result<()> {
 #[tokio::test]
 async fn test_security_levels() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
-        update_directory: temp_dir.path().join("updates"),
-        staging_directory: temp_dir.path().join("staging"),
-        backup_directory: temp_dir.path().join("backup"),
-        ..Default::default()
-    };
+    let config = test_update_config(&temp_dir);
 
     let manager = SecureUpdateManager::new(config).await?;
 
@@ -890,12 +841,7 @@ async fn test_security_levels() -> Result<()> {
 #[tokio::test]
 async fn test_update_classifications() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    let config = SecureUpdateConfig {
-        update_directory: temp_dir.path().join("updates"),
-        staging_directory: temp_dir.path().join("staging"),
-        backup_directory: temp_dir.path().join("backup"),
-        ..Default::default()
-    };
+    let config = test_update_config(&temp_dir);
 
     let manager = SecureUpdateManager::new(config).await?;
 
