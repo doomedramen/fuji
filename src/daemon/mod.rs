@@ -346,17 +346,53 @@ impl Daemon {
             info!("Resource limits monitoring disabled by flag");
         }
 
-        // Wait for tasks to complete using a simpler approach
-        let (server_result, monitor_result) = tokio::join!(server_handle, monitor_handle);
+        // Set up signal handlers for graceful shutdown
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::{SignalKind, signal};
 
-        match server_result {
-            Ok(_) => info!("Socket server task completed"),
-            Err(e) => error!("Socket server task error: {}", e),
+            let mut sigterm =
+                signal(SignalKind::terminate()).expect("Failed to install SIGTERM handler");
+            let mut sigint =
+                signal(SignalKind::interrupt()).expect("Failed to install SIGINT handler");
+
+            // Wait for tasks to complete or signal received
+            tokio::select! {
+                _ = sigterm.recv() => {
+                    info!("Received SIGTERM, shutting down gracefully");
+                }
+                _ = sigint.recv() => {
+                    info!("Received SIGINT, shutting down gracefully");
+                }
+                server_result = server_handle => {
+                    match server_result {
+                        Ok(_) => info!("Socket server task completed"),
+                        Err(e) => error!("Socket server task error: {}", e),
+                    }
+                }
+                monitor_result = monitor_handle => {
+                    match monitor_result {
+                        Ok(_) => info!("Monitor task completed"),
+                        Err(e) => error!("Monitor task error: {}", e),
+                    }
+                }
+            }
         }
 
-        match monitor_result {
-            Ok(_) => info!("Monitor task completed"),
-            Err(e) => error!("Monitor task error: {}", e),
+        #[cfg(not(unix))]
+        {
+            // On non-Unix platforms, just wait for tasks
+            let (server_result, monitor_result) = tokio::join!(server_handle, monitor_handle);
+
+            match server_result {
+                Ok(_) => info!("Socket server task completed"),
+                Err(e) => error!("Socket server task error: {}", e),
+            }
+
+            match monitor_result {
+                Ok(_) => info!("Monitor task completed"),
+                Err(e) => error!("Monitor task error: {}", e),
+            }
         }
 
         // Cleanup

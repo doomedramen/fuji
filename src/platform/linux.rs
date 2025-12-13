@@ -23,29 +23,52 @@ impl Platform for LinuxPlatform {
     }
 
     fn can_access_path(&self, path: &Path) -> Result<bool> {
-        // Check if parent directory exists and is writable
+        // If the path exists, check if we can access it directly
+        if path.exists() {
+            match fs::metadata(path) {
+                Ok(metadata) => {
+                    let mode = metadata.permissions().mode();
+                    let current_uid = unistd::getuid().as_raw();
+                    let current_gid = unistd::getgid().as_raw();
+
+                    // Check if we have read permission based on ownership
+                    let is_owner = current_uid == metadata.st_uid();
+                    let is_group = current_gid == metadata.st_gid();
+                    let is_root = current_uid == 0;
+
+                    let readable = is_root
+                        || (is_owner && (mode & 0o400 != 0))
+                        || (is_group && (mode & 0o040 != 0))
+                        || (mode & 0o004 != 0);
+
+                    return Ok(readable);
+                }
+                Err(_) => return Ok(false),
+            }
+        }
+
+        // Check if parent directory exists and is writable (for creating the path)
         if let Some(parent) = path.parent() {
             if !parent.exists() {
                 return Ok(false);
             }
 
-            // Check write permission
+            // Check write permission on parent
             match fs::metadata(parent) {
                 Ok(metadata) => {
-                    let perms = metadata.permissions();
-                    let mode = perms.mode();
+                    let mode = metadata.permissions().mode();
+                    let current_uid = unistd::getuid().as_raw();
+                    let current_gid = unistd::getgid().as_raw();
 
-                    // Check if we have write permission
-                    let uid = unistd::getuid().is_root();
-                    let gid = unistd::getgid().as_raw() == metadata.st_gid();
+                    // Check if we have write permission based on ownership
+                    let is_owner = current_uid == metadata.st_uid();
+                    let is_group = current_gid == metadata.st_gid();
+                    let is_root = current_uid == 0;
 
-                    let writable = if uid {
-                        mode & 0o200 != 0 // Owner write
-                    } else if gid {
-                        mode & 0o020 != 0 // Group write
-                    } else {
-                        mode & 0o002 != 0 // Other write
-                    };
+                    let writable = is_root
+                        || (is_owner && (mode & 0o200 != 0))
+                        || (is_group && (mode & 0o020 != 0))
+                        || (mode & 0o002 != 0);
 
                     Ok(writable)
                 }
@@ -75,11 +98,15 @@ impl Platform for LinuxPlatform {
     }
 
     fn get_current_user(&self) -> Result<String> {
-        // Try USER env var first, then LOGNAME
+        // Try USER env var first, then LOGNAME, then USERNAME
         std::env::var("USER")
             .or_else(|_| std::env::var("LOGNAME"))
             .or_else(|_| std::env::var("USERNAME"))
-            .map_err(|_| anyhow!("Could not determine username"))
+            .or_else(|_| {
+                // Fallback: use whoami crate
+                Ok(whoami::username())
+            })
+            .map_err(|_: std::env::VarError| anyhow!("Could not determine username"))
     }
 
     fn get_current_pid(&self) -> u32 {

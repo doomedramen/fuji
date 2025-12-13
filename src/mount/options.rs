@@ -403,10 +403,16 @@ impl MountOptionParser {
         // Performance options
         match key {
             "rsize" => {
-                performance.rsize = Some(self.parse_size(value)?);
+                let size = self.parse_size(value)?;
+                performance.rsize = Some(size);
+                // Store converted numeric value in options
+                options.insert(key.to_string(), size.to_string());
             }
             "wsize" => {
-                performance.wsize = Some(self.parse_size(value)?);
+                let size = self.parse_size(value)?;
+                performance.wsize = Some(size);
+                // Store converted numeric value in options
+                options.insert(key.to_string(), size.to_string());
             }
             "timeo" => {
                 performance.timeo = Some(
@@ -453,10 +459,18 @@ impl MountOptionParser {
         // Security boolean options
         match option {
             "ro" => {
+                // Check for conflicting option
+                if options.contains_key("rw") {
+                    bail!("Conflicting options: ro and rw cannot both be specified");
+                }
                 security.read_only = true;
                 options.insert(option.to_string(), "".to_string());
             }
             "rw" => {
+                // Check for conflicting option
+                if options.contains_key("ro") {
+                    bail!("Conflicting options: ro and rw cannot both be specified");
+                }
                 security.read_only = false;
                 options.insert(option.to_string(), "".to_string());
             }
