@@ -445,6 +445,56 @@ mod tests {
     }
 
     #[test]
+    fn test_all_error_categories() {
+        // Test all category variants
+        assert_eq!(DaemonError::mount_error("test").category(), "mount");
+        assert_eq!(DaemonError::config_error("test").category(), "config");
+        assert_eq!(DaemonError::network_error("test").category(), "network");
+        assert_eq!(DaemonError::mount_not_found("test").category(), "not_found");
+        assert_eq!(DaemonError::mount_conflict("test").category(), "conflict");
+        assert_eq!(DaemonError::socket_error("test").category(), "socket");
+        assert_eq!(DaemonError::platform_error("test").category(), "platform");
+        assert_eq!(
+            DaemonError::permission_denied("test").category(),
+            "permission"
+        );
+        assert_eq!(
+            DaemonError::resource_not_found("test").category(),
+            "resource"
+        );
+        assert_eq!(
+            DaemonError::invalid_operation("test").category(),
+            "operation"
+        );
+        assert_eq!(DaemonError::timeout("test").category(), "timeout");
+        assert_eq!(DaemonError::state_error("test").category(), "state");
+        assert_eq!(DaemonError::system_error("test").category(), "system");
+        assert_eq!(DaemonError::signal_error("test").category(), "signal");
+        assert_eq!(DaemonError::pid_file_error("test").category(), "pidfile");
+        assert_eq!(DaemonError::lock_error("test").category(), "lock");
+        assert_eq!(
+            DaemonError::health_check_error("m1", "reason").category(),
+            "health"
+        );
+        assert_eq!(
+            DaemonError::reconnection_error("m1", "reason").category(),
+            "reconnection"
+        );
+
+        let generic_err = DaemonError::generic("ctx", anyhow::anyhow!("inner"));
+        assert_eq!(generic_err.category(), "generic");
+
+        let invalid_proto = DaemonError::InvalidProtocol {
+            url: "bad://".to_string(),
+        };
+        assert_eq!(invalid_proto.category(), "protocol");
+
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "not found");
+        let daemon_io = DaemonError::from(io_err);
+        assert_eq!(daemon_io.category(), "io");
+    }
+
+    #[test]
     fn test_recoverable_errors() {
         assert!(DaemonError::network_error("test").is_recoverable());
         assert!(DaemonError::mount_error("test").is_recoverable());
@@ -460,12 +510,123 @@ mod tests {
     }
 
     #[test]
+    fn test_all_recoverable_checks() {
+        // Recoverable errors
+        assert!(DaemonError::network_error("test").is_recoverable());
+        assert!(DaemonError::mount_error("test").is_recoverable());
+        assert!(DaemonError::health_check_error("m1", "reason").is_recoverable());
+        assert!(DaemonError::reconnection_error("m1", "reason").is_recoverable());
+        assert!(DaemonError::timeout("test").is_recoverable());
+
+        // Non-recoverable errors
+        assert!(!DaemonError::permission_denied("test").is_recoverable());
+        assert!(
+            !DaemonError::InvalidProtocol {
+                url: "bad://".to_string()
+            }
+            .is_recoverable()
+        );
+        assert!(!DaemonError::mount_not_found("m1").is_recoverable());
+        assert!(!DaemonError::invalid_operation("test").is_recoverable());
+
+        // Default recoverable
+        assert!(DaemonError::config_error("test").is_recoverable());
+        assert!(DaemonError::socket_error("test").is_recoverable());
+        assert!(DaemonError::platform_error("test").is_recoverable());
+        assert!(DaemonError::state_error("test").is_recoverable());
+        assert!(DaemonError::system_error("test").is_recoverable());
+    }
+
+    #[test]
     fn test_error_display() {
         let err = DaemonError::mount_not_found("test_mount");
         assert_eq!(err.to_string(), "Mount 'test_mount' not found");
 
         let err = DaemonError::permission_denied("mount operation");
         assert_eq!(err.to_string(), "Permission denied: mount operation");
+    }
+
+    #[test]
+    fn test_all_error_display() {
+        assert_eq!(
+            DaemonError::mount_error("failed to mount").to_string(),
+            "Mount error: failed to mount"
+        );
+        assert_eq!(
+            DaemonError::config_error("invalid config").to_string(),
+            "Configuration error: invalid config"
+        );
+        assert_eq!(
+            DaemonError::network_error("connection refused").to_string(),
+            "Network error: connection refused"
+        );
+        assert_eq!(
+            DaemonError::InvalidProtocol {
+                url: "ftp://host".to_string()
+            }
+            .to_string(),
+            "Invalid protocol in URL: ftp://host"
+        );
+        assert_eq!(
+            DaemonError::mount_not_found("my-mount").to_string(),
+            "Mount 'my-mount' not found"
+        );
+        assert_eq!(
+            DaemonError::mount_conflict("already mounted").to_string(),
+            "Mount operation conflict: already mounted"
+        );
+        assert_eq!(
+            DaemonError::socket_error("bind failed").to_string(),
+            "Socket error: bind failed"
+        );
+        assert_eq!(
+            DaemonError::platform_error("unsupported os").to_string(),
+            "Platform error: unsupported os"
+        );
+        assert_eq!(
+            DaemonError::permission_denied("write").to_string(),
+            "Permission denied: write"
+        );
+        assert_eq!(
+            DaemonError::resource_not_found("file.txt").to_string(),
+            "Resource not found: file.txt"
+        );
+        assert_eq!(
+            DaemonError::invalid_operation("mount while stopped").to_string(),
+            "Invalid operation: mount while stopped"
+        );
+        assert_eq!(
+            DaemonError::timeout("health check").to_string(),
+            "Operation timed out: health check"
+        );
+        assert_eq!(
+            DaemonError::state_error("daemon not running").to_string(),
+            "Invalid state: daemon not running"
+        );
+        assert_eq!(
+            DaemonError::system_error("out of memory").to_string(),
+            "System error: out of memory"
+        );
+        assert_eq!(
+            DaemonError::signal_error("handler failed").to_string(),
+            "Signal error: handler failed"
+        );
+        assert_eq!(
+            DaemonError::pid_file_error("stale pid").to_string(),
+            "PID file error: stale pid"
+        );
+        assert_eq!(
+            DaemonError::lock_error("config_lock").to_string(),
+            "Failed to acquire lock: config_lock"
+        );
+        assert_eq!(
+            DaemonError::health_check_error("nfs-mount", "timeout").to_string(),
+            "Health check failed for mount 'nfs-mount': timeout"
+        );
+        assert_eq!(
+            DaemonError::reconnection_error("nfs-mount", "max retries").to_string(),
+            "Reconnection failed for mount 'nfs-mount': max retries"
+        );
     }
 
     #[test]
@@ -490,5 +651,127 @@ mod tests {
             }
             _ => panic!("Expected PermissionDenied error"),
         }
+    }
+
+    #[test]
+    fn test_regex_error_conversion() {
+        #[allow(clippy::invalid_regex)]
+        let regex_err = regex::Regex::new("[").unwrap_err();
+        let daemon_err = DaemonError::from(regex_err);
+        match &daemon_err {
+            DaemonError::RegexError {
+                pattern,
+                ..
+            } => {
+                assert_eq!(pattern, "unknown");
+            }
+            _ => panic!("Expected RegexError"),
+        }
+        assert_eq!(daemon_err.category(), "regex");
+    }
+
+    #[test]
+    fn test_anyhow_error_conversion() {
+        let anyhow_err = anyhow::anyhow!("something went wrong");
+        let daemon_err = DaemonError::from(anyhow_err);
+        match daemon_err {
+            DaemonError::Generic {
+                context,
+                ..
+            } => {
+                assert_eq!(context, "Unexpected error");
+            }
+            _ => panic!("Expected Generic error"),
+        }
+    }
+
+    #[test]
+    fn test_generic_error_creation() {
+        let source_err = anyhow::anyhow!("root cause");
+        let daemon_err = DaemonError::generic("Failed to process request", source_err);
+
+        assert!(daemon_err.to_string().contains("Failed to process request"));
+        assert_eq!(daemon_err.category(), "generic");
+        assert!(daemon_err.is_recoverable()); // Generic defaults to recoverable
+    }
+
+    #[test]
+    fn test_error_factory_methods() {
+        // Test that all factory methods create the correct variants
+        let mount = DaemonError::mount_error("msg");
+        assert!(matches!(mount, DaemonError::MountError { .. }));
+
+        let config = DaemonError::config_error("msg");
+        assert!(matches!(config, DaemonError::ConfigError { .. }));
+
+        let network = DaemonError::network_error("msg");
+        assert!(matches!(network, DaemonError::NetworkError { .. }));
+
+        let not_found = DaemonError::mount_not_found("id");
+        assert!(matches!(not_found, DaemonError::MountNotFound { .. }));
+
+        let conflict = DaemonError::mount_conflict("msg");
+        assert!(matches!(conflict, DaemonError::MountConflict { .. }));
+
+        let socket = DaemonError::socket_error("msg");
+        assert!(matches!(socket, DaemonError::SocketError { .. }));
+
+        let platform = DaemonError::platform_error("msg");
+        assert!(matches!(platform, DaemonError::PlatformError { .. }));
+
+        let permission = DaemonError::permission_denied("op");
+        assert!(matches!(permission, DaemonError::PermissionDenied { .. }));
+
+        let resource = DaemonError::resource_not_found("res");
+        assert!(matches!(resource, DaemonError::ResourceNotFound { .. }));
+
+        let invalid_op = DaemonError::invalid_operation("op");
+        assert!(matches!(invalid_op, DaemonError::InvalidOperation { .. }));
+
+        let timeout = DaemonError::timeout("op");
+        assert!(matches!(timeout, DaemonError::Timeout { .. }));
+
+        let state = DaemonError::state_error("msg");
+        assert!(matches!(state, DaemonError::StateError { .. }));
+
+        let system = DaemonError::system_error("msg");
+        assert!(matches!(system, DaemonError::SystemError { .. }));
+
+        let signal = DaemonError::signal_error("msg");
+        assert!(matches!(signal, DaemonError::SignalError { .. }));
+
+        let pid = DaemonError::pid_file_error("msg");
+        assert!(matches!(pid, DaemonError::PidFileError { .. }));
+
+        let lock = DaemonError::lock_error("name");
+        assert!(matches!(lock, DaemonError::LockError { .. }));
+
+        let health = DaemonError::health_check_error("id", "reason");
+        assert!(matches!(health, DaemonError::HealthCheckError { .. }));
+
+        let reconnect = DaemonError::reconnection_error("id", "reason");
+        assert!(matches!(reconnect, DaemonError::ReconnectionError { .. }));
+    }
+
+    #[test]
+    fn test_daemon_result_type() {
+        fn returns_ok() -> DaemonResult<i32> {
+            Ok(42)
+        }
+
+        fn returns_err() -> DaemonResult<i32> {
+            Err(DaemonError::mount_error("test"))
+        }
+
+        assert_eq!(returns_ok().unwrap(), 42);
+        assert!(returns_err().is_err());
+    }
+
+    #[test]
+    fn test_error_debug_format() {
+        let err = DaemonError::mount_error("test error");
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("MountError"));
+        assert!(debug_str.contains("test error"));
     }
 }

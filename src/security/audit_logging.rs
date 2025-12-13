@@ -517,8 +517,11 @@ impl AuditLogger {
 
     /// Log an audit event
     pub async fn log_event(&self, event: AuditEvent) -> Result<()> {
-        // Acquire rate limiter permit
-        let _permit = self.rate_limiter.acquire().await?;
+        // Acquire rate limiter permit with timeout to avoid indefinite hangs
+        let _permit = tokio::time::timeout(StdDuration::from_secs(5), self.rate_limiter.acquire())
+            .await
+            .map_err(|_| anyhow!("Timeout waiting for audit rate limiter permit"))?
+            .map_err(|_| anyhow!("Failed to acquire audit rate limiter permit"))?;
 
         // Check if event meets minimum severity requirement
         if event.severity < self.config.min_severity {
@@ -808,14 +811,14 @@ impl AuditLogger {
         let buffer = self.event_buffer.read().await;
         let events: Vec<AuditEvent> = buffer.iter().cloned().collect();
 
-        match format {
+        let result = match format {
             ExportFormat::Json => serde_json::to_vec_pretty(&events)?,
             ExportFormat::Csv => self.export_to_csv(&events)?,
             ExportFormat::Syslog => self.export_to_syslog(&events)?,
             ExportFormat::Cef => self.export_to_cef(&events)?,
         };
 
-        Ok(vec![]) // Placeholder for actual export
+        Ok(result)
     }
 
     /// Process event with signing and chaining
@@ -867,12 +870,14 @@ impl AuditLogger {
         }
 
         // Write event
-        let mut writer = self.log_writer.write().await;
-        if let Some(ref mut w) = *writer {
-            let json_line = serde_json::to_string(event)?;
-            writeln!(w, "{}", json_line)?;
-            w.flush()?;
-        }
+        {
+            let mut writer = self.log_writer.write().await;
+            if let Some(ref mut w) = *writer {
+                let json_line = serde_json::to_string(event)?;
+                writeln!(w, "{}", json_line)?;
+                w.flush()?;
+            }
+        } // Release lock before checking rotation to avoid deadlock
 
         // Check for log rotation
         self.check_log_rotation().await?;

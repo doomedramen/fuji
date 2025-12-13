@@ -244,3 +244,437 @@ pub fn get_mount_handler(protocol: &str) -> Result<Box<dyn MountHandler>> {
         _ => Err(anyhow::anyhow!("Unsupported protocol: {}", protocol)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mount_type_nfs_serialization() {
+        let mount_type = MountType::Nfs {
+            host: "nfs-server.local".to_string(),
+            share: "/export/data".to_string(),
+            options: vec!["rw".to_string(), "noatime".to_string()],
+        };
+
+        let json = serde_json::to_string(&mount_type).unwrap();
+        let parsed: MountType = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(mount_type, parsed);
+    }
+
+    #[test]
+    fn test_mount_type_smb_serialization() {
+        let mount_type = MountType::Smb {
+            host: "fileserver".to_string(),
+            share: "shared".to_string(),
+            username: Some("user1".to_string()),
+            password: Some("secret".to_string()),
+            domain: Some("CORP".to_string()),
+            options: vec![],
+        };
+
+        let json = serde_json::to_string(&mount_type).unwrap();
+        let parsed: MountType = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(mount_type, parsed);
+    }
+
+    #[test]
+    fn test_mount_type_sshfs_serialization() {
+        let mount_type = MountType::Sshfs {
+            host: "dev-server.example.com".to_string(),
+            username: Some("devuser".to_string()),
+            path: "/home/devuser/projects".to_string(),
+            private_key: Some("/home/user/.ssh/id_rsa".to_string()),
+            password: None,
+            options: vec!["reconnect".to_string()],
+        };
+
+        let json = serde_json::to_string(&mount_type).unwrap();
+        let parsed: MountType = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(mount_type, parsed);
+    }
+
+    #[test]
+    fn test_mount_status_display() {
+        assert_eq!(format!("{}", MountStatus::Active), "Active");
+        assert_eq!(format!("{}", MountStatus::Reconnecting), "Reconnecting");
+        assert_eq!(format!("{}", MountStatus::Failed), "Failed");
+        assert_eq!(format!("{}", MountStatus::Disabled), "Disabled");
+        assert_eq!(format!("{}", MountStatus::InProgress), "InProgress");
+        assert_eq!(
+            format!("{}", MountStatus::Error("test error".to_string())),
+            "Error: test error"
+        );
+    }
+
+    #[test]
+    fn test_mount_status_serialization() {
+        let statuses = vec![
+            MountStatus::Active,
+            MountStatus::Reconnecting,
+            MountStatus::Failed,
+            MountStatus::Disabled,
+            MountStatus::InProgress,
+            MountStatus::Error("Network timeout".to_string()),
+        ];
+
+        for status in statuses {
+            let json = serde_json::to_string(&status).unwrap();
+            let parsed: MountStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(status, parsed);
+        }
+    }
+
+    #[test]
+    fn test_mount_config_new() {
+        let mount_type = MountType::Nfs {
+            host: "server".to_string(),
+            share: "/data".to_string(),
+            options: vec![],
+        };
+        let mount_point = PathBuf::from("/mnt/data");
+
+        let config = MountConfig::new(
+            "nfs://server/data".to_string(),
+            mount_type.clone(),
+            mount_point.clone(),
+        );
+
+        assert_eq!(config.url, "nfs://server/data");
+        assert_eq!(config.mount_point, mount_point);
+        assert_eq!(config.mount_type, mount_type);
+        assert!(config.enabled);
+        assert_eq!(config.status, MountStatus::Disabled);
+        assert_eq!(config.reconnect_attempts, 0);
+        assert!(config.last_connected.is_none());
+    }
+
+    #[test]
+    fn test_mount_config_generate_id_nfs() {
+        let id = MountConfig::generate_id("nfs://server.local/export/data");
+        assert_eq!(id, "server.local_nfs_export_data");
+    }
+
+    #[test]
+    fn test_mount_config_generate_id_smb() {
+        let id = MountConfig::generate_id("smb://fileserver/shared");
+        assert_eq!(id, "fileserver_smb_shared");
+    }
+
+    #[test]
+    fn test_mount_config_generate_id_sshfs() {
+        let id = MountConfig::generate_id("sshfs://user@host/path/to/dir");
+        assert_eq!(id, "host_sshfs_path_to_dir");
+    }
+
+    #[test]
+    fn test_mount_config_generate_id_root_path() {
+        let id = MountConfig::generate_id("nfs://server/");
+        // Root path should not add extra underscore
+        assert_eq!(id, "server_nfs");
+    }
+
+    #[test]
+    fn test_mount_config_generate_id_invalid_url() {
+        let id = MountConfig::generate_id("not a valid url");
+        // Should fallback to character replacement
+        assert!(!id.contains(':'));
+        assert!(!id.contains('/'));
+    }
+
+    #[test]
+    fn test_mount_config_update_status_active() {
+        let mount_type = MountType::Nfs {
+            host: "server".to_string(),
+            share: "/data".to_string(),
+            options: vec![],
+        };
+        let mut config = MountConfig::new(
+            "nfs://server/data".to_string(),
+            mount_type,
+            PathBuf::from("/mnt/data"),
+        );
+
+        // Simulate some reconnect attempts
+        config.reconnect_attempts = 5;
+        config.last_connected = None;
+
+        // Update to Active should reset reconnect_attempts and set last_connected
+        config.update_status(MountStatus::Active);
+
+        assert_eq!(config.status, MountStatus::Active);
+        assert_eq!(config.reconnect_attempts, 0);
+        assert!(config.last_connected.is_some());
+    }
+
+    #[test]
+    fn test_mount_config_update_status_failed() {
+        let mount_type = MountType::Nfs {
+            host: "server".to_string(),
+            share: "/data".to_string(),
+            options: vec![],
+        };
+        let mut config = MountConfig::new(
+            "nfs://server/data".to_string(),
+            mount_type,
+            PathBuf::from("/mnt/data"),
+        );
+
+        let original_reconnect_attempts = config.reconnect_attempts;
+
+        // Update to Failed should NOT reset reconnect_attempts
+        config.update_status(MountStatus::Failed);
+
+        assert_eq!(config.status, MountStatus::Failed);
+        assert_eq!(config.reconnect_attempts, original_reconnect_attempts);
+    }
+
+    #[test]
+    fn test_mount_config_increment_reconnect_attempts() {
+        let mount_type = MountType::Nfs {
+            host: "server".to_string(),
+            share: "/data".to_string(),
+            options: vec![],
+        };
+        let mut config = MountConfig::new(
+            "nfs://server/data".to_string(),
+            mount_type,
+            PathBuf::from("/mnt/data"),
+        );
+
+        assert_eq!(config.reconnect_attempts, 0);
+
+        config.increment_reconnect_attempts();
+        assert_eq!(config.reconnect_attempts, 1);
+
+        config.increment_reconnect_attempts();
+        assert_eq!(config.reconnect_attempts, 2);
+
+        config.increment_reconnect_attempts();
+        assert_eq!(config.reconnect_attempts, 3);
+    }
+
+    #[test]
+    fn test_mount_config_is_active() {
+        let mount_type = MountType::Nfs {
+            host: "server".to_string(),
+            share: "/data".to_string(),
+            options: vec![],
+        };
+        let mut config = MountConfig::new(
+            "nfs://server/data".to_string(),
+            mount_type,
+            PathBuf::from("/mnt/data"),
+        );
+
+        // Initially disabled, not active
+        assert!(!config.is_active());
+
+        config.update_status(MountStatus::Active);
+        assert!(config.is_active());
+
+        config.update_status(MountStatus::Reconnecting);
+        assert!(!config.is_active());
+
+        config.update_status(MountStatus::Failed);
+        assert!(!config.is_active());
+
+        config.update_status(MountStatus::InProgress);
+        assert!(!config.is_active());
+
+        config.update_status(MountStatus::Error("test".to_string()));
+        assert!(!config.is_active());
+    }
+
+    #[test]
+    fn test_mount_config_enable_disable() {
+        let mount_type = MountType::Nfs {
+            host: "server".to_string(),
+            share: "/data".to_string(),
+            options: vec![],
+        };
+        let mut config = MountConfig::new(
+            "nfs://server/data".to_string(),
+            mount_type,
+            PathBuf::from("/mnt/data"),
+        );
+
+        assert!(config.enabled);
+
+        config.disable();
+        assert!(!config.enabled);
+        assert_eq!(config.status, MountStatus::Disabled);
+
+        config.enable();
+        assert!(config.enabled);
+    }
+
+    #[test]
+    fn test_mount_config_serialization() {
+        let mount_type = MountType::Nfs {
+            host: "server".to_string(),
+            share: "/data".to_string(),
+            options: vec!["rw".to_string()],
+        };
+        let config = MountConfig::new(
+            "nfs://server/data".to_string(),
+            mount_type,
+            PathBuf::from("/mnt/data"),
+        );
+
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: MountConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(config.id, parsed.id);
+        assert_eq!(config.url, parsed.url);
+        assert_eq!(config.mount_point, parsed.mount_point);
+        assert_eq!(config.mount_type, parsed.mount_type);
+        assert_eq!(config.enabled, parsed.enabled);
+        assert_eq!(config.status, parsed.status);
+    }
+
+    #[test]
+    fn test_get_mount_handler_nfs() {
+        let handler = get_mount_handler("nfs").unwrap();
+        assert_eq!(handler.protocol(), "nfs");
+    }
+
+    #[test]
+    fn test_get_mount_handler_smb() {
+        let handler = get_mount_handler("smb").unwrap();
+        assert_eq!(handler.protocol(), "smb");
+
+        let handler = get_mount_handler("cifs").unwrap();
+        assert_eq!(handler.protocol(), "smb");
+    }
+
+    #[test]
+    fn test_get_mount_handler_sshfs() {
+        let handler = get_mount_handler("sshfs").unwrap();
+        assert_eq!(handler.protocol(), "sshfs");
+
+        let handler = get_mount_handler("ssh").unwrap();
+        assert_eq!(handler.protocol(), "sshfs");
+    }
+
+    #[test]
+    fn test_get_mount_handler_case_insensitive() {
+        assert!(get_mount_handler("NFS").is_ok());
+        assert!(get_mount_handler("Nfs").is_ok());
+        assert!(get_mount_handler("SMB").is_ok());
+        assert!(get_mount_handler("SSHFS").is_ok());
+    }
+
+    #[test]
+    fn test_get_mount_handler_unsupported() {
+        let result = get_mount_handler("ftp");
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(err.to_string().contains("Unsupported protocol"));
+
+        let result = get_mount_handler("webdav");
+        assert!(result.is_err());
+
+        let result = get_mount_handler("");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mount_state_creation() {
+        let state = MountState {
+            accessible: true,
+            last_error: None,
+            last_health_check: Utc::now(),
+            health_score: 100,
+        };
+
+        assert!(state.accessible);
+        assert!(state.last_error.is_none());
+        assert_eq!(state.health_score, 100);
+    }
+
+    #[test]
+    fn test_mount_state_with_error() {
+        let state = MountState {
+            accessible: false,
+            last_error: Some("Connection timed out".to_string()),
+            last_health_check: Utc::now(),
+            health_score: 0,
+        };
+
+        assert!(!state.accessible);
+        assert_eq!(state.last_error, Some("Connection timed out".to_string()));
+        assert_eq!(state.health_score, 0);
+    }
+
+    #[test]
+    fn test_mount_config_metadata() {
+        let mount_type = MountType::Nfs {
+            host: "server".to_string(),
+            share: "/data".to_string(),
+            options: vec![],
+        };
+        let mut config = MountConfig::new(
+            "nfs://server/data".to_string(),
+            mount_type,
+            PathBuf::from("/mnt/data"),
+        );
+
+        // Initially empty
+        assert!(config.metadata.is_empty());
+
+        // Add metadata
+        config
+            .metadata
+            .insert("label".to_string(), "Production".to_string());
+        config
+            .metadata
+            .insert("owner".to_string(), "admin".to_string());
+
+        assert_eq!(config.metadata.len(), 2);
+        assert_eq!(
+            config.metadata.get("label"),
+            Some(&"Production".to_string())
+        );
+        assert_eq!(config.metadata.get("owner"), Some(&"admin".to_string()));
+    }
+
+    #[test]
+    fn test_mount_type_equality() {
+        let nfs1 = MountType::Nfs {
+            host: "server".to_string(),
+            share: "/data".to_string(),
+            options: vec![],
+        };
+        let nfs2 = MountType::Nfs {
+            host: "server".to_string(),
+            share: "/data".to_string(),
+            options: vec![],
+        };
+        let nfs3 = MountType::Nfs {
+            host: "other-server".to_string(),
+            share: "/data".to_string(),
+            options: vec![],
+        };
+
+        assert_eq!(nfs1, nfs2);
+        assert_ne!(nfs1, nfs3);
+    }
+
+    #[test]
+    fn test_mount_status_equality() {
+        assert_eq!(MountStatus::Active, MountStatus::Active);
+        assert_ne!(MountStatus::Active, MountStatus::Failed);
+        assert_eq!(
+            MountStatus::Error("test".to_string()),
+            MountStatus::Error("test".to_string())
+        );
+        assert_ne!(
+            MountStatus::Error("test".to_string()),
+            MountStatus::Error("other".to_string())
+        );
+    }
+}
