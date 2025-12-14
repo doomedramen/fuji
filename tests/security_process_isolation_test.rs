@@ -17,6 +17,24 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time::timeout;
 
+/// Helper function to check if namespace capabilities are available
+/// GitHub Actions doesn't have CAP_SYS_ADMIN, but devcontainer does
+async fn check_namespace_support() -> bool {
+    let capability_check = tokio::process::Command::new("unshare")
+        .arg("--pid")
+        .arg("--fork")
+        .arg("echo")
+        .arg("test")
+        .output()
+        .await;
+
+    if let Ok(output) = capability_check {
+        output.status.success()
+    } else {
+        false
+    }
+}
+
 #[tokio::test]
 async fn test_namespace_config_default() {
     let config = NamespaceConfig::default();
@@ -113,25 +131,8 @@ async fn test_network_configuration() {
 
 #[tokio::test]
 async fn test_isolated_process_lifecycle() -> Result<()> {
-    // Check if namespace capabilities are available
-    // GitHub Actions doesn't have CAP_SYS_ADMIN, but devcontainer does
-    let capability_check = tokio::process::Command::new("unshare")
-        .arg("--pid")
-        .arg("--fork")
-        .arg("echo")
-        .arg("test")
-        .output()
-        .await;
-
-    if let Ok(output) = capability_check {
-        if !output.status.success() {
-            eprintln!(
-                "Skipping test: namespace capabilities not available (requires CAP_SYS_ADMIN)"
-            );
-            return Ok(());
-        }
-    } else {
-        eprintln!("Skipping test: unshare command not found");
+    if !check_namespace_support().await {
+        eprintln!("Skipping test: namespace capabilities not available (requires CAP_SYS_ADMIN)");
         return Ok(());
     }
 
@@ -162,6 +163,11 @@ async fn test_isolated_process_lifecycle() -> Result<()> {
 
 #[tokio::test]
 async fn test_sandbox_process_execution() -> Result<()> {
+    if !check_namespace_support().await {
+        eprintln!("Skipping test: namespace capabilities not available (requires CAP_SYS_ADMIN)");
+        return Ok(());
+    }
+
     let sandbox = Sandbox::new()?;
 
     // Execute command in sandbox
@@ -182,6 +188,11 @@ async fn test_sandbox_process_execution() -> Result<()> {
 
 #[tokio::test]
 async fn test_process_termination() -> Result<()> {
+    if !check_namespace_support().await {
+        eprintln!("Skipping test: namespace capabilities not available (requires CAP_SYS_ADMIN)");
+        return Ok(());
+    }
+
     let config = NamespaceConfig::default();
     let isolator = ProcessIsolator::new(config);
 
@@ -204,6 +215,11 @@ async fn test_process_termination() -> Result<()> {
 
 #[tokio::test]
 async fn test_hostname_isolation() -> Result<()> {
+    if !check_namespace_support().await {
+        eprintln!("Skipping test: namespace capabilities not available (requires CAP_SYS_ADMIN)");
+        return Ok(());
+    }
+
     let config = NamespaceConfig {
         uts_namespace: true,
         hostname: Some("fuji-isolated-hostname".to_string()),
@@ -231,6 +247,11 @@ async fn test_hostname_isolation() -> Result<()> {
 
 #[tokio::test]
 async fn test_pid_namespace_isolation() -> Result<()> {
+    if !check_namespace_support().await {
+        eprintln!("Skipping test: namespace capabilities not available (requires CAP_SYS_ADMIN)");
+        return Ok(());
+    }
+
     let config = NamespaceConfig {
         pid_namespace: true,
         ..Default::default()
@@ -257,6 +278,11 @@ async fn test_pid_namespace_isolation() -> Result<()> {
 
 #[tokio::test]
 async fn test_multiple_isolated_processes() -> Result<()> {
+    if !check_namespace_support().await {
+        eprintln!("Skipping test: namespace capabilities not available (requires CAP_SYS_ADMIN)");
+        return Ok(());
+    }
+
     let config = NamespaceConfig::default();
     let isolator = ProcessIsolator::new(config);
 
@@ -337,6 +363,11 @@ async fn test_sandbox_cleanup() {
 
 #[tokio::test]
 async fn test_process_isolation_timeout() -> Result<()> {
+    if !check_namespace_support().await {
+        eprintln!("Skipping test: namespace capabilities not available (requires CAP_SYS_ADMIN)");
+        return Ok(());
+    }
+
     let config = NamespaceConfig::default();
     let isolator = ProcessIsolator::new(config);
 

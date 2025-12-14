@@ -178,11 +178,13 @@ async fn test_stronger_encryption_context() {
 #[tokio::test]
 async fn test_credential_manager_encryption_integration() {
     let temp_dir = TempDir::new().unwrap();
-    // dirs::config_dir() returns $HOME/.config, so we need to create .config/fuji
-    let config_dir = temp_dir.path().join(".config").join("fuji");
+    // dirs::config_dir() uses XDG_CONFIG_HOME on Linux, so set that
+    let config_dir = temp_dir.path().join(".config");
     std::fs::create_dir_all(&config_dir).unwrap();
 
-    // Set environment to use our test config directory
+    // Set XDG_CONFIG_HOME so dirs::config_dir() returns our test directory
+    std::env::set_var("XDG_CONFIG_HOME", &config_dir);
+    // Also set HOME as a fallback
     std::env::set_var("HOME", temp_dir.path());
 
     let credential_manager = CredentialManager::new();
@@ -220,12 +222,8 @@ async fn test_credential_manager_encryption_integration() {
     );
 
     // Verify credential file was created with encryption
-    // dirs::config_dir() returns $HOME/.config (not $HOME/config)
-    let cred_file = temp_dir
-        .path()
-        .join(".config")
-        .join("fuji")
-        .join("credentials.enc");
+    // dirs::config_dir() returns XDG_CONFIG_HOME if set
+    let cred_file = config_dir.join("fuji").join("credentials.enc");
     assert!(cred_file.exists());
 
     let contents = fs::read_to_string(&cred_file).await.unwrap();
