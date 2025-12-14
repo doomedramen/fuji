@@ -326,22 +326,54 @@ impl ProcessIsolator {
             unshare_cmd.arg("--cgroup");
         }
 
-        // Set hostname if UTS namespace is enabled
+        // If UTS namespace is enabled and hostname is set, wrap command in shell
+        // to set hostname (--hostname flag not available in older util-linux versions)
         if self.config.uts_namespace && self.config.hostname.is_some() {
-            unshare_cmd.arg("--hostname");
-            unshare_cmd.arg(self.config.hostname.as_ref().unwrap());
+            let hostname = self.config.hostname.as_ref().unwrap();
+            // Build shell command: set hostname, then execute the actual command
+            let shell_cmd = if args.is_empty() {
+                format!(
+                    "hostname '{}' 2>/dev/null || true; exec {}",
+                    hostname, command
+                )
+            } else {
+                let args_str = args
+                    .iter()
+                    .map(|a| format!("'{}'", a.replace('\'', "'\\''")))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                format!(
+                    "hostname '{}' 2>/dev/null || true; exec {} {}",
+                    hostname, command, args_str
+                )
+            };
+            unshare_cmd.arg("sh");
+            unshare_cmd.arg("-c");
+            unshare_cmd.arg(shell_cmd);
+        } else {
+            // Add the actual command directly
+            unshare_cmd.arg(command);
+            unshare_cmd.args(args);
         }
 
-        // Add the actual command
-        unshare_cmd.arg(command);
-        unshare_cmd.args(args);
-
         // Execute the command
+        // Use piped stdio to allow capturing output for monitoring and testing
         let child = unshare_cmd
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .stdin(Stdio::inherit())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::piped())
             .spawn()?;
+
+        // Track the isolated process
+        if let Some(pid) = child.id() {
+            let process = IsolatedProcess {
+                pid,
+                config: self.config.clone(),
+                created_at: chrono::Utc::now(),
+                status: ProcessStatus::Running,
+            };
+            self.isolated_processes.lock().unwrap().push(process);
+        }
 
         Ok(child)
     }

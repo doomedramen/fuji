@@ -122,18 +122,23 @@ async fn test_key_derivation_functions() -> Result<()> {
         SecurityLevel::VeryHigh,
     ] {
         let password = b"test_password";
-        let (key, salt) = manager.derive_key_with_salt(password)?;
+
+        // Get parameters for this security level
+        let params = manager.get_parameters(KeyDerivationFunction::PBKDF2Sha256, security_level);
+
+        // Generate salt and derive key
+        let salt = params.generate_salt();
+        let key = manager.derive_key_with_params(password, &salt, &params)?;
 
         // Verify key length
         assert_eq!(key.len(), 32);
 
-        // Verify deterministic output
-        let params = manager.get_parameters(KeyDerivationFunction::PBKDF2Sha256, security_level);
+        // Verify deterministic output - same password and salt should give same key
         let key2 = manager.derive_key_with_params(password, &salt, &params)?;
         assert_eq!(key, key2);
 
         // Verify different passwords produce different keys
-        let (key3, _) = manager.derive_key_with_salt(b"different_password")?;
+        let key3 = manager.derive_key_with_params(b"different_password", &salt, &params)?;
         assert_ne!(key, key3);
     }
 
@@ -272,7 +277,7 @@ async fn test_concurrent_credential_operations() -> Result<()> {
     for i in 0..10 {
         let credential = Credential {
             username: format!("user{}", i),
-            password: format!("Password{}!", i),
+            password: format!("SecurePassword{}!", i),
             domain: None,
             metadata: HashMap::new(),
         };

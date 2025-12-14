@@ -4,6 +4,12 @@
   "context": "..",
   "workspaceFolder": "/app",
   "workspaceMount": "source=${localWorkspaceFolder},target=/app,type=bind,consistency=cached",
+  "runArgs": [
+    "--cap-add=SYS_ADMIN",
+    "--cap-add=SYS_PTRACE",
+    "--cap-add=NET_ADMIN",
+    "--security-opt=apparmor=unconfined"
+  ],
   "customizations": {
     "vscode": {
       "settings": {

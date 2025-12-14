@@ -124,8 +124,8 @@ async fn test_improved_key_separation() {
 
     // Even with same master key and credential, encrypted data should be different
     // due to random salts and nonces
-    let encrypted1 = store1["data"].as_str().unwrap();
-    let encrypted2 = store2["data"].as_str().unwrap();
+    let encrypted1 = store1["encrypted_data"]["ciphertext"].as_str().unwrap();
+    let encrypted2 = store2["encrypted_data"]["ciphertext"].as_str().unwrap();
 
     assert_ne!(
         encrypted1, encrypted2,
@@ -137,8 +137,8 @@ async fn test_improved_key_separation() {
     let salt2 = store2["pbkdf2_salt"].as_str().unwrap();
     assert_ne!(salt1, salt2, "PBKDF2 salts should be random and different");
 
-    let nonce1 = store1["nonce"].as_str().unwrap();
-    let nonce2 = store2["nonce"].as_str().unwrap();
+    let nonce1 = store1["encrypted_data"]["nonce"].as_str().unwrap();
+    let nonce2 = store2["encrypted_data"]["nonce"].as_str().unwrap();
     assert_ne!(nonce1, nonce2, "Nonces should be random and different");
 }
 
@@ -147,7 +147,7 @@ async fn test_stronger_encryption_context() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test_context.enc");
 
-    let provider = FileCredentialProvider::with_path(file_path.clone()).unwrap();
+    let provider = FileCredentialProvider::with_aes256_gcm(file_path.clone()).unwrap();
 
     let credential = Credential {
         username: "testuser".to_string(),
@@ -219,7 +219,12 @@ async fn test_credential_manager_encryption_integration() {
     );
 
     // Verify credential file was created with encryption
-    let cred_file = config_dir.join("fuji").join("credentials.enc");
+    // dirs::config_dir() returns $HOME/.config (not $HOME/config)
+    let cred_file = temp_dir
+        .path()
+        .join(".config")
+        .join("fuji")
+        .join("credentials.enc");
     assert!(cred_file.exists());
 
     let contents = fs::read_to_string(&cred_file).await.unwrap();

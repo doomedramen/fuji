@@ -103,19 +103,12 @@ impl HashAlgorithm {
                 hasher.finalize().to_vec()
             }
             HashAlgorithm::Sha3 => {
-                // For now, use SHA-256 as fallback
-                use sha2::{Digest, Sha256};
-                let mut hasher = Sha256::new();
+                use sha3::{Digest, Sha3_256};
+                let mut hasher = Sha3_256::new();
                 hasher.update(data);
                 hasher.finalize().to_vec()
             }
-            HashAlgorithm::Blake3 => {
-                // For now, use SHA-256 as fallback
-                use sha2::{Digest, Sha256};
-                let mut hasher = Sha256::new();
-                hasher.update(data);
-                hasher.finalize().to_vec()
-            }
+            HashAlgorithm::Blake3 => blake3::hash(data).as_bytes().to_vec(),
         }
     }
 
@@ -740,12 +733,18 @@ impl RuntimeIntegrityChecker {
 
     /// Find library path
     pub fn find_library_path(&self, library: &str) -> Option<PathBuf> {
-        // Check common library paths
+        // Check common library paths, including architecture-specific directories
         let search_paths = vec![
             "/lib",
             "/lib64",
+            "/lib/x86_64-linux-gnu",
+            "/lib/aarch64-linux-gnu",
+            "/lib/i386-linux-gnu",
             "/usr/lib",
             "/usr/lib64",
+            "/usr/lib/x86_64-linux-gnu",
+            "/usr/lib/aarch64-linux-gnu",
+            "/usr/lib/i386-linux-gnu",
             "/usr/local/lib",
             "/usr/local/lib64",
         ];
@@ -878,7 +877,9 @@ impl MemoryMapping {
     pub fn from_line(line: &str) -> Result<Self> {
         let parts: Vec<&str> = line.split_whitespace().collect();
 
-        if parts.len() < 6 {
+        // Memory map lines have at least 5 parts (address, permissions, offset, device, inode)
+        // and optionally a 6th part for the path
+        if parts.len() < 5 {
             return Err(anyhow!("Invalid memory map line: {}", line));
         }
 
