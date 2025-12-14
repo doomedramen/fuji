@@ -178,7 +178,8 @@ async fn test_stronger_encryption_context() {
 #[tokio::test]
 async fn test_credential_manager_encryption_integration() {
     let temp_dir = TempDir::new().unwrap();
-    let config_dir = temp_dir.path().join("config");
+    // dirs::config_dir() returns $HOME/.config, so we need to create .config/fuji
+    let config_dir = temp_dir.path().join(".config").join("fuji");
     std::fs::create_dir_all(&config_dir).unwrap();
 
     // Set environment to use our test config directory

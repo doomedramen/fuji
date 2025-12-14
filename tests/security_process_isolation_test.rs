@@ -113,6 +113,28 @@ async fn test_network_configuration() {
 
 #[tokio::test]
 async fn test_isolated_process_lifecycle() -> Result<()> {
+    // Check if namespace capabilities are available
+    // GitHub Actions doesn't have CAP_SYS_ADMIN, but devcontainer does
+    let capability_check = tokio::process::Command::new("unshare")
+        .arg("--pid")
+        .arg("--fork")
+        .arg("echo")
+        .arg("test")
+        .output()
+        .await;
+
+    if let Ok(output) = capability_check {
+        if !output.status.success() {
+            eprintln!(
+                "Skipping test: namespace capabilities not available (requires CAP_SYS_ADMIN)"
+            );
+            return Ok(());
+        }
+    } else {
+        eprintln!("Skipping test: unshare command not found");
+        return Ok(());
+    }
+
     let config = NamespaceConfig {
         pid_namespace: true,
         uts_namespace: true,
