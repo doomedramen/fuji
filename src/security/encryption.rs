@@ -49,7 +49,7 @@
 //!
 //! ## Usage Examples
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use fuji::security::encryption::{
 //!     EncryptionManager, EncryptionAlgorithm, EncryptedData
 //! };

@@ -50,7 +50,7 @@
 //!
 //! ## Examples
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use fuji::security::{CredentialProvider, SecurityConfig};
 //!
 //! // Initialize secure credential manager

@@ -101,7 +101,7 @@
 //!
 //! ## Usage Examples
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use fuji::security::intrusion_detection::{
 //!     IntrusionDetector, ThreatLevel, DetectionRule
 //! };

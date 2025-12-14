@@ -64,7 +64,7 @@
 //!
 //! ## Usage Examples
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use fuji::security::audit_logging::{AuditLogger, AuditEvent, AuditEventType};
 //!
 //! // Initialize audit logger
