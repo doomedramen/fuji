@@ -1820,9 +1820,10 @@ max_connections = 10"#
         // Attempt rollback to version 1
         manager.rollback(&config_path, "admin", Some(1)).await?;
 
-        // Verify rollback was logged (note: rollback doesn't add to history in current implementation)
+        // Verify rollback was logged as a history entry
         let history = manager.get_history(Some(&config_path)).await?;
-        assert_eq!(history.len(), 2); // Create, Update (rollback is logged but doesn't add history entry)
+        assert_eq!(history.len(), 3); // Create, Update, Rollback
+        assert_eq!(history[2].operation, ConfigOperation::Rollback);
 
         Ok(())
     }
