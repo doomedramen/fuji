@@ -253,7 +253,7 @@ async fn test_verify_update_with_integrity() -> Result<()> {
     let package_hash = hex::encode(Sha256::digest(package_content));
 
     let mut checksums = HashMap::new();
-    checksums.insert("sha256".to_string(), hex::encode(package_hash));
+    checksums.insert("sha256".to_string(), package_hash);
 
     let metadata = UpdateMetadata {
         previous_version: None,
@@ -381,7 +381,7 @@ async fn test_install_update_success() -> Result<()> {
     let package_hash = hex::encode(Sha256::digest(package_content));
 
     let mut checksums = HashMap::new();
-    checksums.insert("sha256".to_string(), hex::encode(package_hash));
+    checksums.insert("sha256".to_string(), package_hash);
 
     let metadata = UpdateMetadata {
         previous_version: None,

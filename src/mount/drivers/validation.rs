@@ -92,6 +92,26 @@ impl MountUrlValidator {
             ));
         }
 
+        // Check for excessive path traversal in raw URL before parsing
+        // URL parser may normalize paths like /../../../ to /, losing the attack pattern
+        let traversal_count = url_str.matches("..").count();
+        if traversal_count > 10 {
+            return Err(anyhow::anyhow!(
+                "Excessive path traversal detected ({} instances)",
+                traversal_count
+            ));
+        }
+
+        // Check for IPv6 addresses without brackets and other blocked patterns before URL parsing
+        // This catches cases like nfs://::1/path which fail URL parsing
+        if let Some(hostname_part) = self.extract_hostname_from_url(url_str) {
+            for blocked in &self.config.blocked_hostnames {
+                if hostname_part == *blocked {
+                    return Err(anyhow::anyhow!("Hostname is blocked: {}", hostname_part));
+                }
+            }
+        }
+
         // Parse the URL
         let url =
             Url::parse(url_str).with_context(|| format!("Invalid URL format: {}", url_str))?;
@@ -325,6 +345,39 @@ impl MountUrlValidator {
         }
 
         false
+    }
+
+    /// Extract hostname from URL string even if URL parsing would fail
+    /// This helps catch blocked hostnames like ::1 before URL parsing rejects them
+    fn extract_hostname_from_url(&self, url_str: &str) -> Option<String> {
+        // Try to extract hostname portion from URL string
+        // Format: scheme://hostname/path or scheme://hostname:port/path
+        if let Some(after_scheme) = url_str
+            .strip_prefix("nfs://")
+            .or_else(|| url_str.strip_prefix("smb://"))
+            .or_else(|| url_str.strip_prefix("cifs://"))
+            .or_else(|| url_str.strip_prefix("sshfs://"))
+        {
+            // Find the end of hostname (either / or end of string)
+            let hostname_end = after_scheme.find('/').unwrap_or(after_scheme.len());
+            let hostname_part = &after_scheme[..hostname_end];
+
+            // Remove port if present (but be careful with IPv6 which has colons)
+            let hostname = if hostname_part.starts_with('[') {
+                // IPv6 with brackets: [::1]:port
+                hostname_part.split(']').next()?.trim_start_matches('[')
+            } else if hostname_part.contains(':') && !hostname_part.contains("::") {
+                // Likely hostname:port (not IPv6)
+                hostname_part.split(':').next()?
+            } else {
+                // Plain hostname or IPv6 without brackets
+                hostname_part
+            };
+
+            return Some(hostname.to_string());
+        }
+
+        None
     }
 
     /// Sanitize and validate a path component from a URL for mount point generation

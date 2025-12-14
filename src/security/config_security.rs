@@ -822,15 +822,22 @@ impl ConfigSecurityManager {
             }
         }
 
-        // Security validation
-        if config_data.content.contains("password") && !config_data.content.contains("\"") {
-            warnings.push(ValidationWarning {
-                code: "PLAINTEXT_PASSWORD".to_string(),
-                message: "Possible plaintext password detected".to_string(),
-                field_path: "security".to_string(),
-                warning_type: "security".to_string(),
-            });
-            score = score.saturating_sub(20);
+        // Security validation - check for sensitive keys in configuration
+        let sensitive_patterns = ["password", "api_key", "secret", "token"];
+        for pattern in &sensitive_patterns {
+            if config_data.content.contains(pattern) {
+                warnings.push(ValidationWarning {
+                    code: "PLAINTEXT_SENSITIVE_DATA".to_string(),
+                    message: format!(
+                        "Sensitive data pattern '{}' detected in configuration. Consider using encrypted storage.",
+                        pattern
+                    ),
+                    field_path: "security".to_string(),
+                    warning_type: "security".to_string(),
+                });
+                score = score.saturating_sub(20);
+                break; // Only warn once for sensitive data
+            }
         }
 
         // Check for suspicious paths
@@ -1121,17 +1128,63 @@ impl ConfigSecurityManager {
                 .await?;
         }
 
+        // Clone all needed values from target_entry before dropping the read lock
+        let target_version = target_entry.version;
+        let target_checksum = target_entry.checksum.clone();
+        let config_name = target_entry
+            .metadata
+            .get("config_name")
+            .cloned()
+            .unwrap_or_else(|| "unknown".to_string());
+        let config_version = target_entry
+            .metadata
+            .get("config_version")
+            .cloned()
+            .unwrap_or_else(|| format!("{}", target_version));
+
+        // Drop the read lock before calling add_history_entry which needs write lock
+        drop(history);
+
         // Restore from backup or history
         // Note: In a real implementation, we would store the actual configuration data
         // For now, we'll just log the rollback attempt
         info!(
             "Config rollback initiated to version {} by user {}",
-            target_entry.version, user_id
+            target_version, user_id
         );
+
+        // Create placeholder config data for history entry
+        let rollback_config_data = ConfigData {
+            content: format!(
+                "# Rollback to version {} (checksum: {})",
+                target_version, target_checksum
+            ),
+            metadata: ConfigMetadata {
+                name: config_name.clone(),
+                version: config_version,
+                created_at: Utc::now(),
+                modified_at: Utc::now(),
+                author: user_id.to_string(),
+                description: Some(format!("Rollback to version {}", target_version)),
+                tags: vec!["rollback".to_string()],
+                schema_version: None,
+                dependencies: vec![],
+            },
+        };
+
+        // Add rollback history entry
+        self.add_history_entry(
+            config_path,
+            ConfigOperation::Rollback,
+            user_id,
+            &rollback_config_data,
+            ConfigOperationResult::Success,
+        )
+        .await?;
 
         info!(
             "Configuration rollback to version {} completed",
-            target_entry.version
+            target_version
         );
         Ok(())
     }

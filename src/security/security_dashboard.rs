@@ -443,6 +443,31 @@ impl SecurityDashboard {
         // Initialize component status tracking
         let mut component_status = self.component_status.write().await;
 
+        // Add default system monitoring components
+        component_status.insert(
+            "dashboard".to_string(),
+            ComponentStatus {
+                name: "Security Dashboard".to_string(),
+                status: ComponentHealth::Healthy,
+                last_check: Utc::now(),
+                message: "Dashboard initialized".to_string(),
+                metrics: HashMap::new(),
+                dependencies: vec![],
+            },
+        );
+
+        component_status.insert(
+            "event_logging".to_string(),
+            ComponentStatus {
+                name: "Event Logging".to_string(),
+                status: ComponentHealth::Healthy,
+                last_check: Utc::now(),
+                message: "Event logging active".to_string(),
+                metrics: HashMap::new(),
+                dependencies: vec![],
+            },
+        );
+
         if let Some(ref _checker) = integrity_checker {
             component_status.insert(
                 "integrity_monitoring".to_string(),
