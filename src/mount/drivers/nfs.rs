@@ -174,6 +174,9 @@ impl MountHandler for NfsHandler {
                     &mount_options,
                 )?;
 
+                // Ensure mount point exists
+                fs::create_dir_all(mount_point).await?;
+
                 // Execute mount command
                 let output = cmd.output().await?;
 

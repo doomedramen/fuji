@@ -1815,7 +1815,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths={data_dir}
+ReadWritePaths={data_dir} /etc/fuji
 
 # Resource limits
 LimitNOFILE=65536

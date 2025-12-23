@@ -431,21 +431,6 @@ impl MountUrlValidator {
     /// Check if a path component is dangerous (system files, sensitive directories, etc.)
     fn is_dangerous_component(&self, component: &str) -> bool {
         let dangerous_names = [
-            // System files and directories (critical system directories)
-            "etc",
-            "bin",
-            "sbin",
-            "usr",
-            "var",
-            "sys",
-            "proc",
-            "dev",
-            "boot",
-            "lib",
-            "lib64",
-            "root",
-            "home",
-            "tmp",
             // Sensitive files (exact matches only)
             "passwd",
             "shadow",
