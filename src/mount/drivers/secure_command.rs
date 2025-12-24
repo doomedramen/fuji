@@ -249,22 +249,31 @@ pub fn create_secure_mount_command(
     let (command_name, args) = match mount_type {
         "nfs" | "nfs4" => {
             let mut cmd_args = vec!["-t".to_string(), mount_type.to_string()];
+            // Add options with -o flag if any options are present
+            if !options.is_empty() {
+                cmd_args.push("-o".to_string());
+                cmd_args.push(options.join(","));
+            }
             cmd_args.push(source.to_string());
             cmd_args.push(target.to_string());
-            cmd_args.extend(options.iter().cloned());
             ("mount", cmd_args)
         }
 
         "smb" | "cifs" => {
             let mut cmd_args = vec!["-t".to_string(), "cifs".to_string()];
+            // Add options with -o flag if any options are present
+            if !options.is_empty() {
+                cmd_args.push("-o".to_string());
+                cmd_args.push(options.join(","));
+            }
             cmd_args.push(source.to_string());
             cmd_args.push(target.to_string());
-            cmd_args.extend(options.iter().cloned());
             ("mount", cmd_args)
         }
 
         "sshfs" => {
             let mut cmd_args = vec![source.to_string(), target.to_string()];
+            // sshfs options are passed as separate arguments
             cmd_args.extend(options.iter().cloned());
             ("sshfs", cmd_args)
         }
@@ -360,7 +369,27 @@ mod tests {
         assert_eq!(cmd.program, "mount");
         assert_eq!(
             cmd.args,
-            vec!["-t", "nfs", "server:/export/path", "/mnt/nfs", "rw", "hard"]
+            vec![
+                "-t",
+                "nfs",
+                "-o",
+                "rw,hard",
+                "server:/export/path",
+                "/mnt/nfs"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_create_secure_mount_command_no_options() {
+        let cmd =
+            create_secure_mount_command("nfs", "server:/export/path", "/mnt/nfs", &[]).unwrap();
+
+        assert_eq!(cmd.program, "mount");
+        // Without options, no -o flag should be present
+        assert_eq!(
+            cmd.args,
+            vec!["-t", "nfs", "server:/export/path", "/mnt/nfs"]
         );
     }
 
