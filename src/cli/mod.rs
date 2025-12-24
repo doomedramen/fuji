@@ -1809,13 +1809,15 @@ RestartSec=5s
 User={user}
 Group={group}
 WorkingDirectory={work_dir}
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=RUST_LOG=info
 
 # Security settings
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths={data_dir} /etc/fuji
+ReadWritePaths=/var/lib/fuji /etc/fuji /run/fuji
 
 # Resource limits
 LimitNOFILE=65536
