@@ -177,12 +177,27 @@ impl MountHandler for NfsHandler {
                 // Ensure mount point exists
                 fs::create_dir_all(mount_point).await?;
 
-                // Execute mount command
-                let output = cmd.output().await?;
+                // Log the exact mount command for debugging
+                debug!("Executing mount command: {}", cmd.display_command());
 
-                // SecureCommand::output returns Result<String>, not a status object
-                // If we get here, the command succeeded
-                debug!("Mount command output: {}", output);
+                // Execute mount command with timing
+                let start = std::time::Instant::now();
+                let output = cmd.output().await.map_err(|e| {
+                    anyhow!(
+                        "Failed to mount {}:{} to {}: {}",
+                        host,
+                        share,
+                        mount_point.display(),
+                        e
+                    )
+                })?;
+                let duration = start.elapsed();
+
+                // Log execution time and output
+                info!("Mount command completed in {:.2}s", duration.as_secs_f64());
+                if !output.trim().is_empty() {
+                    debug!("Mount command output: {}", output.trim());
+                }
 
                 info!(
                     "Successfully mounted NFS share {}:{} to {}",

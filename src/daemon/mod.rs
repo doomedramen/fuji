@@ -1017,7 +1017,11 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
     // Ensure the mount point directory exists before validation
     if !params.dry_run {
         if let Err(e) = tokio::fs::create_dir_all(&mount_point).await {
-            warn!("Failed to create mount point directory {}: {}", mount_point.display(), e);
+            warn!(
+                "Failed to create mount point directory {}: {}",
+                mount_point.display(),
+                e
+            );
             // We'll continue anyway, as the validator or mount command might provide a better error
         }
     }

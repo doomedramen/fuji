@@ -1796,7 +1796,7 @@ fn format_health_state(state: &crate::monitoring::HealthState) -> &'static str {
 /// Systemd service file template
 const SYSTEMD_SERVICE_TEMPLATE: &str = r"[Unit]
 Description=Fuji Network File System Manager
-Documentation=https://github.com/fuji-fs/fuji
+Documentation=https://github.com/doomedramen/fuji
 After=network.target network-online.target
 Wants=network-online.target
 ConditionPathExists={executable_path}

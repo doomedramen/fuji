@@ -9,8 +9,9 @@ use crate::security::seccomp::{SeccompProfile, SecureExecutor};
 use anyhow::{Context, Result};
 use regex;
 use shlex;
-use std::process::Command;
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::Duration;
+use tokio::process::Command;
 use tracing::{debug, trace, warn};
 
 /// Builder for secure command execution
@@ -85,6 +86,11 @@ impl SecureCommand {
         self
     }
 
+    /// Get a display string of the command for logging
+    pub fn display_command(&self) -> String {
+        format!("{} {}", self.program, self.args.join(" "))
+    }
+
     /// Execute the command and return the output
     pub async fn output(&self) -> Result<String> {
         trace!(
@@ -115,24 +121,41 @@ impl SecureCommand {
         }
 
         // Fallback to normal execution without seccomp
-        let output = Command::new(&self.program)
-            .args(&self.args)
-            .output()
-            .with_context(|| {
-                format!(
-                    "Failed to execute command: {} {}",
-                    self.program,
-                    self.args.join(" ")
-                )
-            })?;
+        // Add timeout to prevent indefinite hangs (e.g., NFS mount issues)
+        let output = tokio::time::timeout(
+            Duration::from_secs(30),
+            Command::new(&self.program).args(&self.args).output(),
+        )
+        .await
+        .with_context(|| {
+            format!(
+                "Command timed out after 30 seconds: {} {}",
+                self.program,
+                self.args.join(" ")
+            )
+        })?
+        .with_context(|| {
+            format!(
+                "Failed to execute command: {} {}",
+                self.program,
+                self.args.join(" ")
+            )
+        })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!(
-                "Command failed with exit code {}: {}",
-                output.status.code().unwrap_or(-1),
-                stderr
-            ));
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let mut error_msg = format!(
+                "Command failed with exit code {}",
+                output.status.code().unwrap_or(-1)
+            );
+            if !stderr.is_empty() {
+                error_msg.push_str(&format!(" | stderr: {}", stderr));
+            }
+            if !stdout.is_empty() {
+                error_msg.push_str(&format!(" | stdout: {}", stdout));
+            }
+            return Err(anyhow::anyhow!("{}", error_msg));
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -152,6 +175,7 @@ impl SecureCommand {
         let status = Command::new(&self.program)
             .args(&self.args)
             .status()
+            .await
             .with_context(|| {
                 format!(
                     "Failed to get command status: {} {}",

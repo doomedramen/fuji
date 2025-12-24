@@ -374,7 +374,7 @@ fn default_retry_policy_for_mount_type(mount_type: &crate::mount::MountType) -> 
         } => RetryPolicy {
             max_attempts: 5,
             initial_delay: StdDuration::from_secs(2),
-            max_delay: StdDuration::from_secs(300),
+            max_delay: StdDuration::from_secs(30),
             multiplier: 2.0,
             jitter: 0.1,
             reset_after: StdDuration::from_secs(600),

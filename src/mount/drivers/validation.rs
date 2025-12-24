@@ -92,14 +92,10 @@ impl MountUrlValidator {
             ));
         }
 
-        // Check for excessive path traversal in raw URL before parsing
+        // Check for path traversal patterns (../ or ..\) in raw URL before parsing
         // URL parser may normalize paths like /../../../ to /, losing the attack pattern
-        let traversal_count = url_str.matches("..").count();
-        if traversal_count > 10 {
-            return Err(anyhow::anyhow!(
-                "Excessive path traversal detected ({} instances)",
-                traversal_count
-            ));
+        if url_str.contains("../") || url_str.contains("..\\") {
+            return Err(anyhow::anyhow!("Path traversal pattern detected in URL"));
         }
 
         // Check for IPv6 addresses without brackets and other blocked patterns before URL parsing
@@ -537,7 +533,8 @@ impl MountUrlValidator {
         dangerous_names.iter().any(|dangerous| {
             component_lower == *dangerous
                 || component_lower.starts_with(&format!("{}.", dangerous))
-                || component_lower.ends_with(&format!(".{}", dangerous))
+                || component_lower.ends_with(dangerous)
+                || component_lower.contains(&format!(".{}.", dangerous))
         })
     }
 
