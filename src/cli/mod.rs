@@ -47,8 +47,8 @@ pub enum Commands {
         #[arg(short, long)]
         mount_point: Option<String>,
 
-        /// Mount options (e.g., "rw,soft,timeo=30")
-        #[arg(short = 'O', long)]
+        /// Mount options (comma-separated, e.g., "rw,soft,timeo=30")
+        #[arg(short = 'O', long, value_delimiter = ',')]
         options: Option<Vec<String>>,
 
         /// Add mount but don't activate it
