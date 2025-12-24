@@ -100,28 +100,22 @@ impl SecureCommand {
             self.seccomp_profile
         );
 
-        // Initialize seccomp if profile is set
+        // Validate against seccomp profile if set (no actual seccomp enforcement)
         if let Some(profile) = self.seccomp_profile {
             let mut executor = recover_from_poison(SECCOMP_EXECUTOR.lock());
             if executor.is_none() {
                 *executor = Some(SecureExecutor::new(profile)?);
             }
 
-            // Execute with seccomp validation
-            if let Some(ref mut exec) = *executor {
-                // Validate command against profile
+            // Validate command against profile
+            if let Some(ref exec) = *executor {
                 exec.validate_command(&self.program)?;
-
-                // Initialize filter
-                exec.execute_in_sandbox(|| Ok(()))?;
-
                 debug!("Command validated against {:?} profile", profile);
-                // Continue with normal execution since we're using validation instead of real seccomp
+                // Skip seccomp initialization to avoid blocking - using validation mode only
             }
         }
 
-        // Fallback to normal execution without seccomp
-        // Add timeout to prevent indefinite hangs (e.g., NFS mount issues)
+        // Execute command with timeout to prevent indefinite hangs (e.g., NFS mount issues)
         let output = tokio::time::timeout(
             Duration::from_secs(30),
             Command::new(&self.program).args(&self.args).output(),
