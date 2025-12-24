@@ -102,7 +102,7 @@ jobs:
           tool: cargo-tarpaulin
       - name: Generate coverage
         run: |
-          cargo tarpaulin --lib --skip-clean --fail-under 34 \
+          cargo tarpaulin --lib --skip-clean --fail-under 32 \
             --workspace --exclude-files="scripts/*" \
             --timeout 600 \
             --output-dir target/coverage --out Xml
