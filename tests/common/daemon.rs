@@ -262,6 +262,32 @@ impl TestDaemon {
         self.temp_dir.path()
     }
 
+    /// Get daemon process ID
+    ///
+    /// Returns the PID of the running daemon process
+    pub async fn pid(&self) -> Result<u32> {
+        // First try to get PID from the process handle
+        if let Some(process) = &self.process {
+            if let Some(pid) = process.id() {
+                return Ok(pid);
+            }
+        }
+
+        // Fall back to reading PID file
+        if self.pid_file.exists() {
+            let pid_str = tokio::fs::read_to_string(&self.pid_file)
+                .await
+                .context("Failed to read PID file")?;
+            let pid = pid_str
+                .trim()
+                .parse::<u32>()
+                .context("Failed to parse PID")?;
+            return Ok(pid);
+        }
+
+        anyhow::bail!("Unable to determine daemon PID")
+    }
+
     /// Stop the daemon gracefully
     pub async fn stop(&mut self) -> Result<()> {
         // Send stop command

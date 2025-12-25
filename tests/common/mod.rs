@@ -7,6 +7,8 @@
 //! - File I/O verification helpers
 //! - Custom assertions
 
+#![allow(dead_code, unused_imports)]
+
 pub mod assertions;
 pub mod daemon;
 pub mod docker;

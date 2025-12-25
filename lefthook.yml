@@ -12,7 +12,8 @@ pre-commit:
           make fmt
           git add -u '*.rs'
         else
-          # Running on macOS - execute in dev container
+          # Running on macOS - ensure devcontainer is running, then execute
+          ./scripts/ensure-devcontainer.sh
           devcontainer exec --workspace-folder . make fmt
           git add -u '*.rs'
         fi
@@ -26,7 +27,8 @@ pre-commit:
           # Running on Linux - execute directly
           make build-dev
         else
-          # Running on macOS - execute in dev container
+          # Running on macOS - ensure devcontainer is running, then execute
+          ./scripts/ensure-devcontainer.sh
           devcontainer exec --workspace-folder . make build-dev
         fi
       glob: "*.rs"
@@ -42,7 +44,8 @@ pre-push:
           # Running on Linux - execute directly
           CARGO_BUILD_JOBS=2 make clippy
         else
-          # Running on macOS - execute in dev container with limited parallelism
+          # Running on macOS - ensure devcontainer is running, then execute with limited parallelism
+          ./scripts/ensure-devcontainer.sh
           devcontainer exec --workspace-folder . env CARGO_BUILD_JOBS=2 make clippy
         fi
       glob: "*.rs"
@@ -57,7 +60,8 @@ pre-push:
           # Running on Linux - execute directly
           CARGO_BUILD_JOBS=2 cargo test --lib --all-features --no-fail-fast
         else
-          # Running on macOS - execute in dev container with limited parallelism to avoid OOM
+          # Running on macOS - ensure devcontainer is running, then execute with limited parallelism to avoid OOM
+          ./scripts/ensure-devcontainer.sh
           devcontainer exec --workspace-folder . env CARGO_BUILD_JOBS=2 cargo test --lib --all-features --no-fail-fast
         fi
       glob: "*.rs"

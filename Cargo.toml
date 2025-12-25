@@ -143,6 +143,11 @@ name = "complete_workflow_test"
 path = "tests/e2e/complete_workflow_test.rs"
 harness = true
 
+[[test]]
+name = "failure_recovery_test"
+path = "tests/e2e/failure_recovery_test.rs"
+harness = true
+
 [dependencies]
 # Core dependencies
 tokio = { version = "1.35", features = ["full"] }
