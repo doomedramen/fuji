@@ -138,6 +138,11 @@ path = "tests/unit/progress_test.rs"
 name = "mount_retry_test"
 path = "tests/unit/mount_retry_test.rs"
 
+[[test]]
+name = "complete_workflow_test"
+path = "tests/e2e/complete_workflow_test.rs"
+harness = true
+
 [dependencies]
 # Core dependencies
 tokio = { version = "1.35", features = ["full"] }
@@ -211,6 +216,7 @@ cargo-tarpaulin = "0.27"
 mockall = "0.12"
 criterion = "0.5"
 proptest = "1.4"
+sha2 = "0.10"
 
 [profile.release]
 lto = true
