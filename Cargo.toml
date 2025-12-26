@@ -208,6 +208,11 @@ name = "state_machine_test"
 path = "tests/unit/state_machine_test.rs"
 harness = true
 
+[[test]]
+name = "mount_drivers_unit_test"
+path = "tests/unit/mount_drivers_unit_test.rs"
+harness = true
+
 [[bench]]
 name = "mount_operations"
 harness = false
