@@ -41,6 +41,7 @@ fn test_mount_command_parsing() {
         disable,
         dry_run,
         progress,
+        ..
     } = cli.command
     {
         assert_eq!(url, "nfs://server.example.com/export");
@@ -80,6 +81,7 @@ fn test_mount_command_with_options() {
         disable,
         dry_run,
         progress,
+        ..
     } = cli.command
     {
         assert_eq!(url, "nfs://server.example.com/export");
@@ -131,6 +133,7 @@ fn test_daemon_start_command() {
         if let DaemonCommand::Start {
             no_automount,
             disable_resource_limits: _,
+            ..
         } = command
         {
             assert!(no_automount);
