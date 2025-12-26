@@ -1,4 +1,4 @@
-.PHONY: help build build-dev test test-unit test-security test-integration clean install install-nextest release check-version fmt clippy ci devcontainer-up devcontainer-exec devcontainer-down devcontainer-compose-up
+.PHONY: help build build-dev test test-unit test-security test-integration test-e2e test-all bench clean install install-nextest release check-version fmt clippy ci devcontainer-up devcontainer-exec devcontainer-down devcontainer-compose-up
 
 # Default target
 help:
@@ -9,6 +9,9 @@ help:
 	@echo "  test-unit      - Run unit tests only (using nextest)"
 	@echo "  test-security  - Run security tests only (using nextest)"
 	@echo "  test-integration - Run integration tests (requires Docker)"
+	@echo "  test-e2e       - Run end-to-end tests (requires Docker and Linux)"
+	@echo "  test-all       - Run all tests including E2E (requires Docker and Linux)"
+	@echo "  bench          - Run performance benchmarks"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  install        - Install the project"
 	@echo "  install-nextest - Install cargo-nextest for faster test execution"
@@ -84,6 +87,26 @@ test-integration:
 	cargo test integration_tests --all-features
 	@echo "Cleaning up Docker services..."
 	docker compose down -v
+
+# Run E2E tests (requires Docker and Linux)
+test-e2e:
+	@echo "Starting Docker services for E2E tests..."
+	docker compose up -d nfs-server smb-server systemd-test
+	@echo "Waiting for services to be healthy..."
+	@echo "Running E2E tests..."
+	@command -v cargo-nextest >/dev/null 2>&1 || { echo "Installing cargo-nextest..."; cargo install cargo-nextest; }
+	cargo nextest run -E 'test(~integration_tests) and test(~security_) and kind(test) and binary(=~e2e)' --all-features --no-fail-fast || (docker compose down -v && exit 1)
+	@echo "Cleaning up Docker services..."
+	docker compose down -v
+
+# Run all tests including E2E
+test-all: test-unit test-security test-e2e
+	@echo "All tests passed!"
+
+# Run performance benchmarks
+bench:
+	@echo "Running performance benchmarks..."
+	cargo bench --bench mount_operations
 
 # Clean build artifacts
 clean:
