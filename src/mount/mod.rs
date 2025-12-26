@@ -16,7 +16,7 @@ pub mod point;
 pub mod state_machine;
 
 /// Mount types supported by Fuji
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MountType {
     /// NFS (Network File System)
     Nfs {
@@ -45,7 +45,7 @@ pub enum MountType {
 }
 
 /// Mount status
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MountStatus {
     /// Mount is active and accessible
     Active,
@@ -64,12 +64,12 @@ pub enum MountStatus {
 impl std::fmt::Display for MountStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MountStatus::Active => write!(f, "Active"),
-            MountStatus::Reconnecting => write!(f, "Reconnecting"),
-            MountStatus::Failed => write!(f, "Failed"),
-            MountStatus::Disabled => write!(f, "Disabled"),
-            MountStatus::InProgress => write!(f, "InProgress"),
-            MountStatus::Error(msg) => write!(f, "Error: {}", msg),
+            Self::Active => write!(f, "Active"),
+            Self::Reconnecting => write!(f, "Reconnecting"),
+            Self::Failed => write!(f, "Failed"),
+            Self::Disabled => write!(f, "Disabled"),
+            Self::InProgress => write!(f, "InProgress"),
+            Self::Error(msg) => write!(f, "Error: {msg}"),
         }
     }
 }
@@ -157,6 +157,7 @@ pub trait MountHandler: Send + Sync {
 
 impl MountConfig {
     /// Create a new mount configuration
+    #[must_use]
     pub fn new(url: String, mount_type: MountType, mount_point: PathBuf) -> Self {
         let now = Utc::now();
         Self {
@@ -218,7 +219,8 @@ impl MountConfig {
     }
 
     /// Check if the mount is active
-    pub fn is_active(&self) -> bool {
+    #[must_use]
+    pub const fn is_active(&self) -> bool {
         matches!(self.status, MountStatus::Active)
     }
 
@@ -241,7 +243,7 @@ pub fn get_mount_handler(protocol: &str) -> Result<Box<dyn MountHandler>> {
         "nfs" => Ok(Box::new(drivers::NfsHandler::new())),
         "smb" | "cifs" => Ok(Box::new(drivers::SmbHandler::new())),
         "sshfs" | "ssh" => Ok(Box::new(drivers::SshfsHandler::new())),
-        _ => Err(anyhow::anyhow!("Unsupported protocol: {}", protocol)),
+        _ => Err(anyhow::anyhow!("Unsupported protocol: {protocol}")),
     }
 }
 

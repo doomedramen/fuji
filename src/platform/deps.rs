@@ -66,6 +66,7 @@ impl Default for SystemDepsChecker {
 
 impl SystemDepsChecker {
     /// Create a new system dependencies checker
+    #[must_use]
     pub fn new() -> Self {
         let mut checker = Self {
             dependencies: HashMap::new(),
@@ -279,7 +280,8 @@ impl SystemDepsChecker {
     }
 
     /// Get all dependencies
-    pub fn get_dependencies(&self) -> &HashMap<String, SystemDependency> {
+    #[must_use]
+    pub const fn get_dependencies(&self) -> &HashMap<String, SystemDependency> {
         &self.dependencies
     }
 
@@ -366,7 +368,8 @@ impl SystemDepsChecker {
     }
 
     /// Get the current OS family
-    pub fn get_os_family() -> &'static str {
+    #[must_use]
+    pub const fn get_os_family() -> &'static str {
         "linux"
     }
 
@@ -375,7 +378,7 @@ impl SystemDepsChecker {
         let dependency = self
             .dependencies
             .get(key)
-            .ok_or_else(|| anyhow!("Unknown dependency: {}", key))?;
+            .ok_or_else(|| anyhow!("Unknown dependency: {key}"))?;
 
         debug!("Checking dependency: {}", key);
 
@@ -388,7 +391,7 @@ impl SystemDepsChecker {
                 key,
                 version
                     .as_ref()
-                    .map_or(String::new(), |v| format!(" (version {})", v))
+                    .map_or(String::new(), |v| format!(" (version {v})"))
             );
 
             Ok(DependencyCheckResult {
@@ -550,7 +553,7 @@ impl SystemDepsChecker {
                     let version_str = check_result
                         .version
                         .as_ref()
-                        .map_or(String::new(), |v| format!(" v{}", v));
+                        .map_or(String::new(), |v| format!(" v{v}"));
                     println!(
                         "✓ {}{} - {}",
                         dep.display_name, version_str, dep.description
@@ -564,11 +567,11 @@ impl SystemDepsChecker {
                     println!("✗ {}{} - {}", dep.display_name, req_str, dep.description);
 
                     if let Some(ref error) = check_result.error {
-                        println!("  Error: {}", error);
+                        println!("  Error: {error}");
                     }
 
                     if let Some(ref instructions) = check_result.install_instructions {
-                        println!("  To install: {}", instructions);
+                        println!("  To install: {instructions}");
                     }
                 }
             }

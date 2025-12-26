@@ -20,6 +20,7 @@ pub struct MountPointValidator {
 #[allow(dead_code)]
 impl MountPointValidator {
     /// Create a new mount point validator
+    #[must_use]
     pub fn new(platform: Box<dyn Platform>) -> Self {
         Self {
             platform,
@@ -95,7 +96,7 @@ impl MountPointValidator {
         for component in mount_point.components() {
             if let Some(name) = component.as_os_str().to_str() {
                 if name.len() > 255 {
-                    return Err(anyhow!("Path component too long: {} (max 255 bytes)", name));
+                    return Err(anyhow!("Path component too long: {name} (max 255 bytes)"));
                 }
             }
         }
@@ -310,6 +311,7 @@ impl MountPointValidator {
     }
 
     /// Get recommended permissions for mount point
+    #[must_use]
     pub fn get_recommended_permissions(&self) -> u32 {
         // Use current user's umask but ensure at least owner rwx
         let _current_uid = getuid().as_raw();

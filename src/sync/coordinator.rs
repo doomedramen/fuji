@@ -271,8 +271,7 @@ impl SyncCoordinator {
             config
                 .cluster
                 .as_ref()
-                .map(|c| c.sync_metadata.sync_version)
-                .unwrap_or(0)
+                .map_or(0, |c| c.sync_metadata.sync_version)
         };
 
         if update.sync_version > current_version {
@@ -313,8 +312,7 @@ impl SyncCoordinator {
             config
                 .cluster
                 .as_ref()
-                .map(|c| c.sync_metadata.sync_version)
-                .unwrap_or(0)
+                .map_or(0, |c| c.sync_metadata.sync_version)
         };
 
         if complete.sync_version > current_version {
@@ -347,8 +345,7 @@ impl SyncCoordinator {
             let pending = self.pending_syncs.read().await;
             pending
                 .get(&request_id)
-                .map(|p| p.responded_peers.len())
-                .unwrap_or(0)
+                .map_or(0, |p| p.responded_peers.len())
         };
 
         // Apply the merged configuration
@@ -489,8 +486,7 @@ impl SyncCoordinator {
                 .await
                 .cluster
                 .as_ref()
-                .map(|c| c.sync_metadata.sync_version)
-                .unwrap_or(0),
+                .map_or(0, |c| c.sync_metadata.sync_version),
         );
 
         let mut failed_peers = Vec::new();
@@ -530,8 +526,7 @@ impl SyncCoordinator {
             .await
             .cluster
             .as_ref()
-            .map(|c| c.sync_metadata.sync_version)
-            .unwrap_or(0);
+            .map_or(0, |c| c.sync_metadata.sync_version);
 
         SyncMessage::heartbeat(
             self.instance_id.clone(),
@@ -541,7 +536,7 @@ impl SyncCoordinator {
         )
     }
 
-    /// Convert SyncConflict to MountConflict for protocol communication
+    /// Convert `SyncConflict` to `MountConflict` for protocol communication
     fn convert_sync_to_mount_conflicts(
         &self,
         sync_conflicts: &[crate::config::SyncConflict],
@@ -583,8 +578,7 @@ impl SyncCoordinator {
                 updated_at: local_config
                     .mounts
                     .get(&sync_conflict.mount_id)
-                    .map(|w| w.config.updated_at)
-                    .unwrap_or_else(|| chrono::Utc::now()),
+                    .map_or_else(|| chrono::Utc::now(), |w| w.config.updated_at),
                 mount_data: local_config
                     .mounts
                     .get(&sync_conflict.mount_id)
@@ -605,8 +599,7 @@ impl SyncCoordinator {
                     let updated_at = remote_config
                         .mounts
                         .get(&sync_conflict.mount_id)
-                        .map(|w| w.config.updated_at)
-                        .unwrap_or_else(|| chrono::Utc::now());
+                        .map_or_else(|| chrono::Utc::now(), |w| w.config.updated_at);
 
                     remote_versions.push(MountVersion {
                         instance_id: instance_id.clone(),
@@ -696,8 +689,7 @@ impl SyncCoordinator {
                 .await
                 .cluster
                 .as_ref()
-                .map(|c| c.sync_metadata.sync_version)
-                .unwrap_or(0),
+                .map_or(0, |c| c.sync_metadata.sync_version),
         );
 
         let mut successful_peers = 0;

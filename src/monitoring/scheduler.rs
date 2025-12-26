@@ -75,7 +75,7 @@ impl HealthCheckScheduler {
 
         let new_scheduler = JobScheduler::new()
             .await
-            .map_err(|e| anyhow!("Failed to create scheduler: {}", e))?;
+            .map_err(|e| anyhow!("Failed to create scheduler: {e}"))?;
 
         *scheduler = Some(new_scheduler);
 
@@ -101,7 +101,7 @@ impl HealthCheckScheduler {
         if let Some(mut s) = scheduler.take() {
             s.shutdown()
                 .await
-                .map_err(|e| anyhow!("Failed to shutdown scheduler: {}", e))?;
+                .map_err(|e| anyhow!("Failed to shutdown scheduler: {e}"))?;
         }
 
         info!("Health check scheduler stopped");
@@ -198,8 +198,8 @@ impl HealthCheckScheduler {
             if let Some(job_id) = job.job_id {
                 if let Some(scheduler) = self.scheduler.read().await.as_ref() {
                     match scheduler.remove(&job_id).await {
-                        Ok(_) => {
-                            debug!("Removed health check job {} for mount {}", job_id, mount_id)
+                        Ok(()) => {
+                            debug!("Removed health check job {} for mount {}", job_id, mount_id);
                         }
                         Err(e) => warn!("Failed to remove health check job {}: {}", job_id, e),
                     }
@@ -226,7 +226,7 @@ impl HealthCheckScheduler {
         let health_checks = self.health_checks.read().await;
         let job = health_checks
             .get(mount_id)
-            .ok_or_else(|| anyhow!("No health checks registered for mount {}", mount_id))?;
+            .ok_or_else(|| anyhow!("No health checks registered for mount {mount_id}"))?;
 
         // Run the health checks
         self.run_health_checks(mount_id, &job.check_types).await
@@ -239,7 +239,7 @@ impl HealthCheckScheduler {
         last_statuses
             .get(mount_id)
             .cloned()
-            .ok_or_else(|| anyhow!("No health status available for mount {}", mount_id))
+            .ok_or_else(|| anyhow!("No health status available for mount {mount_id}"))
     }
 
     /// Get all health statuses
@@ -253,7 +253,7 @@ impl HealthCheckScheduler {
         let mut health_checks = self.health_checks.write().await;
         let job = health_checks
             .get_mut(mount_id)
-            .ok_or_else(|| anyhow!("Health check not found for mount {}", mount_id))?;
+            .ok_or_else(|| anyhow!("Health check not found for mount {mount_id}"))?;
 
         let scheduler = self.scheduler.read().await;
         let scheduler = scheduler
@@ -301,12 +301,11 @@ impl HealthCheckScheduler {
                 // Get mount configuration
                 let mount_config = {
                     let mount_configs = mount_configs.read().await;
-                    match mount_configs.get(&mount_id) {
-                        Some(config) => config.clone(),
-                        None => {
-                            warn!("Mount configuration not found for {}", mount_id);
-                            return;
-                        }
+                    if let Some(config) = mount_configs.get(&mount_id) {
+                        config.clone()
+                    } else {
+                        warn!("Mount configuration not found for {}", mount_id);
+                        return;
                     }
                 };
 
@@ -325,13 +324,13 @@ impl HealthCheckScheduler {
                 }
             })
         })
-        .map_err(|e| anyhow!("Failed to create cron job: {}", e))?;
+        .map_err(|e| anyhow!("Failed to create cron job: {e}"))?;
 
         // Add to scheduler
         let job_id = scheduler
             .add(cron_job)
             .await
-            .map_err(|e| anyhow!("Failed to add job to scheduler: {}", e))?;
+            .map_err(|e| anyhow!("Failed to add job to scheduler: {e}"))?;
 
         job.job_id = Some(job_id);
         info!(

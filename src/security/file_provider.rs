@@ -217,9 +217,9 @@ impl FileCredentialProvider {
         let prk = hkdf.extract(&entropy_sources);
         let okm = prk
             .expand(&[b"fuji-credential-master-key-v3"], hkdf::HKDF_SHA256)
-            .map_err(|e| anyhow!("HKDF expansion for master key failed: {:?}", e))?;
+            .map_err(|e| anyhow!("HKDF expansion for master key failed: {e:?}"))?;
         okm.fill(&mut master_key)
-            .map_err(|e| anyhow!("Failed to fill master key: {:?}", e))?;
+            .map_err(|e| anyhow!("Failed to fill master key: {e:?}"))?;
 
         Ok(master_key)
     }
@@ -250,9 +250,9 @@ impl FileCredentialProvider {
         ];
         let okm = prk
             .expand(&context, hkdf::HKDF_SHA256)
-            .map_err(|e| anyhow!("HKDF expansion failed: {:?}", e))?;
+            .map_err(|e| anyhow!("HKDF expansion failed: {e:?}"))?;
         okm.fill(&mut encryption_key)
-            .map_err(|e| anyhow!("Failed to fill encryption key: {:?}", e))?;
+            .map_err(|e| anyhow!("Failed to fill encryption key: {e:?}"))?;
 
         Ok(encryption_key)
     }
@@ -265,12 +265,12 @@ impl FileCredentialProvider {
 
         let mut file = File::open(&self.file_path)
             .await
-            .map_err(|e| anyhow!("Failed to open credential file: {}", e))?;
+            .map_err(|e| anyhow!("Failed to open credential file: {e}"))?;
 
         let mut contents = String::new();
         file.read_to_string(&mut contents)
             .await
-            .map_err(|e| anyhow!("Failed to read credential file: {}", e))?;
+            .map_err(|e| anyhow!("Failed to read credential file: {e}"))?;
 
         // Try to parse as new format first
         if let Ok(store) = serde_json::from_str::<EncryptedCredentialStore>(&contents) {
@@ -314,10 +314,10 @@ impl FileCredentialProvider {
         // Decode salts
         let pbkdf2_salt = general_purpose::STANDARD
             .decode(&store.pbkdf2_salt)
-            .map_err(|e| anyhow!("Failed to decode PBKDF2 salt: {}", e))?;
+            .map_err(|e| anyhow!("Failed to decode PBKDF2 salt: {e}"))?;
         let hkdf_salt = general_purpose::STANDARD
             .decode(&store.hkdf_salt)
-            .map_err(|e| anyhow!("Failed to decode HKDF salt: {}", e))?;
+            .map_err(|e| anyhow!("Failed to decode HKDF salt: {e}"))?;
 
         // Validate salt randomness and quality
         self.validate_salt_quality(&pbkdf2_salt, "PBKDF2")?;
@@ -339,10 +339,10 @@ impl FileCredentialProvider {
             })?;
 
         let json = String::from_utf8(decrypted)
-            .map_err(|e| anyhow!("Failed to decode decrypted data: {}", e))?;
+            .map_err(|e| anyhow!("Failed to decode decrypted data: {e}"))?;
 
         serde_json::from_str(&json)
-            .map_err(|e| anyhow!("Failed to parse decrypted credentials: {}", e))
+            .map_err(|e| anyhow!("Failed to parse decrypted credentials: {e}"))
     }
 
     /// Load credential store from legacy format using AES-256-GCM
@@ -369,16 +369,16 @@ impl FileCredentialProvider {
         // Decode salts and nonce
         let pbkdf2_salt = general_purpose::STANDARD
             .decode(&store.pbkdf2_salt)
-            .map_err(|e| anyhow!("Failed to decode PBKDF2 salt: {}", e))?;
+            .map_err(|e| anyhow!("Failed to decode PBKDF2 salt: {e}"))?;
         let hkdf_salt = general_purpose::STANDARD
             .decode(&store.hkdf_salt)
-            .map_err(|e| anyhow!("Failed to decode HKDF salt: {}", e))?;
+            .map_err(|e| anyhow!("Failed to decode HKDF salt: {e}"))?;
         let nonce = general_purpose::STANDARD
             .decode(&store.nonce)
-            .map_err(|e| anyhow!("Failed to decode nonce: {}", e))?;
+            .map_err(|e| anyhow!("Failed to decode nonce: {e}"))?;
         let data = general_purpose::STANDARD
             .decode(&store.data)
-            .map_err(|e| anyhow!("Failed to decode data: {}", e))?;
+            .map_err(|e| anyhow!("Failed to decode data: {e}"))?;
 
         // Validate salt randomness and quality
         self.validate_salt_quality(&pbkdf2_salt, "PBKDF2")?;
@@ -394,18 +394,18 @@ impl FileCredentialProvider {
             use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 
             let cipher = Aes256Gcm::new_from_slice(&encryption_key)
-                .map_err(|e| anyhow!("Failed to create legacy cipher: {}", e))?;
+                .map_err(|e| anyhow!("Failed to create legacy cipher: {e}"))?;
 
             let nonce = Nonce::from_slice(&nonce);
             let decrypted = cipher
                 .decrypt(nonce, &data[..])
-                .map_err(|e| anyhow!("Failed to decrypt legacy credentials: {}", e))?;
+                .map_err(|e| anyhow!("Failed to decrypt legacy credentials: {e}"))?;
 
             let json = String::from_utf8(decrypted)
-                .map_err(|e| anyhow!("Failed to decode decrypted data: {}", e))?;
+                .map_err(|e| anyhow!("Failed to decode decrypted data: {e}"))?;
 
             serde_json::from_str(&json)
-                .map_err(|e| anyhow!("Failed to parse decrypted credentials: {}", e))?
+                .map_err(|e| anyhow!("Failed to parse decrypted credentials: {e}"))?
         }
 
         {
@@ -421,7 +421,7 @@ impl FileCredentialProvider {
         let expected_length = match salt_type {
             "PBKDF2" => PBKDF2_SALT_LENGTH,
             "HKDF" => HKDF_SALT_LENGTH,
-            _ => return Err(anyhow!("Unknown salt type: {}", salt_type)),
+            _ => return Err(anyhow!("Unknown salt type: {salt_type}")),
         };
 
         if salt.len() != expected_length {
@@ -436,7 +436,7 @@ impl FileCredentialProvider {
         // Check for obvious patterns (all zeros, all same byte, etc.)
         let mut all_same = true;
         let first_byte = salt[0];
-        for &byte in salt.iter() {
+        for &byte in salt {
             if byte != first_byte {
                 all_same = false;
                 break;
@@ -445,14 +445,13 @@ impl FileCredentialProvider {
 
         if all_same {
             return Err(anyhow!(
-                "{} salt appears to have low entropy (all bytes are the same)",
-                salt_type
+                "{salt_type} salt appears to have low entropy (all bytes are the same)"
             ));
         }
 
         // Additional entropy quality check - ensure sufficient variation
         let mut bit_counts = [0u8; 8];
-        for &byte in salt.iter() {
+        for &byte in salt {
             for (bit_pos, count) in bit_counts.iter_mut().enumerate() {
                 if (byte >> bit_pos) & 1 == 1 {
                     *count += 1;
@@ -463,13 +462,10 @@ impl FileCredentialProvider {
         // Check if each bit position has reasonable distribution (between 10% and 90% set)
         // More lenient range for random data
         for (i, &count) in bit_counts.iter().enumerate() {
-            let ratio = count as f64 / salt.len() as f64;
+            let ratio = f64::from(count) / salt.len() as f64;
             if !(0.1..=0.9).contains(&ratio) {
                 return Err(anyhow!(
-                    "{} salt shows poor bit distribution at position {} (ratio: {:.2})",
-                    salt_type,
-                    i,
-                    ratio
+                    "{salt_type} salt shows poor bit distribution at position {i} (ratio: {ratio:.2})"
                 ));
             }
         }
@@ -491,7 +487,7 @@ impl FileCredentialProvider {
         // This is a basic check; in practice, we'd need to track used nonces
         let mut all_same = true;
         let first_byte = nonce[0];
-        for &byte in nonce.iter() {
+        for &byte in nonce {
             if byte != first_byte {
                 all_same = false;
                 break;
@@ -512,12 +508,12 @@ impl FileCredentialProvider {
         // Ensure parent directory exists
         if let Some(parent) = self.file_path.parent() {
             fs::create_dir_all(parent)
-                .map_err(|e| anyhow!("Failed to create credential directory: {}", e))?;
+                .map_err(|e| anyhow!("Failed to create credential directory: {e}"))?;
         }
 
         // Serialize credentials
         let json = serde_json::to_string(credentials)
-            .map_err(|e| anyhow!("Failed to serialize credentials: {}", e))?;
+            .map_err(|e| anyhow!("Failed to serialize credentials: {e}"))?;
 
         // Generate cryptographically secure random salts
         let (pbkdf2_salt, hkdf_salt) = {
@@ -590,7 +586,7 @@ impl FileCredentialProvider {
         // Write to temporary file first
         let temp_path = self.file_path.with_extension("tmp");
         let json = serde_json::to_string_pretty(&store)
-            .map_err(|e| anyhow!("Failed to serialize store: {}", e))?;
+            .map_err(|e| anyhow!("Failed to serialize store: {e}"))?;
 
         // Write with atomic operation
         {
@@ -601,21 +597,21 @@ impl FileCredentialProvider {
                 .mode(0o600) // Secure file permissions - owner read/write only
                 .open(&temp_path)
                 .await
-                .map_err(|e| anyhow!("Failed to create temporary file: {}", e))?;
+                .map_err(|e| anyhow!("Failed to create temporary file: {e}"))?;
 
             file.write_all(json.as_bytes())
                 .await
-                .map_err(|e| anyhow!("Failed to write temporary file: {}", e))?;
+                .map_err(|e| anyhow!("Failed to write temporary file: {e}"))?;
 
             file.sync_all()
                 .await
-                .map_err(|e| anyhow!("Failed to sync temporary file: {}", e))?;
+                .map_err(|e| anyhow!("Failed to sync temporary file: {e}"))?;
         }
 
         // Atomic rename
         tokio::fs::rename(&temp_path, &self.file_path)
             .await
-            .map_err(|e| anyhow!("Failed to rename credential file: {}", e))?;
+            .map_err(|e| anyhow!("Failed to rename credential file: {e}"))?;
 
         info!(
             "Saved {} credentials to encrypted file using {} with {} PBKDF2 iterations",

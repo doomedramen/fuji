@@ -77,7 +77,7 @@ impl ClusterInvitation {
             expires_at.timestamp_nanos_opt().unwrap_or(0)
         );
         let mut mac = Hmac::<Sha256>::new_from_slice(b"fuji-cluster-invitation")
-            .map_err(|e| anyhow!("Failed to create HMAC: {}", e))?;
+            .map_err(|e| anyhow!("Failed to create HMAC: {e}"))?;
         mac.update(data.as_bytes());
         let result = mac.finalize();
         let code_bytes = result.into_bytes();
@@ -94,12 +94,14 @@ impl ClusterInvitation {
     }
 
     /// Check if the invitation has expired
+    #[must_use]
     pub fn is_expired(&self) -> bool {
         Utc::now() > self.expires_at
     }
 
     /// Convert invitation to a base64 string for easy sharing
     #[allow(clippy::inherent_to_string)]
+    #[must_use]
     pub fn to_string(&self) -> String {
         let json = serde_json::to_string(self).unwrap();
         base64::engine::general_purpose::STANDARD.encode(json.as_bytes())
@@ -110,15 +112,16 @@ impl ClusterInvitation {
     pub fn from_str(s: &str) -> Result<Self> {
         let json = base64::engine::general_purpose::STANDARD
             .decode(s)
-            .map_err(|e| anyhow!("Invalid base64 encoding: {}", e))?;
+            .map_err(|e| anyhow!("Invalid base64 encoding: {e}"))?;
 
-        let invitation: ClusterInvitation = serde_json::from_slice(&json)
-            .map_err(|e| anyhow!("Invalid invitation format: {}", e))?;
+        let invitation: Self =
+            serde_json::from_slice(&json).map_err(|e| anyhow!("Invalid invitation format: {e}"))?;
 
         Ok(invitation)
     }
 
     /// Get remaining hours until expiration
+    #[must_use]
     pub fn hours_until_expiration(&self) -> i64 {
         let now = Utc::now();
         if self.expires_at > now {
@@ -143,6 +146,7 @@ pub struct DiscoveryManager {
 
 impl DiscoveryManager {
     /// Create a new discovery manager
+    #[must_use]
     pub fn new(instance_id: String) -> Self {
         Self {
             instance_id,
@@ -223,7 +227,7 @@ impl DiscoveryManager {
 
         // Fallback to localhost
         Ok(SocketAddr::new(
-            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
             CLUSTER_PORT,
         ))
     }

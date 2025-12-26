@@ -19,6 +19,7 @@ pub struct KeyringCredentialProvider {
 
 impl KeyringCredentialProvider {
     /// Create a new keyring credential provider
+    #[must_use]
     pub fn new() -> Self {
         Self {
             service_name: "fuji".to_string(),
@@ -28,18 +29,18 @@ impl KeyringCredentialProvider {
     /// Create a keyring entry for a given mount ID
     fn get_entry(&self, mount_id: &str) -> Result<Entry> {
         Entry::new_with_target(&self.service_name, mount_id, mount_id)
-            .map_err(|e| anyhow!("Failed to create keyring entry: {}", e))
+            .map_err(|e| anyhow!("Failed to create keyring entry: {e}"))
     }
 
     /// Convert credential to JSON string for storage
     fn credential_to_json(&self, credential: &Credential) -> Result<String> {
         serde_json::to_string(credential)
-            .map_err(|e| anyhow!("Failed to serialize credential: {}", e))
+            .map_err(|e| anyhow!("Failed to serialize credential: {e}"))
     }
 
     /// Parse credential from JSON string
     fn credential_from_json(&self, json: &str) -> Result<Credential> {
-        serde_json::from_str(json).map_err(|e| anyhow!("Failed to deserialize credential: {}", e))
+        serde_json::from_str(json).map_err(|e| anyhow!("Failed to deserialize credential: {e}"))
     }
 }
 
@@ -60,11 +61,11 @@ impl CredentialProvider for KeyringCredentialProvider {
             }
             Err(KeyringError::PlatformFailure(err)) => {
                 error!("Platform failure accessing keyring: {}", err);
-                Err(anyhow!("Platform failure: {}", err))
+                Err(anyhow!("Platform failure: {err}"))
             }
             Err(e) => {
                 error!("Failed to store credential in keyring: {}", e);
-                Err(anyhow!("Keyring error: {}", e))
+                Err(anyhow!("Keyring error: {e}"))
             }
         }
     }
@@ -88,11 +89,11 @@ impl CredentialProvider for KeyringCredentialProvider {
             }
             Err(KeyringError::PlatformFailure(err)) => {
                 error!("Platform failure accessing keyring: {}", err);
-                Err(anyhow!("Platform failure: {}", err))
+                Err(anyhow!("Platform failure: {err}"))
             }
             Err(e) => {
                 error!("Failed to retrieve credential from keyring: {}", e);
-                Err(anyhow!("Keyring error: {}", e))
+                Err(anyhow!("Keyring error: {e}"))
             }
         }
     }
@@ -116,11 +117,11 @@ impl CredentialProvider for KeyringCredentialProvider {
             }
             Err(KeyringError::PlatformFailure(err)) => {
                 error!("Platform failure accessing keyring: {}", err);
-                Err(anyhow!("Platform failure: {}", err))
+                Err(anyhow!("Platform failure: {err}"))
             }
             Err(e) => {
                 error!("Failed to delete credential from keyring: {}", e);
-                Err(anyhow!("Keyring error: {}", e))
+                Err(anyhow!("Keyring error: {e}"))
             }
         }
     }
@@ -145,11 +146,11 @@ impl CredentialProvider for KeyringCredentialProvider {
             }
             Err(KeyringError::PlatformFailure(err)) => {
                 error!("Platform failure accessing keyring: {}", err);
-                Err(anyhow!("Platform failure: {}", err))
+                Err(anyhow!("Platform failure: {err}"))
             }
             Err(e) => {
                 error!("Failed to check credential in keyring: {}", e);
-                Err(anyhow!("Keyring error: {}", e))
+                Err(anyhow!("Keyring error: {e}"))
             }
         }
     }

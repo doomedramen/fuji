@@ -127,7 +127,7 @@
 //! ### AES-256-GCM (with AES-NI)
 //! - **Throughput**: ~3-5 GB/s on single core
 //! - **Latency**: <0.5μs for small messages
-//! - **CPU usage**: Lower than ChaCha20 when accelerated
+//! - **CPU usage**: Lower than `ChaCha20` when accelerated
 //!
 //! ## Migration Guide
 //!
@@ -179,7 +179,8 @@ pub enum EncryptionAlgorithm {
 
 impl EncryptionAlgorithm {
     /// Get the display name for the algorithm
-    pub fn display_name(&self) -> &'static str {
+    #[must_use]
+    pub const fn display_name(&self) -> &'static str {
         match self {
             Self::Aes256Gcm => "AES-256-GCM",
             Self::ChaCha20Poly1305 => "ChaCha20-Poly1305",
@@ -187,7 +188,8 @@ impl EncryptionAlgorithm {
     }
 
     /// Get the algorithm identifier used in metadata
-    pub fn identifier(&self) -> &'static str {
+    #[must_use]
+    pub const fn identifier(&self) -> &'static str {
         match self {
             Self::Aes256Gcm => "aes-256-gcm",
             Self::ChaCha20Poly1305 => "chacha20-poly1305",
@@ -195,7 +197,8 @@ impl EncryptionAlgorithm {
     }
 
     /// Get the key size in bytes
-    pub fn key_size(&self) -> usize {
+    #[must_use]
+    pub const fn key_size(&self) -> usize {
         match self {
             Self::Aes256Gcm => 32,        // 256 bits
             Self::ChaCha20Poly1305 => 32, // 256 bits
@@ -203,7 +206,8 @@ impl EncryptionAlgorithm {
     }
 
     /// Get the nonce size in bytes
-    pub fn nonce_size(&self) -> usize {
+    #[must_use]
+    pub const fn nonce_size(&self) -> usize {
         match self {
             Self::Aes256Gcm => 12,        // 96 bits
             Self::ChaCha20Poly1305 => 12, // 96 bits
@@ -211,7 +215,8 @@ impl EncryptionAlgorithm {
     }
 
     /// Check if the algorithm is recommended for current security standards
-    pub fn is_recommended(&self) -> bool {
+    #[must_use]
+    pub const fn is_recommended(&self) -> bool {
         match self {
             Self::Aes256Gcm => true,
             Self::ChaCha20Poly1305 => true,
@@ -219,7 +224,8 @@ impl EncryptionAlgorithm {
     }
 
     /// Get performance characteristics
-    pub fn performance_characteristics(&self) -> AlgorithmCharacteristics {
+    #[must_use]
+    pub const fn performance_characteristics(&self) -> AlgorithmCharacteristics {
         match self {
             Self::Aes256Gcm => AlgorithmCharacteristics {
                 hardware_acceleration: true,
@@ -269,6 +275,7 @@ impl Default for EncryptionConfig {
 
 impl EncryptionConfig {
     /// Create a new configuration with the specified algorithm
+    #[must_use]
     pub fn new(algorithm: EncryptionAlgorithm) -> Self {
         Self {
             algorithm,
@@ -278,6 +285,7 @@ impl EncryptionConfig {
     }
 
     /// Create a configuration optimized for security
+    #[must_use]
     pub fn security_optimized() -> Self {
         Self {
             algorithm: EncryptionAlgorithm::ChaCha20Poly1305, // Most resistant to timing attacks
@@ -292,6 +300,7 @@ impl EncryptionConfig {
     }
 
     /// Create a configuration optimized for performance
+    #[must_use]
     pub fn performance_optimized() -> Self {
         Self {
             algorithm: EncryptionAlgorithm::Aes256Gcm, // Usually faster with hardware acceleration
@@ -317,6 +326,7 @@ impl EncryptionConfig {
     }
 
     /// Add a custom parameter
+    #[must_use]
     pub fn with_parameter(mut self, key: String, value: String) -> Self {
         self.parameters.insert(key, value);
         self
@@ -352,6 +362,7 @@ pub struct EncryptedData {
 
 impl EncryptedData {
     /// Create new encrypted data with separate authentication tag
+    #[must_use]
     pub fn new(
         algorithm: EncryptionAlgorithm,
         ___nonce: &[u8],
@@ -369,6 +380,7 @@ impl EncryptedData {
     }
 
     /// Create new encrypted data for algorithms where tag is included in ciphertext
+    #[must_use]
     pub fn new_with_combined_tag(
         algorithm: EncryptionAlgorithm,
         nonce: &[u8],
@@ -437,7 +449,8 @@ impl Default for ChaCha20Poly1305Encryptor {
 }
 
 impl ChaCha20Poly1305Encryptor {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             algorithm: EncryptionAlgorithm::ChaCha20Poly1305,
         }
@@ -537,7 +550,8 @@ impl Default for Aes256GcmEncryptor {
 }
 
 impl Aes256GcmEncryptor {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             algorithm: EncryptionAlgorithm::Aes256Gcm,
         }
@@ -626,6 +640,7 @@ impl Encryptor for Aes256GcmEncryptor {
 }
 
 /// Factory function to create appropriate encryptor
+#[must_use]
 pub fn create_encryptor(algorithm: EncryptionAlgorithm) -> Box<dyn Encryptor> {
     match algorithm {
         EncryptionAlgorithm::ChaCha20Poly1305 => Box::new(ChaCha20Poly1305Encryptor::new()),
@@ -634,6 +649,7 @@ pub fn create_encryptor(algorithm: EncryptionAlgorithm) -> Box<dyn Encryptor> {
 }
 
 /// Generate cryptographically secure random nonce
+#[must_use]
 pub fn generate_nonce(size: usize) -> Vec<u8> {
     let mut nonce = vec![0u8; size];
     OsRng.fill_bytes(&mut nonce);
@@ -680,6 +696,7 @@ pub fn validate_security_params(config: &EncryptionConfig) -> SecurityResult<()>
 }
 
 /// Get security recommendations based on algorithm
+#[must_use]
 pub fn get_security_recommendations(algorithm: EncryptionAlgorithm) -> Vec<String> {
     let mut recommendations = Vec::new();
 
@@ -711,6 +728,7 @@ pub fn get_security_recommendations(algorithm: EncryptionAlgorithm) -> Vec<Strin
 }
 
 /// Compare two encryption algorithms and return security assessment
+#[must_use]
 pub fn compare_algorithms(
     algo1: EncryptionAlgorithm,
     algo2: EncryptionAlgorithm,

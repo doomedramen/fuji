@@ -21,7 +21,8 @@ impl Default for NfsHandler {
 }
 
 impl NfsHandler {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 
@@ -59,7 +60,7 @@ impl MountHandler for NfsHandler {
 
         let share = if parsed.path().is_empty() || parsed.path() == "/" {
             // Default export if none specified
-            "".to_string()
+            String::new()
         } else {
             parsed.path().to_string()
         };
@@ -121,9 +122,9 @@ impl MountHandler for NfsHandler {
         let deps_checker = SystemDepsChecker::new();
         match deps_checker.check_dependency("nfs").await {
             Ok(result) if !result.available => {
-                let mut error_msg = format!("NFS client is not installed or not found in PATH");
+                let mut error_msg = "NFS client is not installed or not found in PATH".to_string();
                 if let Some(ref instructions) = result.install_instructions {
-                    error_msg.push_str(&format!("\nTo install: {}", instructions));
+                    error_msg.push_str(&format!("\nTo install: {instructions}"));
                 }
                 return Err(anyhow!(error_msg));
             }
@@ -161,9 +162,9 @@ impl MountHandler for NfsHandler {
 
                 // Build remote path
                 let remote_path = if share.is_empty() {
-                    format!("{}:/", host)
+                    format!("{host}:/")
                 } else {
-                    format!("{}:{}", host, share)
+                    format!("{host}:{share}")
                 };
 
                 // Create secure mount command
@@ -224,7 +225,7 @@ impl MountHandler for NfsHandler {
             // Check if output contains error indicators
             if output.to_lowercase().contains("error") || output.to_lowercase().contains("failed") {
                 error!("Unmount failed: {}", output);
-                return Err(anyhow!("Failed to unmount: {}", output));
+                return Err(anyhow!("Failed to unmount: {output}"));
             }
         }
 
@@ -315,7 +316,7 @@ impl MountHandler for NfsHandler {
     fn generate_mount_id(&self, url: &str) -> Result<String> {
         if let Ok(parsed) = Url::parse(url) {
             let host = parsed.host_str().unwrap_or("unknown");
-            let mut id = format!("{}_nfs", host);
+            let mut id = format!("{host}_nfs");
 
             // Add path if present and not root
             if !parsed.path().is_empty() && parsed.path() != "/" {
@@ -334,7 +335,7 @@ impl MountHandler for NfsHandler {
         let host = parsed.host_str().ok_or_else(|| anyhow!("No host in URL"))?;
 
         // Base: /mnt/fuji/{host}_nfs
-        let mut mount_point = self.get_mount_base_dir().join(format!("{}_nfs", host));
+        let mut mount_point = self.get_mount_base_dir().join(format!("{host}_nfs"));
 
         // Sanitize and validate the path from the URL to prevent path traversal
         let path = parsed.path();

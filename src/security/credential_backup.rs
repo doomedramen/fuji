@@ -121,6 +121,7 @@ pub struct CredentialBackupManager {
 #[allow(dead_code)]
 impl CredentialBackupManager {
     /// Create a new backup manager with default strategy
+    #[must_use]
     pub fn new(default_strategy: BackupStrategy) -> Self {
         Self {
             default_strategy,
@@ -240,7 +241,7 @@ impl CredentialBackupManager {
             let metadata_store = self.backup_metadata.read().await;
             metadata_store
                 .get(backup_id)
-                .ok_or_else(|| anyhow!("Backup metadata not found: {}", backup_id))?
+                .ok_or_else(|| anyhow!("Backup metadata not found: {backup_id}"))?
                 .clone()
         };
 
@@ -394,7 +395,7 @@ impl CredentialBackupManager {
             let metadata_store = self.backup_metadata.read().await;
             match metadata_store.get(backup_id) {
                 Some(meta) => meta.clone(),
-                None => return Err(anyhow!("Backup not found: {}", backup_id)),
+                None => return Err(anyhow!("Backup not found: {backup_id}")),
             }
         };
 
@@ -446,22 +447,20 @@ impl CredentialBackupManager {
             let metadata_store = self.backup_metadata.read().await;
             match metadata_store.get(backup_id) {
                 Some(meta) => meta.clone(),
-                None => return Err(anyhow!("Backup not found: {}", backup_id)),
+                None => return Err(anyhow!("Backup not found: {backup_id}")),
             }
         };
 
         // Retrieve backup data
-        let encrypted_data = match &metadata.strategy {
-            BackupStrategy::LocalEncrypted {
-                path,
-            } => {
-                self.retrieve_local_encrypted_backup(path, backup_id)
-                    .await?
-            }
-            _ => {
-                warn!("Backup validation only supported for local encrypted backups");
-                return Ok(false);
-            }
+        let encrypted_data = if let BackupStrategy::LocalEncrypted {
+            path,
+        } = &metadata.strategy
+        {
+            self.retrieve_local_encrypted_backup(path, backup_id)
+                .await?
+        } else {
+            warn!("Backup validation only supported for local encrypted backups");
+            return Ok(false);
         };
 
         // Verify checksum
@@ -504,7 +503,9 @@ impl CredentialBackupManager {
         let encrypted: EncryptedData = serde_json::from_slice(data)?;
         let encryptor = create_encryptor(self.encryption_algorithm);
         let key = self.get_backup_encryption_key(strategy).await?;
-        encryptor.decrypt(&encrypted, &key).map_err(|e| e.into())
+        encryptor
+            .decrypt(&encrypted, &key)
+            .map_err(std::convert::Into::into)
     }
 
     async fn get_backup_encryption_key(&self, strategy: &BackupStrategy) -> Result<Vec<u8>> {
@@ -539,7 +540,7 @@ impl CredentialBackupManager {
                     self.decrypt_recovery_key(&recovery_key.encrypted_master_key)
                         .await
                 } else {
-                    Err(anyhow!("Recovery key not found: {}", key_id))
+                    Err(anyhow!("Recovery key not found: {key_id}"))
                 }
             }
         }
@@ -565,16 +566,16 @@ impl CredentialBackupManager {
                 BackupStrategy::RemoteService {
                     endpoint,
                     ..
-                } => format!("remote:{}", endpoint),
+                } => format!("remote:{endpoint}"),
                 BackupStrategy::CloudStorage {
                     provider,
                     bucket,
                     ..
-                } => format!("cloud:{}:{}", provider, bucket),
+                } => format!("cloud:{provider}:{bucket}"),
                 BackupStrategy::RecoveryKey {
                     key_id,
                     ..
-                } => format!("recovery:{}", key_id),
+                } => format!("recovery:{key_id}"),
             };
 
             backups_by_strategy
@@ -615,7 +616,7 @@ impl CredentialBackupManager {
         // Ensure the backup directory exists
         fs::create_dir_all(_path).await?;
 
-        let backup_path = _path.join(format!("{}.backup", backup_id));
+        let backup_path = _path.join(format!("{backup_id}.backup"));
         fs::write(&backup_path, data).await?;
         Ok(data.len() as u64)
     }
@@ -625,12 +626,12 @@ impl CredentialBackupManager {
         path: &Path,
         backup_id: &str,
     ) -> Result<Vec<u8>> {
-        let backup_path = path.join(format!("{}.backup", backup_id));
+        let backup_path = path.join(format!("{backup_id}.backup"));
         Ok(fs::read(&backup_path).await?)
     }
 
     async fn delete_local_encrypted_backup(&self, path: &Path, _backup_id: &str) -> Result<()> {
-        let backup_path = path.join(format!("{}.backup", _backup_id));
+        let backup_path = path.join(format!("{_backup_id}.backup"));
         fs::remove_file(&backup_path).await?;
         Ok(())
     }
@@ -786,7 +787,7 @@ impl CredentialBackupManager {
         if shares.is_empty() {
             return Err(anyhow!("No shares provided"));
         }
-        hex::decode(&shares[0].share_data).map_err(|e| anyhow!("Failed to decode share: {}", e))
+        hex::decode(&shares[0].share_data).map_err(|e| anyhow!("Failed to decode share: {e}"))
     }
 
     async fn encrypt_recovery_key(&self, key: &[u8]) -> Result<String> {
@@ -798,7 +799,7 @@ impl CredentialBackupManager {
         // Simple base64 decoding for now - should be properly decrypted
         general_purpose::STANDARD
             .decode(encrypted_key)
-            .map_err(|e| anyhow!("Failed to decode recovery key: {}", e))
+            .map_err(|e| anyhow!("Failed to decode recovery key: {e}"))
     }
 }
 

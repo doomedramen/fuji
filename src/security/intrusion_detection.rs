@@ -42,7 +42,7 @@
 //!
 //! ### 🤖 Automated Threats
 //! - **Bot detection** using behavioral fingerprints
-//! - **DDoS attack patterns** and traffic flooding
+//! - **`DDoS` attack patterns** and traffic flooding
 //! - **Malware communication** (C2 channels)
 //! - **Cryptocurrency mining** detection
 //! - **Scanning and reconnaissance** activities
@@ -61,7 +61,7 @@
 //! - **Account locking** after suspicious activity
 //! - **Session termination** for compromised connections
 //! - **Resource isolation** to prevent lateral movement
-//! - **Traffic throttling** to mitigate DoS attacks
+//! - **Traffic throttling** to mitigate `DoS` attacks
 //!
 //! ### 📋 Alerting and Notification
 //! - **Real-time alerts** via multiple channels (email, Slack, SMS)
@@ -160,11 +160,11 @@
 //! ## Integration Capabilities
 //!
 //! ### 🔗 External Systems
-//! - **SIEM integration** (Splunk, ELK, QRadar)
+//! - **SIEM integration** (Splunk, ELK, `QRadar`)
 //! - **SOAR platforms** (Cortex XSOAR, Demisto)
 //! - **Threat intelligence feeds** (MISP, OTX)
 //! - **Vulnerability scanners** (Nessus, Qualys)
-//! - **Cloud security** (AWS GuardDuty, Azure Sentinel)
+//! - **Cloud security** (AWS `GuardDuty`, Azure Sentinel)
 //!
 //! ### 📊 Monitoring and Analytics
 //! - **Prometheus metrics** for system performance
@@ -210,7 +210,7 @@
 //! - **Post-incident analysis** and reporting
 //!
 //! ### 📋 Workflow Integration
-//! - **Ticket creation** in ServiceNow, Jira
+//! - **Ticket creation** in `ServiceNow`, Jira
 //! - **Slack/Teams notifications** with rich context
 //! - **Email alerts** with HTML reports and attachments
 //! - **Mobile push notifications** for critical incidents
@@ -820,7 +820,7 @@ impl IntrusionDetectionEngine {
                             AlertSource::BehavioralAnalysis,
                             AlertSeverity::Medium,
                             "Unusual Login Time",
-                            &format!("User {} logged in at unusual time", user_id),
+                            &format!("User {user_id} logged in at unusual time"),
                             vec![event.id.clone()],
                         )
                         .await?;
@@ -1096,7 +1096,8 @@ impl IntrusionDetectionEngine {
 
     /// Clean up old alerts
     async fn cleanup_old_alerts(&self) -> Result<()> {
-        let cutoff = Utc::now() - chrono::Duration::days(self.config.alert_retention_days as i64);
+        let cutoff =
+            Utc::now() - chrono::Duration::days(i64::from(self.config.alert_retention_days));
 
         let mut alerts = self.alerts.write().await;
         let initial_count = alerts.len();
@@ -1128,7 +1129,7 @@ impl IntrusionDetectionEngine {
                     AlertSource::AnomalyDetection,
                     AlertSeverity::Medium,
                     "Unusual Event Frequency",
-                    &format!("High frequency of {} events: {}", event_type, count),
+                    &format!("High frequency of {event_type} events: {count}"),
                     Vec::new(),
                 )
                 .await?;
@@ -1150,7 +1151,7 @@ impl IntrusionDetectionEngine {
                             AlertSource::MachineLearning,
                             AlertSeverity::High,
                             "ML-Based Anomaly Detection",
-                            &format!("Anomaly detected with score: {:.3}", anomaly_score),
+                            &format!("Anomaly detected with score: {anomaly_score:.3}"),
                             vec![event.id.clone()],
                         )
                         .await?;
@@ -1267,6 +1268,7 @@ pub struct SimpleMLModel {
 impl SimpleMLModel {
     /// Create a new simple ML model
     #[allow(dead_code)]
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -1297,7 +1299,7 @@ impl MLModel for SimpleMLModel {
         // Calculate weights
         let total_events = data.len() as f64;
         for (event_type, count) in type_counts {
-            let frequency = count as f64 / total_events;
+            let frequency = f64::from(count) / total_events;
             // Higher weight for rare events (potential anomalies)
             let weight = 1.0 / (frequency + 0.01);
             feature_weights.insert(event_type, weight);
@@ -1317,7 +1319,7 @@ impl MLModel for SimpleMLModel {
         let mut score = *weight;
 
         // Add factor for unusual times (simplified)
-        let hour = event.timestamp.hour12().1 as f64;
+        let hour = f64::from(event.timestamp.hour12().1);
         if !(6.0..=22.0).contains(&hour) {
             score *= 1.5;
         }

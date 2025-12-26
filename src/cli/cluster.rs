@@ -80,7 +80,7 @@ async fn handle_info(ctx: Arc<CliContext>) -> Result<()> {
                 }
 
                 println!("\nCurrent Peers:");
-                println!("{}", table);
+                println!("{table}");
             }
 
             // Generate invitation anyway for new nodes to join
@@ -118,7 +118,7 @@ async fn handle_info(ctx: Arc<CliContext>) -> Result<()> {
     // Save invitation to file for easy access
     let invitation_file = ctx.config_dir.join("latest-invitation.txt");
     std::fs::write(&invitation_file, invitation.to_string())?;
-    println!("Invitation also saved to: {:?}", invitation_file);
+    println!("Invitation also saved to: {invitation_file:?}");
 
     Ok(())
 }
@@ -178,11 +178,11 @@ async fn handle_join(invitation: String, ctx: Arc<CliContext>) -> Result<()> {
     // Initialize sync coordinator with configurable port
     let cluster_state = Arc::new(ClusterState::new());
     let config = ctx.config.read().await;
-    let cluster_port = config.cluster.as_ref().map(|c| c.port).unwrap_or(10080);
+    let cluster_port = config.cluster.as_ref().map_or(10080, |c| c.port);
     drop(config);
-    let local_addr = format!("0.0.0.0:{}", cluster_port)
+    let local_addr = format!("0.0.0.0:{cluster_port}")
         .parse()
-        .with_context(|| format!("Invalid cluster port: {}", cluster_port))?;
+        .with_context(|| format!("Invalid cluster port: {cluster_port}"))?;
     let transport = Arc::new(TcpTransport::new(local_addr));
     let coordinator = SyncCoordinator::new(
         instance_id,
@@ -230,7 +230,7 @@ async fn handle_status(ctx: Arc<CliContext>) -> Result<()> {
         println!("  Sync Version: {}", cluster.sync_metadata.sync_version);
 
         if let Some(modified_by) = &cluster.sync_metadata.last_modified_by {
-            println!("  Last Modified By: {}", modified_by);
+            println!("  Last Modified By: {modified_by}");
         }
 
         println!("\nPeers ({} total):", cluster.peers.len());
@@ -261,7 +261,7 @@ async fn handle_status(ctx: Arc<CliContext>) -> Result<()> {
                 ]);
             }
 
-            println!("{}", table);
+            println!("{table}");
         }
 
         // Show pending conflicts if any
@@ -315,7 +315,7 @@ async fn handle_history(ctx: Arc<CliContext>) -> Result<()> {
             println!("  Sync Version: {}", cluster.sync_metadata.sync_version);
 
             if let Some(modified_by) = &cluster.sync_metadata.last_modified_by {
-                println!("  Last Modified By: {}", modified_by);
+                println!("  Last Modified By: {modified_by}");
             }
 
             // TODO: Implement more detailed sync history tracking
@@ -376,8 +376,7 @@ async fn handle_sync_force(ctx: Arc<CliContext>) -> Result<()> {
                             peers_completed,
                         } => {
                             println!(
-                                "  Progress: {}/{} peers responded",
-                                peers_completed, peers_attempted
+                                "  Progress: {peers_completed}/{peers_attempted} peers responded"
                             );
                         }
                         _ => {}
@@ -400,8 +399,8 @@ async fn handle_sync_force(ctx: Arc<CliContext>) -> Result<()> {
                             "  ✓ Succeeded at {}",
                             completed_at.format("%Y-%m-%d %H:%M:%S UTC")
                         );
-                        println!("  Peers synced: {}", peers_synced);
-                        println!("  Conflicts resolved: {}", conflicts_resolved);
+                        println!("  Peers synced: {peers_synced}");
+                        println!("  Conflicts resolved: {conflicts_resolved}");
                     }
                     crate::config::ForceSyncResult::Failed {
                         failed_at,
@@ -412,8 +411,8 @@ async fn handle_sync_force(ctx: Arc<CliContext>) -> Result<()> {
                             "  ✗ Failed at {}",
                             failed_at.format("%Y-%m-%d %H:%M:%S UTC")
                         );
-                        println!("  Error: {}", error);
-                        println!("  Peers attempted: {}", peers_attempted);
+                        println!("  Error: {error}");
+                        println!("  Peers attempted: {peers_attempted}");
                     }
                     _ => {}
                 }
@@ -452,12 +451,12 @@ async fn handle_sync_force(ctx: Arc<CliContext>) -> Result<()> {
             }
             Ok(Response::Error(msg)) => {
                 error!("Force sync failed: {}", msg);
-                println!("Error: {}", msg);
-                return Err(anyhow::anyhow!("Force sync failed: {}", msg));
+                println!("Error: {msg}");
+                return Err(anyhow::anyhow!("Force sync failed: {msg}"));
             }
             Err(e) => {
                 error!("Failed to send force sync request: {}", e);
-                println!("Failed to send force sync request: {}", e);
+                println!("Failed to send force sync request: {e}");
                 return Err(e);
             }
             _ => {

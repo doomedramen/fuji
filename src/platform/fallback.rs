@@ -87,7 +87,7 @@ impl Platform for FallbackPlatform {
         }
 
         let pid = self.get_current_pid();
-        fs::write(pid_file, format!("{}", pid))?;
+        fs::write(pid_file, format!("{pid}"))?;
         debug!("Wrote PID {} to {:?}", pid, pid_file);
         Ok(())
     }
@@ -113,7 +113,7 @@ impl Platform for FallbackPlatform {
         // Use kill -0 to check if process exists
         use nix::sys::signal::kill;
         match kill(unistd::Pid::from_raw(pid as i32), None) {
-            Ok(_) => Ok(Some(pid)),
+            Ok(()) => Ok(Some(pid)),
             Err(_) => {
                 self.remove_pid_file(pid_file)?;
                 Ok(None)
@@ -132,7 +132,7 @@ impl Platform for FallbackPlatform {
         };
 
         kill(unistd::Pid::from_raw(pid as i32), Some(nix_signal))
-            .map_err(|e| anyhow!("Failed to send signal to process {}: {}", pid, e))?;
+            .map_err(|e| anyhow!("Failed to send signal to process {pid}: {e}"))?;
 
         Ok(())
     }
@@ -151,7 +151,7 @@ impl Platform for FallbackPlatform {
                     cmd.push(options.join(","));
                 }
 
-                cmd.push(format!("{}:{}", host, share));
+                cmd.push(format!("{host}:{share}"));
                 Ok(cmd)
             }
             MountType::Smb {

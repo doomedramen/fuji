@@ -31,11 +31,11 @@ pub enum MountState {
 impl std::fmt::Display for MountState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MountState::Unmounted => write!(f, "Unmounted"),
-            MountState::Mounting => write!(f, "Mounting"),
-            MountState::Mounted => write!(f, "Mounted"),
-            MountState::Failed => write!(f, "Failed"),
-            MountState::Unmounting => write!(f, "Unmounting"),
+            Self::Unmounted => write!(f, "Unmounted"),
+            Self::Mounting => write!(f, "Mounting"),
+            Self::Mounted => write!(f, "Mounted"),
+            Self::Failed => write!(f, "Failed"),
+            Self::Unmounting => write!(f, "Unmounting"),
         }
     }
 }
@@ -74,6 +74,7 @@ pub struct MountStateMachine {
 #[allow(dead_code)]
 impl MountStateMachine {
     /// Create a new mount state machine
+    #[must_use]
     pub fn new(mount_id: String) -> (Self, broadcast::Receiver<StateTransition>) {
         let (notification_sender, notification_receiver) = broadcast::channel(100);
 
@@ -95,7 +96,7 @@ impl MountStateMachine {
 
     /// Check if state allows transition to new state
     fn can_transition(from: MountState, to: MountState) -> bool {
-        use MountState::*;
+        use MountState::{Failed, Mounted, Mounting, Unmounted, Unmounting};
 
         match (from, to) {
             // Same state - no transition needed
@@ -133,9 +134,7 @@ impl MountStateMachine {
                 self.mount_id, current_state, new_state
             );
             return Err(anyhow!(
-                "Invalid state transition: {} -> {}",
-                current_state,
-                new_state
+                "Invalid state transition: {current_state} -> {new_state}"
             ));
         }
 
@@ -191,7 +190,7 @@ impl MountStateMachine {
     pub async fn transition_with_error(&self, new_state: MountState, error: &str) -> Result<()> {
         self.transition(
             new_state,
-            Some(format!("Error: {}", error)),
+            Some(format!("Error: {error}")),
             Some(error.to_string()),
         )
         .await

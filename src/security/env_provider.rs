@@ -3,7 +3,7 @@
 
 //! Environment variable credential provider
 //!
-//! Reads credentials from environment variables with the FUJI_MOUNT_ prefix.
+//! Reads credentials from environment variables with the `FUJI_MOUNT`_ prefix.
 //! Supports both simple format and JSON format for complex credentials.
 
 use anyhow::{Result, anyhow};
@@ -24,6 +24,7 @@ pub struct EnvironmentCredentialProvider {
 
 impl EnvironmentCredentialProvider {
     /// Create a new environment variable credential provider
+    #[must_use]
     pub fn new() -> Self {
         Self {
             cache: HashMap::new(),
@@ -107,12 +108,14 @@ impl EnvironmentCredentialProvider {
         }
     }
 
-    /// Check if any FUJI_MOUNT_ environment variables are set
+    /// Check if any `FUJI_MOUNT`_ environment variables are set
+    #[must_use]
     pub fn has_credentials(&self) -> bool {
         env::vars().any(|(key, _)| key.starts_with(&self.prefix))
     }
 
     /// List all available credential mount IDs from environment
+    #[must_use]
     pub fn list_env_credential_ids(&self) -> Vec<String> {
         env::vars()
             .filter_map(|(key, _)| {
@@ -136,7 +139,7 @@ impl CredentialProvider for EnvironmentCredentialProvider {
     async fn get_credential(&self, mount_id: &str) -> Result<Option<Credential>> {
         // Note: In a real async implementation, we'd need interior mutability
         // For simplicity, we'll read directly from environment each time
-        let mut provider = EnvironmentCredentialProvider::new();
+        let provider = Self::new();
         Ok(provider.get_from_env(mount_id))
     }
 

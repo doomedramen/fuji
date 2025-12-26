@@ -19,6 +19,7 @@ impl Default for MountMonitor {
 
 impl MountMonitor {
     /// Create a new mount monitor
+    #[must_use]
     pub fn new() -> Self {
         Self {
             health_states: Arc::new(RwLock::new(HashMap::new())),

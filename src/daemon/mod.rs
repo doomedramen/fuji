@@ -127,12 +127,12 @@ impl Daemon {
 
             // Initialize TCP transport with configurable port
             let cfg = config.read().await;
-            let cluster_port = cfg.cluster.as_ref().map(|c| c.port).unwrap_or(10080);
+            let cluster_port = cfg.cluster.as_ref().map_or(10080, |c| c.port);
             drop(cfg);
 
-            let local_addr = format!("127.0.0.1:{}", cluster_port)
+            let local_addr = format!("127.0.0.1:{cluster_port}")
                 .parse()
-                .with_context(|| format!("Invalid cluster port: {}", cluster_port))?;
+                .with_context(|| format!("Invalid cluster port: {cluster_port}"))?;
             let transport = Arc::new(TcpTransport::new(local_addr));
 
             // Initialize sync coordinator
@@ -205,12 +205,11 @@ impl Daemon {
         info!("Starting Fuji daemon");
 
         // Get socket path
-        let socket_path = match socket_path {
-            Some(path) => path,
-            None => {
-                let config = self.config.read().await;
-                config.get_socket_path(self.platform.as_ref())?
-            }
+        let socket_path = if let Some(path) = socket_path {
+            path
+        } else {
+            let config = self.config.read().await;
+            config.get_socket_path(self.platform.as_ref())?
         };
 
         // Ensure socket directory exists
@@ -340,10 +339,10 @@ impl Daemon {
         };
 
         // Resource limits monitoring is permanently disabled
-        if !disable_resource_limits {
-            info!("Resource limits monitoring has been permanently disabled");
-        } else {
+        if disable_resource_limits {
             info!("Resource limits monitoring disabled by flag");
+        } else {
+            info!("Resource limits monitoring has been permanently disabled");
         }
 
         // Set up signal handlers for graceful shutdown
@@ -372,7 +371,7 @@ impl Daemon {
                 }
                 monitor_result = monitor_handle => {
                     match monitor_result {
-                        Ok(_) => info!("Monitor task completed"),
+                        Ok(()) => info!("Monitor task completed"),
                         Err(e) => error!("Monitor task error: {}", e),
                     }
                 }
@@ -436,18 +435,15 @@ impl Daemon {
         status: MountStatus,
     ) -> DaemonResult<()> {
         let mut cfg = config.write().await;
-        match cfg.get_mount_mut(mount_id) {
-            Some(mount) => {
-                mount.update_status(status);
-                Ok(())
-            }
-            None => {
-                error!(
-                    "Mount '{}' not found when updating status to {:?}",
-                    mount_id, status
-                );
-                Err(DaemonError::mount_not_found(mount_id))
-            }
+        if let Some(mount) = cfg.get_mount_mut(mount_id) {
+            mount.update_status(status);
+            Ok(())
+        } else {
+            error!(
+                "Mount '{}' not found when updating status to {:?}",
+                mount_id, status
+            );
+            Err(DaemonError::mount_not_found(mount_id))
         }
     }
 
@@ -496,7 +492,7 @@ impl Daemon {
                 Err(e) => {
                     health_score = health_score.saturating_sub(30);
                     accessible = false;
-                    error_messages.push(format!("Cannot read mount point: {}", e));
+                    error_messages.push(format!("Cannot read mount point: {e}"));
                 }
             }
         }
@@ -509,13 +505,13 @@ impl Daemon {
             } => {
                 // Simple ping check for NFS host
                 if let Ok(output) = tokio::process::Command::new("ping")
-                    .args(&["-c", "1", "-W", "2", host])
+                    .args(["-c", "1", "-W", "2", host])
                     .output()
                     .await
                 {
                     if !output.status.success() {
                         health_score = health_score.saturating_sub(20);
-                        error_messages.push(format!("Cannot ping NFS host: {}", host));
+                        error_messages.push(format!("Cannot ping NFS host: {host}"));
                     }
                 }
             }
@@ -525,13 +521,13 @@ impl Daemon {
             } => {
                 // Check SMB port (445)
                 if let Ok(output) = tokio::process::Command::new("nc")
-                    .args(&["-z", "-w2", host, "445"])
+                    .args(["-z", "-w2", host, "445"])
                     .output()
                     .await
                 {
                     if !output.status.success() {
                         health_score = health_score.saturating_sub(20);
-                        error_messages.push(format!("SMB port 445 not accessible on: {}", host));
+                        error_messages.push(format!("SMB port 445 not accessible on: {host}"));
                     }
                 }
             }
@@ -541,13 +537,13 @@ impl Daemon {
             } => {
                 // Check SSH port (22)
                 if let Ok(output) = tokio::process::Command::new("nc")
-                    .args(&["-z", "-w2", host, "22"])
+                    .args(["-z", "-w2", host, "22"])
                     .output()
                     .await
                 {
                     if !output.status.success() {
                         health_score = health_score.saturating_sub(20);
-                        error_messages.push(format!("SSH port 22 not accessible on: {}", host));
+                        error_messages.push(format!("SSH port 22 not accessible on: {host}"));
                     }
                 }
             }
@@ -559,7 +555,7 @@ impl Daemon {
 
             // Try to write a test file
             match tokio::fs::write(&test_file, b"health_check").await {
-                Ok(_) => {
+                Ok(()) => {
                     // Write successful
                     // Clean up test file
                     let _ = tokio::fs::remove_file(&test_file).await;
@@ -567,7 +563,7 @@ impl Daemon {
                 }
                 Err(e) => {
                     health_score = health_score.saturating_sub(25);
-                    error_messages.push(format!("Cannot write to mount point: {}", e));
+                    error_messages.push(format!("Cannot write to mount point: {e}"));
                 }
             }
         }
@@ -596,7 +592,7 @@ impl Daemon {
             }
             MountStatus::Error(ref msg) => {
                 health_score = health_score.min(30);
-                error_messages.push(format!("Mount error: {}", msg));
+                error_messages.push(format!("Mount error: {msg}"));
             }
         }
 
@@ -627,7 +623,6 @@ impl Daemon {
         // Collect all enabled mount configs
         let mounts: Vec<(String, MountConfig)> = cfg
             .get_all_mounts()
-            .into_iter()
             .filter(|m| m.enabled)
             .map(|m| (m.id.clone(), m.clone()))
             .collect();
@@ -666,7 +661,7 @@ impl Daemon {
                         Err(e) => {
                             health_score = health_score.saturating_sub(30);
                             accessible = false;
-                            error_messages.push(format!("Cannot read mount point: {}", e));
+                            error_messages.push(format!("Cannot read mount point: {e}"));
                         }
                     }
                 }
@@ -679,13 +674,13 @@ impl Daemon {
                     } => {
                         // Simple ping check for NFS host
                         if let Ok(output) = tokio::process::Command::new("ping")
-                            .args(&["-c", "1", "-W", "2", host])
+                            .args(["-c", "1", "-W", "2", host])
                             .output()
                             .await
                         {
                             if !output.status.success() {
                                 health_score = health_score.saturating_sub(20);
-                                error_messages.push(format!("Cannot ping NFS host: {}", host));
+                                error_messages.push(format!("Cannot ping NFS host: {host}"));
                             }
                         }
                     }
@@ -695,14 +690,14 @@ impl Daemon {
                     } => {
                         // Check SMB port (445)
                         if let Ok(output) = tokio::process::Command::new("nc")
-                            .args(&["-z", "-w2", host, "445"])
+                            .args(["-z", "-w2", host, "445"])
                             .output()
                             .await
                         {
                             if !output.status.success() {
                                 health_score = health_score.saturating_sub(20);
                                 error_messages
-                                    .push(format!("SMB port 445 not accessible on: {}", host));
+                                    .push(format!("SMB port 445 not accessible on: {host}"));
                             }
                         }
                     }
@@ -712,14 +707,14 @@ impl Daemon {
                     } => {
                         // Check SSH port (22)
                         if let Ok(output) = tokio::process::Command::new("nc")
-                            .args(&["-z", "-w2", host, "22"])
+                            .args(["-z", "-w2", host, "22"])
                             .output()
                             .await
                         {
                             if !output.status.success() {
                                 health_score = health_score.saturating_sub(20);
                                 error_messages
-                                    .push(format!("SSH port 22 not accessible on: {}", host));
+                                    .push(format!("SSH port 22 not accessible on: {host}"));
                             }
                         }
                     }
@@ -731,7 +726,7 @@ impl Daemon {
 
                     // Try to write a test file
                     match tokio::fs::write(&test_file, b"health_check").await {
-                        Ok(_) => {
+                        Ok(()) => {
                             // Write successful
                             // Clean up test file
                             let _ = tokio::fs::remove_file(&test_file).await;
@@ -739,7 +734,7 @@ impl Daemon {
                         }
                         Err(e) => {
                             health_score = health_score.saturating_sub(25);
-                            error_messages.push(format!("Cannot write to mount point: {}", e));
+                            error_messages.push(format!("Cannot write to mount point: {e}"));
                         }
                     }
                 }
@@ -768,7 +763,7 @@ impl Daemon {
                     }
                     MountStatus::Error(ref msg) => {
                         health_score = health_score.min(30);
-                        error_messages.push(format!("Mount error: {}", msg));
+                        error_messages.push(format!("Mount error: {msg}"));
                     }
                 }
 
@@ -1000,7 +995,7 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
     {
         let cfg = params.config.read().await;
         if cfg.get_mount(&mount_id).is_some() {
-            return Response::Error(format!("Mount {} already exists", mount_id));
+            return Response::Error(format!("Mount {mount_id} already exists"));
         }
     }
 
@@ -1125,7 +1120,7 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
                 mount_point.display(),
                 e
             );
-            return Response::Error(format!("Path security validation failed: {}", e));
+            return Response::Error(format!("Path security validation failed: {e}"));
         }
     }
 
@@ -1268,7 +1263,7 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
             }
             Err(e) => {
                 warn!("Failed to acquire mount permit for {}: {}", mount_id, e);
-                return Response::Error(format!("Resource limit exceeded: {}", e));
+                return Response::Error(format!("Resource limit exceeded: {e}"));
             }
         };
 
@@ -1344,12 +1339,12 @@ async fn handle_unmount_request(
         let cfg = config.read().await;
         match cfg.get_mount(&mount_id) {
             Some(m) => m.clone(),
-            None => return Response::Error(format!("Mount {} not found", mount_id)),
+            None => return Response::Error(format!("Mount {mount_id} not found")),
         }
     };
 
     if !mount.is_active() {
-        return Response::Error(format!("Mount {} is not active", mount_id));
+        return Response::Error(format!("Mount {mount_id} is not active"));
     }
 
     // Get handler and unmount
@@ -1400,12 +1395,11 @@ async fn handle_status_request(params: StatusRequestParams) -> Response {
     for mount in cfg.get_all_mounts() {
         // Apply filters
         if let Some(ref filter_url) = params.filter_url {
-            let regex = match regex::Regex::new(filter_url) {
-                Ok(r) => r,
-                Err(_) => {
-                    warn!("Invalid URL filter regex: {}", filter_url);
-                    EMPTY_REGEX.clone()
-                }
+            let regex = if let Ok(r) = regex::Regex::new(filter_url) {
+                r
+            } else {
+                warn!("Invalid URL filter regex: {}", filter_url);
+                EMPTY_REGEX.clone()
             };
             if !regex.is_match(&mount.url) {
                 continue;
@@ -1431,12 +1425,11 @@ async fn handle_status_request(params: StatusRequestParams) -> Response {
 
         if let Some(ref filter_point) = params.filter_point {
             let mount_point_str = mount.mount_point.to_string_lossy();
-            let regex = match regex::Regex::new(filter_point) {
-                Ok(r) => r,
-                Err(_) => {
-                    warn!("Invalid mount point filter regex: {}", filter_point);
-                    EMPTY_REGEX.clone()
-                }
+            let regex = if let Ok(r) = regex::Regex::new(filter_point) {
+                r
+            } else {
+                warn!("Invalid mount point filter regex: {}", filter_point);
+                EMPTY_REGEX.clone()
             };
             if !regex.is_match(&mount_point_str) {
                 continue;
@@ -1486,25 +1479,23 @@ async fn handle_status_request(params: StatusRequestParams) -> Response {
         .count();
 
     if failed_count > 0 {
-        issues.push(format!("{} mounts are in failed state", failed_count));
+        issues.push(format!("{failed_count} mounts are in failed state"));
     }
 
     // Get cluster information if available
     let cluster_info = if let Some(instance_manager) = &params.instance_manager {
         let cfg = params.config.read().await;
         let cluster_enabled = cfg.cluster.is_some();
-        let force_sync_info = if let Some(force_sync_state) = cfg.get_force_sync_state() {
-            Some(ForceSyncInfo {
+        let force_sync_info = cfg
+            .get_force_sync_state()
+            .map(|force_sync_state| ForceSyncInfo {
                 in_progress: force_sync_state.sync_in_progress,
                 last_initiated: force_sync_state.last_force_sync_at,
                 initiated_by: force_sync_state.initiated_by.clone(),
                 reason: force_sync_state.last_force_sync_reason.clone(),
                 attempt_count: force_sync_state.attempt_count,
                 last_result: force_sync_state.last_result.clone(),
-            })
-        } else {
-            None
-        };
+            });
         drop(cfg);
 
         // Get actual peer count and sync info from sync coordinator if available
@@ -1586,12 +1577,11 @@ async fn handle_list_request(
         .filter(|m| {
             // Apply URL filter
             if let Some(ref filter_url) = filter_url {
-                let regex = match regex::Regex::new(filter_url) {
-                    Ok(r) => r,
-                    Err(_) => {
-                        warn!("Invalid URL filter regex: {}", filter_url);
-                        EMPTY_REGEX.clone()
-                    }
+                let regex = if let Ok(r) = regex::Regex::new(filter_url) {
+                    r
+                } else {
+                    warn!("Invalid URL filter regex: {}", filter_url);
+                    EMPTY_REGEX.clone()
                 };
                 regex.is_match(&m.url)
             } else {
@@ -1621,12 +1611,11 @@ async fn handle_list_request(
             // Apply mount point filter
             if let Some(ref filter_point) = filter_point {
                 let mount_point_str = m.mount_point.to_string_lossy();
-                let regex = match regex::Regex::new(filter_point) {
-                    Ok(r) => r,
-                    Err(_) => {
-                        warn!("Invalid mount point filter regex: {}", filter_point);
-                        EMPTY_REGEX.clone()
-                    }
+                let regex = if let Ok(r) = regex::Regex::new(filter_point) {
+                    r
+                } else {
+                    warn!("Invalid mount point filter regex: {}", filter_point);
+                    EMPTY_REGEX.clone()
                 };
                 regex.is_match(&mount_point_str)
             } else {
@@ -1686,7 +1675,7 @@ async fn handle_enable_request(mount_id: String, config: Arc<RwLock<Config>>) ->
             mount.enable();
             Response::Success
         }
-        None => Response::Error(format!("Mount {} not found", mount_id)),
+        None => Response::Error(format!("Mount {mount_id} not found")),
     }
 }
 
@@ -1698,7 +1687,7 @@ async fn handle_disable_request(mount_id: String, config: Arc<RwLock<Config>>) -
             mount.disable();
             Response::Success
         }
-        None => Response::Error(format!("Mount {} not found", mount_id)),
+        None => Response::Error(format!("Mount {mount_id} not found")),
     }
 }
 
@@ -1728,7 +1717,7 @@ async fn handle_remount_request(mount_id: String, config: Arc<RwLock<Config>>) -
         let cfg = config.read().await;
         match cfg.get_mount(&mount_id) {
             Some(m) => m.clone(),
-            None => return Response::Error(format!("Mount {} not found", mount_id)),
+            None => return Response::Error(format!("Mount {mount_id} not found")),
         }
     };
 
@@ -1771,7 +1760,7 @@ async fn handle_get_config_request(config: Arc<RwLock<Config>>) -> Response {
         Ok(s) => Response::Config {
             config: s,
         },
-        Err(e) => Response::Error(format!("Failed to serialize config: {}", e)),
+        Err(e) => Response::Error(format!("Failed to serialize config: {e}")),
     }
 }
 
@@ -1814,10 +1803,10 @@ async fn handle_doctor_request() -> Response {
             _ => {
                 issues.push(Issue {
                     severity: IssueSeverity::Error,
-                    message: format!("Required system dependency '{}' not found", dep),
+                    message: format!("Required system dependency '{dep}' not found"),
                     component: "System Dependencies".to_string(),
                 });
-                suggestions.push(format!("Install '{}' package or equivalent", dep));
+                suggestions.push(format!("Install '{dep}' package or equivalent"));
             }
         }
     }
@@ -1875,16 +1864,16 @@ async fn handle_doctor_request() -> Response {
                     if metadata.permissions().readonly() {
                         issues.push(Issue {
                             severity: IssueSeverity::Error,
-                            message: format!("Mount directory {} is read-only", mount_dir),
+                            message: format!("Mount directory {mount_dir} is read-only"),
                             component: "Permissions".to_string(),
                         });
-                        suggestions.push(format!("Fix permissions on {}", mount_dir));
+                        suggestions.push(format!("Fix permissions on {mount_dir}"));
                     }
                 }
                 Err(e) => {
                     issues.push(Issue {
                         severity: IssueSeverity::Warning,
-                        message: format!("Cannot check permissions for {}: {}", mount_dir, e),
+                        message: format!("Cannot check permissions for {mount_dir}: {e}"),
                         component: "Permissions".to_string(),
                     });
                 }
@@ -1895,7 +1884,7 @@ async fn handle_doctor_request() -> Response {
     // Check 6: Network connectivity
     if cfg!(target_os = "linux") {
         // Check if network is up
-        if let Ok(output) = Command::new("ip").args(&["link", "show"]).output() {
+        if let Ok(output) = Command::new("ip").args(["link", "show"]).output() {
             if output.status.success() {
                 let output_str = String::from_utf8_lossy(&output.stdout);
                 if output_str.contains("state UP") {
@@ -1926,8 +1915,7 @@ async fn handle_doctor_request() -> Response {
                             issues.push(Issue {
                                 severity: IssueSeverity::Warning,
                                 message: format!(
-                                    "{} does not have SUID bit set - may require sudo for mounts",
-                                    bin
+                                    "{bin} does not have SUID bit set - may require sudo for mounts"
                                 ),
                                 component: "Permissions".to_string(),
                             });
@@ -2056,8 +2044,10 @@ async fn handle_get_logs_request(lines: Option<usize>) -> Response {
         if Path::new(log_path).exists() {
             match fs::read_to_string(log_path) {
                 Ok(content) => {
-                    let all_lines: Vec<String> =
-                        content.lines().map(|line| line.to_string()).collect();
+                    let all_lines: Vec<String> = content
+                        .lines()
+                        .map(std::string::ToString::to_string)
+                        .collect();
                     let lines = if let Some(count) = lines {
                         all_lines.into_iter().rev().take(count).collect()
                     } else {
@@ -2103,14 +2093,14 @@ async fn handle_force_sync_request(
 
         match coordinator.force_sync(sync_reason).await {
             Ok(()) => Response::Success,
-            Err(e) => Response::Error(format!("Force sync failed: {}", e)),
+            Err(e) => Response::Error(format!("Force sync failed: {e}")),
         }
     } else {
         Response::Error("Cluster mode is not enabled".to_string())
     }
 }
 
-/// Convert monitor health states to HealthStatus structs
+/// Convert monitor health states to `HealthStatus` structs
 #[allow(dead_code)]
 async fn get_all_health_statuses_from_monitor(
     monitor: &MountMonitor,

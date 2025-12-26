@@ -215,7 +215,7 @@ impl HardwareCredentialProvider {
             .await?;
 
         // Generate unique key for this credential
-        let key_id = format!("credential_{}", mount_id);
+        let key_id = format!("credential_{mount_id}");
         let key_data = self.generate_credential_key(mount_id, &enhanced).await?;
 
         // Store key in HSM
@@ -246,7 +246,7 @@ impl HardwareCredentialProvider {
     ) -> Result<Option<EnhancedCredential>> {
         let _permit = self.rate_limiter.acquire().await?;
 
-        let key_id = format!("credential_{}", mount_id);
+        let key_id = format!("credential_{mount_id}");
 
         // Try cache first
         {
@@ -278,14 +278,14 @@ impl HardwareCredentialProvider {
     pub async fn rotate_credential_key(&self, mount_id: &str) -> Result<()> {
         let _permit = self.rate_limiter.acquire().await?;
 
-        let key_id = format!("credential_{}", mount_id);
+        let key_id = format!("credential_{mount_id}");
 
         // Get existing credential
         let key_data = self
             .hsm_backend
             .get_key(&key_id)
             .await?
-            .ok_or_else(|| anyhow!("Credential not found for rotation: {}", mount_id))?;
+            .ok_or_else(|| anyhow!("Credential not found for rotation: {mount_id}"))?;
 
         let mut credential = self.decrypt_credential(&key_data)?;
 
@@ -324,9 +324,9 @@ impl HardwareCredentialProvider {
         }
 
         if self.security_policy.require_complex_password {
-            let has_upper = password.chars().any(|c| c.is_uppercase());
-            let has_lower = password.chars().any(|c| c.is_lowercase());
-            let has_digit = password.chars().any(|c| c.is_numeric());
+            let has_upper = password.chars().any(char::is_uppercase);
+            let has_lower = password.chars().any(char::is_lowercase);
+            let has_digit = password.chars().any(char::is_numeric);
             let has_special = password
                 .chars()
                 .any(|c| "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(c));
@@ -409,7 +409,7 @@ impl HardwareCredentialProvider {
         // In a real implementation, this would be encrypted before storage
         // For testing with mock HSM, we store the serialized credential directly
         let serialized = serde_json::to_vec(credential)
-            .map_err(|e| anyhow!("Failed to serialize credential: {}", e))?;
+            .map_err(|e| anyhow!("Failed to serialize credential: {e}"))?;
         Ok(serialized)
     }
 
@@ -419,7 +419,7 @@ impl HardwareCredentialProvider {
         // In a real implementation, this would decrypt first, then deserialize
         // For testing with mock HSM, the data is already in serialized form
         let credential: EnhancedCredential = serde_json::from_slice(key_data)
-            .map_err(|e| anyhow!("Failed to deserialize credential: {}", e))?;
+            .map_err(|e| anyhow!("Failed to deserialize credential: {e}"))?;
         Ok(credential)
     }
 

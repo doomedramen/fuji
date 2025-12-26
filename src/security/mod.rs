@@ -208,7 +208,10 @@ impl CredentialManager {
     /// Store credentials using the first available provider
     pub async fn store_credential(&self, mount_id: &str, credential: &Credential) -> Result<()> {
         for provider in &self.providers {
-            if let Ok(()) = provider.store_credential(mount_id, credential).await {
+            if matches!(
+                provider.store_credential(mount_id, credential).await,
+                Ok(())
+            ) {
                 tracing::info!(
                     "Stored credential for {} using {}",
                     mount_id,

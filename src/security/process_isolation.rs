@@ -52,7 +52,7 @@ pub struct NamespaceConfig {
     pub cgroup_namespace: bool,
     /// Target hostname for UTS namespace
     pub hostname: Option<String>,
-    /// Root directory for chroot/pivot_root
+    /// Root directory for `chroot/pivot_root`
     pub root_dir: Option<PathBuf>,
     /// Drop privileges to this user
     pub drop_uid: Option<uid_t>,
@@ -148,6 +148,7 @@ impl Default for NamespaceConfig {
 
 impl ProcessIsolator {
     /// Create a new process isolator
+    #[must_use]
     pub fn new(config: NamespaceConfig) -> Self {
         Self {
             config,
@@ -287,7 +288,7 @@ impl ProcessIsolator {
                 self.isolated_processes.lock().unwrap().push(process);
                 Ok(pid)
             }
-            Err(e) => Err(anyhow!("Failed to create process: {}", e)),
+            Err(e) => Err(anyhow!("Failed to create process: {e}")),
         }
     }
 
@@ -332,20 +333,14 @@ impl ProcessIsolator {
             let hostname = self.config.hostname.as_ref().unwrap();
             // Build shell command: set hostname, then execute the actual command
             let shell_cmd = if args.is_empty() {
-                format!(
-                    "hostname '{}' 2>/dev/null || true; exec {}",
-                    hostname, command
-                )
+                format!("hostname '{hostname}' 2>/dev/null || true; exec {command}")
             } else {
                 let args_str = args
                     .iter()
                     .map(|a| format!("'{}'", a.replace('\'', "'\\''")))
                     .collect::<Vec<_>>()
                     .join(" ");
-                format!(
-                    "hostname '{}' 2>/dev/null || true; exec {} {}",
-                    hostname, command, args_str
-                )
+                format!("hostname '{hostname}' 2>/dev/null || true; exec {command} {args_str}")
             };
             unshare_cmd.arg("sh");
             unshare_cmd.arg("-c");
@@ -409,6 +404,7 @@ impl ProcessIsolator {
     }
 
     /// Get list of isolated processes
+    #[must_use]
     pub fn get_isolated_processes(&self) -> Vec<IsolatedProcess> {
         self.isolated_processes.lock().unwrap().clone()
     }
@@ -703,7 +699,7 @@ fn setup_chroot(root_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Setup chroot or pivot_root for filesystem isolation (fallback for non-Linux)
+/// Setup chroot or `pivot_root` for filesystem isolation (fallback for non-Linux)
 #[cfg(not(target_os = "linux"))]
 fn setup_chroot(_root_dir: &Path) -> Result<()> {
     debug!("Chroot setup not supported on this platform");

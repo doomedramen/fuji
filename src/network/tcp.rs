@@ -66,6 +66,7 @@ pub enum ConnectionStatus {
 
 impl TcpTransport {
     /// Create a new TCP transport manager
+    #[must_use]
     pub fn new(local_addr: SocketAddr) -> Self {
         Self {
             local_addr,
@@ -249,7 +250,7 @@ impl TcpTransport {
             let mut stream_guard = conn
                 .stream
                 .try_lock()
-                .map_err(|_| anyhow!("Failed to lock stream for peer {}", peer_id))?;
+                .map_err(|_| anyhow!("Failed to lock stream for peer {peer_id}"))?;
 
             if let Some(stream) = stream_guard.as_mut() {
                 // Send length prefix
@@ -265,10 +266,10 @@ impl TcpTransport {
                 debug!("Sent message to peer {}", peer_id);
                 Ok(())
             } else {
-                Err(anyhow!("No active stream for peer {}", peer_id))
+                Err(anyhow!("No active stream for peer {peer_id}"))
             }
         } else {
-            Err(anyhow!("Not connected to peer {}", peer_id))
+            Err(anyhow!("Not connected to peer {peer_id}"))
         }
     }
 
@@ -484,7 +485,7 @@ struct AuthResponse {
 }
 
 impl AuthResponse {
-    fn success() -> Self {
+    const fn success() -> Self {
         Self {
             success: true,
             error: None,
@@ -492,7 +493,7 @@ impl AuthResponse {
     }
 
     #[allow(dead_code)]
-    fn failure(error: String) -> Self {
+    const fn failure(error: String) -> Self {
         Self {
             success: false,
             error: Some(error),

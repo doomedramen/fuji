@@ -51,21 +51,21 @@ pub fn initialize_command_allowlist(allowlist: MountCommandsAllowlist) {
 /// Get the global command allowlist
 pub fn get_command_allowlist() -> Result<MountCommandsAllowlist> {
     let global_allowlist = recover_from_poison(COMMAND_ALLOWLIST.lock());
-    match global_allowlist.as_ref() {
-        Some(allowlist) => Ok(allowlist.clone()),
-        None => {
-            // Initialize with default allowlist if not already done
-            drop(global_allowlist);
-            let default_allowlist = MountCommandsAllowlist::new()
-                .with_context(|| "Failed to initialize default command allowlist")?;
-            initialize_command_allowlist(default_allowlist.clone());
-            Ok(default_allowlist)
-        }
+    if let Some(allowlist) = global_allowlist.as_ref() {
+        Ok(allowlist.clone())
+    } else {
+        // Initialize with default allowlist if not already done
+        drop(global_allowlist);
+        let default_allowlist = MountCommandsAllowlist::new()
+            .with_context(|| "Failed to initialize default command allowlist")?;
+        initialize_command_allowlist(default_allowlist.clone());
+        Ok(default_allowlist)
     }
 }
 
 impl SecureCommand {
     /// Create a new secure command with the specified program
+    #[must_use]
     pub fn new(program: &str) -> Self {
         Self {
             program: program.to_string(),
@@ -81,12 +81,14 @@ impl SecureCommand {
     }
 
     /// Set seccomp profile for the command
-    pub fn with_seccomp_profile(mut self, profile: SeccompProfile) -> Self {
+    #[must_use]
+    pub const fn with_seccomp_profile(mut self, profile: SeccompProfile) -> Self {
         self.seccomp_profile = Some(profile);
         self
     }
 
     /// Get a display string of the command for logging
+    #[must_use]
     pub fn display_command(&self) -> String {
         format!("{} {}", self.program, self.args.join(" "))
     }
@@ -144,12 +146,12 @@ impl SecureCommand {
                 output.status.code().unwrap_or(-1)
             );
             if !stderr.is_empty() {
-                error_msg.push_str(&format!(" | stderr: {}", stderr));
+                error_msg.push_str(&format!(" | stderr: {stderr}"));
             }
             if !stdout.is_empty() {
-                error_msg.push_str(&format!(" | stdout: {}", stdout));
+                error_msg.push_str(&format!(" | stdout: {stdout}"));
             }
-            return Err(anyhow::anyhow!("{}", error_msg));
+            return Err(anyhow::anyhow!("{error_msg}"));
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -198,10 +200,7 @@ pub fn validate_safe_string(input: &str) -> Result<()> {
         .context("Failed to compile safe string regex")?;
 
     if !safe_pattern.is_match(input) {
-        return Err(anyhow::anyhow!(
-            "Input contains unsafe characters: {}",
-            input
-        ));
+        return Err(anyhow::anyhow!("Input contains unsafe characters: {input}"));
     }
 
     Ok(())
@@ -213,7 +212,7 @@ pub fn validate_command_allowlist(command: &str, args: &[String]) -> Result<()> 
 
     allowlist
         .validate_command(command, args)
-        .with_context(|| format!("Command validation failed for: {}", command))
+        .with_context(|| format!("Command validation failed for: {command}"))
 }
 
 /// Create a secure mount command with proper validation and seccomp filtering
@@ -243,7 +242,7 @@ pub fn create_secure_mount_command(
         "nfs" | "nfs4" => SecureCommand::new("mount"),
         "smb" | "cifs" => SecureCommand::new("mount"),
         "sshfs" => SecureCommand::new("sshfs"),
-        _ => return Err(anyhow::anyhow!("Unsupported mount type: {}", mount_type)),
+        _ => return Err(anyhow::anyhow!("Unsupported mount type: {mount_type}")),
     };
 
     let (command_name, args) = match mount_type {
@@ -278,7 +277,7 @@ pub fn create_secure_mount_command(
             ("sshfs", cmd_args)
         }
 
-        _ => return Err(anyhow::anyhow!("Unsupported mount type: {}", mount_type)),
+        _ => return Err(anyhow::anyhow!("Unsupported mount type: {mount_type}")),
     };
 
     // Validate command against allowlist

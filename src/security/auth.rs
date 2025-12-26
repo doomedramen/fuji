@@ -39,7 +39,7 @@ pub struct JWTAuthenticator {
     key_pair: Ed25519KeyPair,
     /// PKCS#8 encoded key pair bytes for encoding
     key_pair_bytes: Vec<u8>,
-    /// Public key for verification (derived from key_pair)
+    /// Public key for verification (derived from `key_pair`)
     #[allow(dead_code)]
     public_key: UnparsedPublicKey<[u8; 32]>,
     /// Raw public key bytes
@@ -105,7 +105,7 @@ impl JWTAuthenticator {
     }
 
     /// Set token expiration duration
-    pub fn with_expiration(mut self, expiration: StdDuration) -> Self {
+    pub const fn with_expiration(mut self, expiration: StdDuration) -> Self {
         self.expiration = expiration;
         self
     }
@@ -201,7 +201,7 @@ impl JWTAuthenticator {
     }
 
     /// Get public key for external verification
-    pub fn get_public_key(&self) -> &[u8] {
+    pub const fn get_public_key(&self) -> &[u8] {
         &self.public_key_array
     }
 
@@ -298,7 +298,7 @@ fn validate_token_structure(
 impl Default for JWTAuthenticator {
     fn default() -> Self {
         Self::new().unwrap_or_else(|e| {
-            panic!("Failed to create JWT authenticator: {}", e);
+            panic!("Failed to create JWT authenticator: {e}");
         })
     }
 }

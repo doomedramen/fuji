@@ -298,7 +298,8 @@ impl DaemonError {
     }
 
     /// Check if this error is recoverable
-    pub fn is_recoverable(&self) -> bool {
+    #[must_use]
+    pub const fn is_recoverable(&self) -> bool {
         match self {
             Self::NetworkError {
                 ..
@@ -337,7 +338,8 @@ impl DaemonError {
     }
 
     /// Get the error category for logging/metrics
-    pub fn category(&self) -> &'static str {
+    #[must_use]
+    pub const fn category(&self) -> &'static str {
         match self {
             Self::MountError {
                 ..
@@ -411,7 +413,7 @@ impl DaemonError {
 /// Note: From<std::io::Error> is automatically derived by thiserror
 /// and will use the Io variant
 ///
-/// Conversion from regex::Error to DaemonError
+/// Conversion from `regex::Error` to `DaemonError`
 impl From<regex::Error> for DaemonError {
     fn from(err: regex::Error) -> Self {
         Self::RegexError {
@@ -421,7 +423,7 @@ impl From<regex::Error> for DaemonError {
     }
 }
 
-/// Conversion from anyhow::Error to DaemonError
+/// Conversion from `anyhow::Error` to `DaemonError`
 impl From<anyhow::Error> for DaemonError {
     fn from(err: anyhow::Error) -> Self {
         Self::generic("Unexpected error", err)

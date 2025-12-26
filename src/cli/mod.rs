@@ -40,7 +40,7 @@ pub struct Cli {
 pub enum Commands {
     /// Mount a network share
     Mount {
-        /// URL of the share to mount (e.g., nfs://192.168.1.1/data)
+        /// URL of the share to mount (e.g., <nfs://192.168.1.1/data>)
         url: String,
 
         /// Mount point path (auto-generated if not specified)
@@ -140,7 +140,7 @@ pub enum Commands {
 
     /// Discover available shares on a server
     Discover {
-        /// Server URL (e.g., nfs://192.168.1.1/)
+        /// Server URL (e.g., <nfs://192.168.1.1>/)
         url: String,
     },
 
@@ -254,7 +254,7 @@ pub enum ConfigCommand {
 
     /// Get a specific configuration value
     Get {
-        /// Configuration key (e.g., "daemon.mount_dir")
+        /// Configuration key (e.g., "`daemon.mount_dir`")
         key: String,
         #[arg(short, long)]
         /// Output in JSON format
@@ -263,7 +263,7 @@ pub enum ConfigCommand {
 
     /// Set a configuration value
     Set {
-        /// Configuration key (e.g., "daemon.mount_dir")
+        /// Configuration key (e.g., "`daemon.mount_dir`")
         key: String,
         /// Configuration value
         value: String,
@@ -482,7 +482,7 @@ async fn handle_unmount(mount_id: String, force: bool, platform: &dyn Platform) 
 
     match response {
         Ok(Response::UnmountSuccess) => {
-            println!("Successfully unmounted {}", mount_id_display);
+            println!("Successfully unmounted {mount_id_display}");
             Ok(())
         }
         Ok(Response::Error(msg)) => {
@@ -548,8 +548,7 @@ async fn handle_status(
                             let status_icon = if health.healthy { "🟢" } else { "🔴" };
                             let uptime = health
                                 .uptime
-                                .map(format_duration)
-                                .unwrap_or_else(|| "Unknown".to_string());
+                                .map_or_else(|| "Unknown".to_string(), format_duration);
                             println!(
                                 "{} Daemon Status: {} (Uptime: {})",
                                 status_icon,
@@ -564,7 +563,7 @@ async fn handle_status(
                             if !health.issues.is_empty() {
                                 println!("Issues:");
                                 for issue in health.issues {
-                                    println!("  - {}", issue);
+                                    println!("  - {issue}");
                                 }
                             }
 
@@ -594,10 +593,10 @@ async fn handle_status(
                                             );
                                         }
                                         if let Some(who) = &force_sync.initiated_by {
-                                            println!("    Initiated by: {}", who);
+                                            println!("    Initiated by: {who}");
                                         }
                                         if let Some(reason) = &force_sync.reason {
-                                            println!("    Reason: {}", reason);
+                                            println!("    Reason: {reason}");
                                         }
                                         println!("    Attempt #{}", force_sync.attempt_count);
                                     } else if force_sync.attempt_count > 0 {
@@ -615,11 +614,10 @@ async fn handle_status(
                                                         completed_at
                                                             .format("%Y-%m-%d %H:%M:%S UTC")
                                                     );
-                                                    println!("    Peers synced: {}", peers_synced);
+                                                    println!("    Peers synced: {peers_synced}");
                                                     if *conflicts_resolved > 0 {
                                                         println!(
-                                                            "    Conflicts resolved: {}",
-                                                            conflicts_resolved
+                                                            "    Conflicts resolved: {conflicts_resolved}"
                                                         );
                                                     }
                                                 }
@@ -633,10 +631,9 @@ async fn handle_status(
                                                         "    Failed: {}",
                                                         failed_at.format("%Y-%m-%d %H:%M:%S UTC")
                                                     );
-                                                    println!("    Error: {}", error);
+                                                    println!("    Error: {error}");
                                                     println!(
-                                                        "    Peers attempted: {}",
-                                                        peers_attempted
+                                                        "    Peers attempted: {peers_attempted}"
                                                     );
                                                 }
                                                 _ => {}
@@ -660,7 +657,7 @@ async fn handle_status(
                     }
                 }
                 Err(e) => {
-                    println!("❌ Error getting status: {}", e);
+                    println!("❌ Error getting status: {e}");
                 }
                 _ => {}
             }
@@ -704,8 +701,7 @@ async fn handle_status(
                 let status_icon = if health.healthy { "🟢" } else { "🔴" };
                 let uptime = health
                     .uptime
-                    .map(format_duration)
-                    .unwrap_or_else(|| "Unknown".to_string());
+                    .map_or_else(|| "Unknown".to_string(), format_duration);
                 println!(
                     "{} Daemon Status: {} (Uptime: {})",
                     status_icon,
@@ -720,7 +716,7 @@ async fn handle_status(
                 if !health.issues.is_empty() {
                     println!("Issues:");
                     for issue in health.issues {
-                        println!("  - {}", issue);
+                        println!("  - {issue}");
                     }
                 }
 
@@ -747,10 +743,10 @@ async fn handle_status(
                                 );
                             }
                             if let Some(who) = &force_sync.initiated_by {
-                                println!("    Initiated by: {}", who);
+                                println!("    Initiated by: {who}");
                             }
                             if let Some(reason) = &force_sync.reason {
-                                println!("    Reason: {}", reason);
+                                println!("    Reason: {reason}");
                             }
                             println!("    Attempt #{}", force_sync.attempt_count);
                         } else if force_sync.attempt_count > 0 {
@@ -767,11 +763,10 @@ async fn handle_status(
                                             "    Completed: {}",
                                             completed_at.format("%Y-%m-%d %H:%M:%S UTC")
                                         );
-                                        println!("    Peers synced: {}", peers_synced);
+                                        println!("    Peers synced: {peers_synced}");
                                         if *conflicts_resolved > 0 {
                                             println!(
-                                                "    Conflicts resolved: {}",
-                                                conflicts_resolved
+                                                "    Conflicts resolved: {conflicts_resolved}"
                                             );
                                         }
                                     }
@@ -785,8 +780,8 @@ async fn handle_status(
                                             "    Failed: {}",
                                             failed_at.format("%Y-%m-%d %H:%M:%S UTC")
                                         );
-                                        println!("    Error: {}", error);
-                                        println!("    Peers attempted: {}", peers_attempted);
+                                        println!("    Error: {error}");
+                                        println!("    Peers attempted: {peers_attempted}");
                                     }
                                     _ => {}
                                 }
@@ -820,7 +815,7 @@ async fn handle_status(
                             println!("  Reconnect attempts: {}", mount.reconnect_attempts);
                         }
                         if let Some(health) = mount.health_score {
-                            println!("  Health score: {}%", health);
+                            println!("  Health score: {health}%");
                         }
                     }
                     println!();
@@ -938,7 +933,7 @@ async fn handle_daemon(command: DaemonCommand, platform: Box<dyn Platform>) -> R
                     lines: log_lines,
                 }) => {
                     for line in log_lines {
-                        println!("{}", line);
+                        println!("{line}");
                     }
                     Ok(())
                 }
@@ -967,12 +962,12 @@ async fn handle_discover(url: String, platform: &dyn Platform) -> Result<()> {
             url,
             shares,
         }) => {
-            println!("Available shares on {}:", url);
+            println!("Available shares on {url}:");
             if shares.is_empty() {
                 println!("  No shares found");
             } else {
                 for share in shares {
-                    println!("  {}", share);
+                    println!("  {share}");
                 }
             }
             Ok(())
@@ -1094,10 +1089,10 @@ async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Resul
                     if json {
                         // Parse TOML and convert to JSON
                         let parsed: toml::Value = toml::from_str(&config)
-                            .map_err(|e| anyhow!("Failed to parse config: {}", e))?;
+                            .map_err(|e| anyhow!("Failed to parse config: {e}"))?;
                         println!("{}", serde_json::to_string_pretty(&parsed)?);
                     } else {
-                        println!("{}", config);
+                        println!("{config}");
                     }
                     Ok(())
                 }
@@ -1122,15 +1117,15 @@ async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Resul
                     config,
                 }) => {
                     let parsed: toml::Value = toml::from_str(&config)
-                        .map_err(|e| anyhow!("Failed to parse config: {}", e))?;
+                        .map_err(|e| anyhow!("Failed to parse config: {e}"))?;
 
                     let value = get_nested_value(&parsed, &key)
-                        .ok_or_else(|| anyhow!("Configuration key '{}' not found", key))?;
+                        .ok_or_else(|| anyhow!("Configuration key '{key}' not found"))?;
 
                     if json {
                         println!("{}", serde_json::to_string_pretty(&value)?);
                     } else {
-                        println!("{}", value);
+                        println!("{value}");
                     }
                     Ok(())
                 }
@@ -1163,7 +1158,7 @@ async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Resul
                 Value::String(value)
             };
 
-            println!("Set {} = {}", key, parsed_value);
+            println!("Set {key} = {parsed_value}");
             info!("Configuration update requires daemon restart");
             Ok(())
         }
@@ -1179,7 +1174,7 @@ async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Resul
                     config,
                 }) => {
                     let parsed: toml::Value = toml::from_str(&config)
-                        .map_err(|e| anyhow!("Failed to parse config: {}", e))?;
+                        .map_err(|e| anyhow!("Failed to parse config: {e}"))?;
 
                     let keys = collect_keys(&parsed, String::new());
 
@@ -1188,7 +1183,7 @@ async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Resul
                         println!("{}", serde_json::to_string_pretty(&json_output)?);
                     } else {
                         for key in keys {
-                            println!("{}", key);
+                            println!("{key}");
                         }
                     }
                     Ok(())
@@ -1227,7 +1222,7 @@ async fn handle_config(command: ConfigCommand, platform: &dyn Platform) -> Resul
             let status = process::Command::new(editor)
                 .arg(config_path)
                 .status()
-                .map_err(|e| anyhow!("Failed to open editor: {}", e))?;
+                .map_err(|e| anyhow!("Failed to open editor: {e}"))?;
 
             if status.success() {
                 info!("Configuration updated. Restart daemon for changes to take effect.");
@@ -1300,7 +1295,7 @@ fn collect_keys(value: &toml::Value, prefix: String) -> Vec<String> {
                 let full_key = if prefix.is_empty() {
                     k.clone()
                 } else {
-                    format!("{}.{}", prefix, k)
+                    format!("{prefix}.{k}")
                 };
                 keys.push(full_key.clone());
                 keys.extend(collect_keys(v, full_key));
@@ -1308,7 +1303,7 @@ fn collect_keys(value: &toml::Value, prefix: String) -> Vec<String> {
         }
         toml::Value::Array(arr) => {
             for (i, v) in arr.iter().enumerate() {
-                let full_key = format!("{}.{}", prefix, i);
+                let full_key = format!("{prefix}.{i}");
                 keys.push(full_key.clone());
                 keys.extend(collect_keys(v, full_key));
             }
@@ -1413,22 +1408,22 @@ async fn handle_doctor(platform: &dyn Platform) -> Result<()> {
                 if !suggestions.is_empty() {
                     println!("\nSuggestions from daemon:");
                     for suggestion in suggestions {
-                        println!("  • {}", suggestion);
+                        println!("  • {suggestion}");
                     }
                 }
             }
             Ok(Response::Error(msg)) => {
-                println!("⚠️ Daemon returned error: {}", msg);
+                println!("⚠️ Daemon returned error: {msg}");
             }
             Ok(_) => {
                 println!("⚠️ Unexpected response from daemon");
             }
             Err(e) => {
-                println!("⚠️ Failed to communicate with daemon: {}", e);
+                println!("⚠️ Failed to communicate with daemon: {e}");
             }
         },
         Err(e) => {
-            println!("⚠️ Could not connect to daemon: {}", e);
+            println!("⚠️ Could not connect to daemon: {e}");
             println!("  The daemon may not be running. Start it with: fuji daemon start");
         }
     }
@@ -1561,7 +1556,7 @@ async fn handle_batch(
 
     // Read the file
     let content = fs::read_to_string(&file)
-        .map_err(|e| anyhow!("Failed to read batch file '{}': {}", file, e))?;
+        .map_err(|e| anyhow!("Failed to read batch file '{file}': {e}"))?;
 
     // Parse based on file extension
     let batch_config: BatchConfig = if Path::new(&file).extension().and_then(|s| s.to_str())
@@ -1569,10 +1564,10 @@ async fn handle_batch(
         || Path::new(&file).extension().and_then(|s| s.to_str()) == Some("yml")
     {
         serde_yaml::from_str(&content)
-            .map_err(|e| anyhow!("Failed to parse YAML batch file: {}", e))?
+            .map_err(|e| anyhow!("Failed to parse YAML batch file: {e}"))?
     } else {
         serde_json::from_str(&content)
-            .map_err(|e| anyhow!("Failed to parse JSON batch file: {}", e))?
+            .map_err(|e| anyhow!("Failed to parse JSON batch file: {e}"))?
     };
 
     println!(
@@ -1589,7 +1584,7 @@ async fn handle_batch(
 
     // Process each operation
     for (index, operation) in batch_config.operations.iter().enumerate() {
-        let op_str = format!("{:?}", operation);
+        let op_str = format!("{operation:?}");
         println!(
             "\n[{}/{}] {:?}",
             index + 1,
@@ -1598,7 +1593,7 @@ async fn handle_batch(
         );
 
         if dry_run {
-            println!("  Would execute: {}", op_str);
+            println!("  Would execute: {op_str}");
             success_count += 1;
             continue;
         }
@@ -1640,20 +1635,20 @@ async fn handle_batch(
             BatchOperation::Wait {
                 seconds,
             } => {
-                println!("  Waiting {} seconds...", seconds);
+                println!("  Waiting {seconds} seconds...");
                 tokio::time::sleep(tokio::time::Duration::from_secs(*seconds)).await;
                 Ok(())
             }
             BatchOperation::Echo {
                 message,
             } => {
-                println!("  {}", message);
+                println!("  {message}");
                 Ok(())
             }
         };
 
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 println!("  ✓ Success");
                 success_count += 1;
             }
@@ -1671,13 +1666,12 @@ async fn handle_batch(
 
     // Print summary
     println!("\nBatch execution complete:");
-    println!("  Successful operations: {}", success_count);
-    println!("  Failed operations: {}", error_count);
+    println!("  Successful operations: {success_count}");
+    println!("  Failed operations: {error_count}");
 
     if error_count > 0 {
         return Err(anyhow!(
-            "Batch operation completed with {} errors",
-            error_count
+            "Batch operation completed with {error_count} errors"
         ));
     }
 
@@ -1717,7 +1711,7 @@ fn display_status_table(mounts: &[crate::socket::protocol::MountStatusInfo], ver
         table.add_row(Row::from(row));
     }
 
-    println!("{}", table);
+    println!("{table}");
 }
 
 /// Format mount status with emoji
@@ -1728,7 +1722,7 @@ fn format_status(status: &crate::mount::MountStatus) -> String {
         crate::mount::MountStatus::Disabled => "⚪ Disabled".to_string(),
         crate::mount::MountStatus::Reconnecting => "🟡 Reconnecting".to_string(),
         crate::mount::MountStatus::InProgress => "🔄 In Progress".to_string(),
-        crate::mount::MountStatus::Error(msg) => format!("❌ Error: {}", msg),
+        crate::mount::MountStatus::Error(msg) => format!("❌ Error: {msg}"),
     }
 }
 
@@ -1767,7 +1761,7 @@ fn format_duration(duration: std::time::Duration) -> String {
     let total_seconds = duration.as_secs();
 
     if total_seconds < 60 {
-        format!("{}s", total_seconds)
+        format!("{total_seconds}s")
     } else if total_seconds < 3600 {
         format!("{}m {}s", total_seconds / 60, total_seconds % 60)
     } else if total_seconds < 86400 {
@@ -1783,7 +1777,7 @@ fn format_duration(duration: std::time::Duration) -> String {
 
 /// Format health state for display
 #[allow(dead_code)]
-fn format_health_state(state: &crate::monitoring::HealthState) -> &'static str {
+const fn format_health_state(state: &crate::monitoring::HealthState) -> &'static str {
     match state {
         crate::monitoring::HealthState::Healthy => "Healthy",
         crate::monitoring::HealthState::Degraded => "Degraded",
@@ -1884,12 +1878,12 @@ async fn handle_service(command: ServiceCommand, _platform: &dyn Platform) -> Re
             match output {
                 Some(path) => {
                     std::fs::write(&path, service_content)
-                        .context(format!("Failed to write to {}", path))?;
+                        .context(format!("Failed to write to {path}"))?;
                     info!("Service file written to {}", path);
-                    println!("Service file '{}' written successfully", path);
+                    println!("Service file '{path}' written successfully");
                 }
                 None => {
-                    println!("{}", service_content);
+                    println!("{service_content}");
                 }
             }
 

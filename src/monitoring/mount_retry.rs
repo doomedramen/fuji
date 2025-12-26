@@ -1,6 +1,6 @@
 //! Mount retry coordinator
 //!
-//! Integrates the RetryHandler with mount operations to provide
+//! Integrates the `RetryHandler` with mount operations to provide
 //! intelligent retry logic with exponential backoff, jitter,
 //! and circuit breaker functionality.
 
@@ -28,6 +28,7 @@ pub struct MountRetryCoordinator {
 #[allow(dead_code)]
 impl MountRetryCoordinator {
     /// Create a new mount retry coordinator
+    #[must_use]
     pub fn new(monitor: Arc<MountMonitor>) -> Self {
         Self {
             retry_handler: Arc::new(RetryHandler::new()),
@@ -59,8 +60,7 @@ impl MountRetryCoordinator {
                 mount_id
             );
             return Err(anyhow::anyhow!(
-                "Circuit breaker is open for mount {}",
-                mount_id
+                "Circuit breaker is open for mount {mount_id}"
             ));
         }
 
@@ -236,13 +236,13 @@ impl MountRetryCoordinator {
         let protocol = mount_config.url.split("://").next().unwrap_or("");
 
         let handler = get_mount_handler(protocol)
-            .map_err(|e| anyhow::anyhow!("Failed to get mount handler: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to get mount handler: {e}"))?;
 
         // Ensure mount point exists
         if !mount_config.mount_point.exists() {
             tokio::fs::create_dir_all(&mount_config.mount_point)
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to create mount point: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to create mount point: {e}"))?;
         }
 
         // Unmount if already mounted
@@ -259,7 +259,7 @@ impl MountRetryCoordinator {
         handler
             .mount(&mount_config, &mount_config.mount_point)
             .await
-            .map_err(|e| anyhow::anyhow!("Mount operation failed: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Mount operation failed: {e}"))?;
 
         Ok(())
     }
@@ -270,7 +270,7 @@ impl MountRetryCoordinator {
         let protocol = mount_config.url.split("://").next().unwrap_or("");
 
         let handler = get_mount_handler(protocol)
-            .map_err(|e| anyhow::anyhow!("Failed to get mount handler: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to get mount handler: {e}"))?;
 
         // Check if mounted
         let platform = get_platform();
@@ -286,7 +286,7 @@ impl MountRetryCoordinator {
         handler
             .unmount(&mount_config.mount_point)
             .await
-            .map_err(|e| anyhow::anyhow!("Unmount operation failed: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Unmount operation failed: {e}"))?;
 
         Ok(())
     }
@@ -365,7 +365,7 @@ pub struct RetryStatus {
 }
 
 /// Get default retry policy based on mount type
-fn default_retry_policy_for_mount_type(mount_type: &crate::mount::MountType) -> RetryPolicy {
+const fn default_retry_policy_for_mount_type(mount_type: &crate::mount::MountType) -> RetryPolicy {
     use crate::mount::MountType;
 
     match mount_type {
@@ -414,7 +414,7 @@ fn parse_retry_policy_from_metadata(metadata: &str) -> Result<RetryPolicy> {
                 "max_attempts" => {
                     policy.max_attempts = value
                         .parse()
-                        .map_err(|e| anyhow::anyhow!("Invalid max_attempts: {}", e))?;
+                        .map_err(|e| anyhow::anyhow!("Invalid max_attempts: {e}"))?;
                 }
                 "initial_delay" => {
                     let seconds = parse_duration(value)?;
@@ -427,12 +427,12 @@ fn parse_retry_policy_from_metadata(metadata: &str) -> Result<RetryPolicy> {
                 "multiplier" => {
                     policy.multiplier = value
                         .parse()
-                        .map_err(|e| anyhow::anyhow!("Invalid multiplier: {}", e))?;
+                        .map_err(|e| anyhow::anyhow!("Invalid multiplier: {e}"))?;
                 }
                 "jitter" => {
                     policy.jitter = value
                         .parse()
-                        .map_err(|e| anyhow::anyhow!("Invalid jitter: {}", e))?;
+                        .map_err(|e| anyhow::anyhow!("Invalid jitter: {e}"))?;
                 }
                 _ => {
                     warn!("Unknown retry policy parameter: {}", key);
@@ -452,23 +452,23 @@ fn parse_duration(s: &str) -> Result<u64> {
         let num = &s[..s.len() - 1];
         Ok(num
             .parse()
-            .map_err(|e| anyhow::anyhow!("Invalid seconds: {}", e))?)
+            .map_err(|e| anyhow::anyhow!("Invalid seconds: {e}"))?)
     } else if s.ends_with('m') {
         let num = &s[..s.len() - 1];
         let minutes: u64 = num
             .parse()
-            .map_err(|e| anyhow::anyhow!("Invalid minutes: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Invalid minutes: {e}"))?;
         Ok(minutes * 60)
     } else if s.ends_with('h') {
         let num = &s[..s.len() - 1];
         let hours: u64 = num
             .parse()
-            .map_err(|e| anyhow::anyhow!("Invalid hours: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Invalid hours: {e}"))?;
         Ok(hours * 3600)
     } else {
         // Assume seconds
         Ok(s.parse()
-            .map_err(|e| anyhow::anyhow!("Invalid duration: {}", e))?)
+            .map_err(|e| anyhow::anyhow!("Invalid duration: {e}"))?)
     }
 }
 

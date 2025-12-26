@@ -691,9 +691,7 @@ impl ConfigSecurityManager {
         for existing_lock in locks.values() {
             if existing_lock.resource == resource {
                 match (existing_lock.lock_type, lock_type) {
-                    (LockType::Write, LockType::Write)
-                    | (LockType::Write, LockType::Admin)
-                    | (LockType::Admin, _) => {
+                    (LockType::Write, LockType::Write | LockType::Admin) | (LockType::Admin, _) => {
                         return Err(anyhow!(
                             "Resource is locked by {}: {}",
                             existing_lock.user,
@@ -776,7 +774,7 @@ impl ConfigSecurityManager {
                     if let Err(e) = config_data.content.parse::<toml::Value>() {
                         errors.push(ValidationError {
                             code: "INVALID_TOML".to_string(),
-                            message: format!("Invalid TOML format: {}", e),
+                            message: format!("Invalid TOML format: {e}"),
                             field_path: "root".to_string(),
                             severity: ValidationSeverity::Error,
                             suggestion: Some("Fix TOML syntax errors".to_string()),
@@ -789,7 +787,7 @@ impl ConfigSecurityManager {
                     {
                         errors.push(ValidationError {
                             code: "INVALID_JSON".to_string(),
-                            message: format!("Invalid JSON format: {}", e),
+                            message: format!("Invalid JSON format: {e}"),
                             field_path: "root".to_string(),
                             severity: ValidationSeverity::Error,
                             suggestion: Some("Fix JSON syntax errors".to_string()),
@@ -802,7 +800,7 @@ impl ConfigSecurityManager {
                     {
                         errors.push(ValidationError {
                             code: "INVALID_YAML".to_string(),
-                            message: format!("Invalid YAML format: {}", e),
+                            message: format!("Invalid YAML format: {e}"),
                             field_path: "root".to_string(),
                             severity: ValidationSeverity::Error,
                             suggestion: Some("Fix YAML syntax errors".to_string()),
@@ -829,8 +827,7 @@ impl ConfigSecurityManager {
                 warnings.push(ValidationWarning {
                     code: "PLAINTEXT_SENSITIVE_DATA".to_string(),
                     message: format!(
-                        "Sensitive data pattern '{}' detected in configuration. Consider using encrypted storage.",
-                        pattern
+                        "Sensitive data pattern '{pattern}' detected in configuration. Consider using encrypted storage."
                     ),
                     field_path: "security".to_string(),
                     warning_type: "security".to_string(),
@@ -841,7 +838,7 @@ impl ConfigSecurityManager {
         }
 
         // Check for suspicious paths
-        if config_data.content.contains("..") || config_data.content.contains("~") {
+        if config_data.content.contains("..") || config_data.content.contains('~') {
             errors.push(ValidationError {
                 code: "SUSPICIOUS_PATH".to_string(),
                 message: "Suspicious path patterns detected".to_string(),
@@ -1003,7 +1000,7 @@ impl ConfigSecurityManager {
     }
 
     /// Check if permissions satisfy requirements
-    fn has_permissions(&self, available: &Permissions, required: Permissions) -> bool {
+    const fn has_permissions(&self, available: &Permissions, required: Permissions) -> bool {
         required.read <= available.read
             && required.write <= available.write
             && required.delete <= available.delete
@@ -1112,7 +1109,7 @@ impl ConfigSecurityManager {
             entries
                 .iter()
                 .find(|e| e.version == version)
-                .ok_or_else(|| anyhow!("Version {} not found in history", version))?
+                .ok_or_else(|| anyhow!("Version {version} not found in history"))?
         } else {
             // Get previous version
             entries
@@ -1140,7 +1137,7 @@ impl ConfigSecurityManager {
             .metadata
             .get("config_version")
             .cloned()
-            .unwrap_or_else(|| format!("{}", target_version));
+            .unwrap_or_else(|| format!("{target_version}"));
 
         // Drop the read lock before calling add_history_entry which needs write lock
         drop(history);
@@ -1156,8 +1153,7 @@ impl ConfigSecurityManager {
         // Create placeholder config data for history entry
         let rollback_config_data = ConfigData {
             content: format!(
-                "# Rollback to version {} (checksum: {})",
-                target_version, target_checksum
+                "# Rollback to version {target_version} (checksum: {target_checksum})"
             ),
             metadata: ConfigMetadata {
                 name: config_name.clone(),
@@ -1165,7 +1161,7 @@ impl ConfigSecurityManager {
                 created_at: Utc::now(),
                 modified_at: Utc::now(),
                 author: user_id.to_string(),
-                description: Some(format!("Rollback to version {}", target_version)),
+                description: Some(format!("Rollback to version {target_version}")),
                 tags: vec!["rollback".to_string()],
                 schema_version: None,
                 dependencies: vec![],

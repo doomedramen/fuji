@@ -73,6 +73,7 @@ pub struct Sequence {
 #[allow(dead_code)]
 impl DependencyGraph {
     /// Create a new dependency graph
+    #[must_use]
     pub fn new() -> Self {
         Self {
             graph: Arc::new(RwLock::new(DiGraph::new())),
@@ -92,8 +93,7 @@ impl DependencyGraph {
         // Check if mount already exists
         if mounts.contains_key(&mount_id) {
             return Err(anyhow!(
-                "Mount {} already exists in dependency graph",
-                mount_id
+                "Mount {mount_id} already exists in dependency graph"
             ));
         }
 
@@ -157,10 +157,10 @@ impl DependencyGraph {
         // Get node indices
         let dependent_index = mounts
             .get(dependent_id)
-            .ok_or_else(|| anyhow!("Dependent mount {} not found", dependent_id))?;
+            .ok_or_else(|| anyhow!("Dependent mount {dependent_id} not found"))?;
         let dependency_index = mounts
             .get(dependency_id)
-            .ok_or_else(|| anyhow!("Dependency mount {} not found", dependency_id))?;
+            .ok_or_else(|| anyhow!("Dependency mount {dependency_id} not found"))?;
 
         // Create edge
         let edge = DependencyEdge {
@@ -185,10 +185,10 @@ impl DependencyGraph {
         // Get node indices
         let dependent_index = mounts
             .get(dependent_id)
-            .ok_or_else(|| anyhow!("Dependent mount {} not found", dependent_id))?;
+            .ok_or_else(|| anyhow!("Dependent mount {dependent_id} not found"))?;
         let dependency_index = mounts
             .get(dependency_id)
-            .ok_or_else(|| anyhow!("Dependency mount {} not found", dependency_id))?;
+            .ok_or_else(|| anyhow!("Dependency mount {dependency_id} not found"))?;
 
         // Find and remove edges
         let edge_ids: Vec<_> = graph
@@ -224,7 +224,7 @@ impl DependencyGraph {
                 if dep_id == mount_id {
                     validation
                         .errors
-                        .push(format!("Mount {} depends on itself", mount_id));
+                        .push(format!("Mount {mount_id} depends on itself"));
                     validation.valid = false;
                 }
             }
@@ -365,7 +365,7 @@ impl DependencyGraph {
 
             Ok(dependencies)
         } else {
-            Err(anyhow!("Mount {} not found in dependency graph", mount_id))
+            Err(anyhow!("Mount {mount_id} not found in dependency graph"))
         }
     }
 
@@ -388,7 +388,7 @@ impl DependencyGraph {
 
             Ok(dependents)
         } else {
-            Err(anyhow!("Mount {} not found in dependency graph", mount_id))
+            Err(anyhow!("Mount {mount_id} not found in dependency graph"))
         }
     }
 
@@ -474,7 +474,7 @@ impl DependencyGraph {
         // Add nodes
         for node_index in graph.node_indices() {
             if let Some(mount_id) = reverse_index.get(&node_index) {
-                dot.push_str(&format!("  \"{}\";\n", mount_id));
+                dot.push_str(&format!("  \"{mount_id}\";\n"));
             }
         }
 
@@ -495,10 +495,7 @@ impl DependencyGraph {
                 DependencyType::Order => "style=dotted",
             };
 
-            dot.push_str(&format!(
-                "  \"{}\" -> \"{}\" [{}];\n",
-                source, target, edge_style
-            ));
+            dot.push_str(&format!("  \"{source}\" -> \"{target}\" [{edge_style}];\n"));
         }
 
         dot.push_str("}\n");

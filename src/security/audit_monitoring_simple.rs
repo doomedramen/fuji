@@ -57,11 +57,13 @@ impl Default for SimpleAuditMonitor {
 #[allow(dead_code)]
 impl SimpleAuditMonitor {
     /// Create a new simple audit monitor
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Create a new simple audit monitor with custom history size
+    #[must_use]
     pub fn with_history_size(max_history: usize) -> Self {
         Self {
             max_history,

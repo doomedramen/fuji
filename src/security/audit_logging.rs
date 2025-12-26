@@ -186,40 +186,42 @@ pub enum AuditEventType {
 
 impl AuditEventType {
     /// Get the event severity level
-    pub fn severity(&self) -> AuditSeverity {
+    #[must_use]
+    pub const fn severity(&self) -> AuditSeverity {
         match self {
-            AuditEventType::Authentication => AuditSeverity::Medium,
-            AuditEventType::Authorization => AuditSeverity::Medium,
-            AuditEventType::CredentialManagement => AuditSeverity::High,
-            AuditEventType::MountOperation => AuditSeverity::Low,
-            AuditEventType::ConfigurationChange => AuditSeverity::Medium,
-            AuditEventType::SecurityPolicy => AuditSeverity::High,
-            AuditEventType::SystemEvent => AuditSeverity::Low,
-            AuditEventType::NetworkEvent => AuditSeverity::Medium,
-            AuditEventType::DataAccess => AuditSeverity::Medium,
-            AuditEventType::CryptographicOperation => AuditSeverity::High,
-            AuditEventType::SecurityViolation => AuditSeverity::Critical,
-            AuditEventType::AdministrativeAction => AuditSeverity::High,
-            AuditEventType::ProcessManagement => AuditSeverity::Medium,
+            Self::Authentication => AuditSeverity::Medium,
+            Self::Authorization => AuditSeverity::Medium,
+            Self::CredentialManagement => AuditSeverity::High,
+            Self::MountOperation => AuditSeverity::Low,
+            Self::ConfigurationChange => AuditSeverity::Medium,
+            Self::SecurityPolicy => AuditSeverity::High,
+            Self::SystemEvent => AuditSeverity::Low,
+            Self::NetworkEvent => AuditSeverity::Medium,
+            Self::DataAccess => AuditSeverity::Medium,
+            Self::CryptographicOperation => AuditSeverity::High,
+            Self::SecurityViolation => AuditSeverity::Critical,
+            Self::AdministrativeAction => AuditSeverity::High,
+            Self::ProcessManagement => AuditSeverity::Medium,
         }
     }
 
     /// Get event category string
-    pub fn category(&self) -> &'static str {
+    #[must_use]
+    pub const fn category(&self) -> &'static str {
         match self {
-            AuditEventType::Authentication => "auth",
-            AuditEventType::Authorization => "authz",
-            AuditEventType::CredentialManagement => "cred",
-            AuditEventType::MountOperation => "mount",
-            AuditEventType::ConfigurationChange => "config",
-            AuditEventType::SecurityPolicy => "policy",
-            AuditEventType::SystemEvent => "system",
-            AuditEventType::NetworkEvent => "network",
-            AuditEventType::DataAccess => "data",
-            AuditEventType::CryptographicOperation => "crypto",
-            AuditEventType::SecurityViolation => "violation",
-            AuditEventType::AdministrativeAction => "admin",
-            AuditEventType::ProcessManagement => "process",
+            Self::Authentication => "auth",
+            Self::Authorization => "authz",
+            Self::CredentialManagement => "cred",
+            Self::MountOperation => "mount",
+            Self::ConfigurationChange => "config",
+            Self::SecurityPolicy => "policy",
+            Self::SystemEvent => "system",
+            Self::NetworkEvent => "network",
+            Self::DataAccess => "data",
+            Self::CryptographicOperation => "crypto",
+            Self::SecurityViolation => "violation",
+            Self::AdministrativeAction => "admin",
+            Self::ProcessManagement => "process",
         }
     }
 }
@@ -245,22 +247,24 @@ pub enum AuditSeverity {
 
 impl AuditSeverity {
     /// Get numeric value for severity
-    pub fn value(&self) -> u8 {
+    #[must_use]
+    pub const fn value(&self) -> u8 {
         match self {
-            AuditSeverity::Low => 1,
-            AuditSeverity::Medium => 2,
-            AuditSeverity::High => 3,
-            AuditSeverity::Critical => 4,
+            Self::Low => 1,
+            Self::Medium => 2,
+            Self::High => 3,
+            Self::Critical => 4,
         }
     }
 
     /// Get color code for logging
-    pub fn color_code(&self) -> &'static str {
+    #[must_use]
+    pub const fn color_code(&self) -> &'static str {
         match self {
-            AuditSeverity::Low => "\x1b[32m",      // Green
-            AuditSeverity::Medium => "\x1b[33m",   // Yellow
-            AuditSeverity::High => "\x1b[31m",     // Red
-            AuditSeverity::Critical => "\x1b[35m", // Magenta
+            Self::Low => "\x1b[32m",      // Green
+            Self::Medium => "\x1b[33m",   // Yellow
+            Self::High => "\x1b[31m",     // Red
+            Self::Critical => "\x1b[35m", // Magenta
         }
     }
 }
@@ -616,7 +620,7 @@ impl AuditLogger {
             AuditEventType::SecurityViolation,
             source,
             AuditOutcome::Blocked,
-            &format!("Security violation: {}", violation_type),
+            &format!("Security violation: {violation_type}"),
             event_details,
         )
         .await
@@ -885,7 +889,7 @@ impl AuditLogger {
             let mut writer = self.log_writer.write().await;
             if let Some(ref mut w) = *writer {
                 let json_line = serde_json::to_string(event)?;
-                writeln!(w, "{}", json_line)?;
+                writeln!(w, "{json_line}")?;
                 w.flush()?;
             }
         } // Release lock before checking rotation to avoid deadlock
@@ -916,10 +920,7 @@ impl AuditLogger {
 
         // Rotate files
         for i in (1..self.config.backup_count).rev() {
-            let old_path = self
-                .config
-                .log_file_path
-                .with_extension(format!("log.{}", i));
+            let old_path = self.config.log_file_path.with_extension(format!("log.{i}"));
             let new_path = self
                 .config
                 .log_file_path
@@ -935,10 +936,7 @@ impl AuditLogger {
 
         // Clean up old files beyond backup count
         for i in (self.config.backup_count + 1)..(self.config.backup_count + 10) {
-            let old_path = self
-                .config
-                .log_file_path
-                .with_extension(format!("log.{}", i));
+            let old_path = self.config.log_file_path.with_extension(format!("log.{i}"));
             if old_path.exists() {
                 let _ = std::fs::remove_file(&old_path);
             }
@@ -1117,7 +1115,7 @@ impl AuditLogger {
 
         let encrypted = cipher
             .encrypt(nonce, data)
-            .map_err(|e| anyhow!("Encryption failed: {}", e))?;
+            .map_err(|e| anyhow!("Encryption failed: {e}"))?;
 
         // Combine nonce and ciphertext
         let mut result = nonce_bytes.to_vec();
@@ -1168,7 +1166,7 @@ impl AuditLogger {
         }
 
         wtr.into_inner()
-            .map_err(|e| anyhow!("CSV export failed: {}", e))
+            .map_err(|e| anyhow!("CSV export failed: {e}"))
     }
 
     /// Export events to syslog format
@@ -1259,21 +1257,22 @@ pub enum ExportFormat {
 impl Default for AuditLogger {
     fn default() -> Self {
         Self::new().unwrap_or_else(|e| {
-            panic!("Failed to create audit logger: {}", e);
+            panic!("Failed to create audit logger: {e}");
         })
     }
 }
 
 impl AuditSourceType {
     /// Get string representation
-    pub fn as_str(self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
-            AuditSourceType::User => "user",
-            AuditSourceType::Process => "process",
-            AuditSourceType::System => "system",
-            AuditSourceType::Service => "service",
-            AuditSourceType::External => "external",
-            AuditSourceType::Automated => "automated",
+            Self::User => "user",
+            Self::Process => "process",
+            Self::System => "system",
+            Self::Service => "service",
+            Self::External => "external",
+            Self::Automated => "automated",
         }
     }
 }

@@ -83,6 +83,7 @@ pub struct MountOptionParser {
 
 impl MountOptionParser {
     /// Create a new mount option parser
+    #[must_use]
     pub fn new() -> Self {
         let mut fs_options = HashMap::new();
 
@@ -119,7 +120,7 @@ impl MountOptionParser {
                 "fg",
             ]
             .iter()
-            .map(|s| s.to_string())
+            .map(|s| (*s).to_string())
             .collect(),
         );
 
@@ -164,7 +165,7 @@ impl MountOptionParser {
                 "cifsacl",
             ]
             .iter()
-            .map(|s| s.to_string())
+            .map(|s| (*s).to_string())
             .collect(),
         );
 
@@ -207,7 +208,7 @@ impl MountOptionParser {
                 "controlpath",
             ]
             .iter()
-            .map(|s| s.to_string())
+            .map(|s| (*s).to_string())
             .collect(),
         );
 
@@ -216,7 +217,7 @@ impl MountOptionParser {
             "nosuid", "nodev", "noexec", "suid", "exec", "dev", "ro", "rw",
         ]
         .iter()
-        .map(|s| s.to_string())
+        .map(|s| (*s).to_string())
         .collect();
 
         // Boolean options
@@ -260,7 +261,7 @@ impl MountOptionParser {
             "nofail",
         ]
         .iter()
-        .map(|s| s.to_string())
+        .map(|s| (*s).to_string())
         .collect();
 
         Self {
@@ -278,22 +279,22 @@ impl MountOptionParser {
             let num = value.trim_end_matches('K');
             num.parse::<usize>()
                 .map(|n| n * 1024)
-                .map_err(|_| anyhow!("Invalid size value: {}", value))
+                .map_err(|_| anyhow!("Invalid size value: {value}"))
         } else if value.ends_with('M') {
             let num = value.trim_end_matches('M');
             num.parse::<usize>()
                 .map(|n| n * 1024 * 1024)
-                .map_err(|_| anyhow!("Invalid size value: {}", value))
+                .map_err(|_| anyhow!("Invalid size value: {value}"))
         } else if value.ends_with('G') {
             let num = value.trim_end_matches('G');
             num.parse::<usize>()
                 .map(|n| n * 1024 * 1024 * 1024)
-                .map_err(|_| anyhow!("Invalid size value: {}", value))
+                .map_err(|_| anyhow!("Invalid size value: {value}"))
         } else {
             // Parse as raw number
             value
                 .parse::<usize>()
-                .map_err(|_| anyhow!("Invalid size value: {}", value))
+                .map_err(|_| anyhow!("Invalid size value: {value}"))
         }
     }
 
@@ -360,38 +361,30 @@ impl MountOptionParser {
         // Security options
         match key {
             "uid" => {
-                security.uid = Some(
-                    value
-                        .parse()
-                        .map_err(|_| anyhow!("Invalid uid: {}", value))?,
-                );
+                security.uid = Some(value.parse().map_err(|_| anyhow!("Invalid uid: {value}"))?);
             }
             "gid" => {
-                security.gid = Some(
-                    value
-                        .parse()
-                        .map_err(|_| anyhow!("Invalid gid: {}", value))?,
-                );
+                security.gid = Some(value.parse().map_err(|_| anyhow!("Invalid gid: {value}"))?);
             }
             "fmode" | "file_mode" => {
                 let mode = if let Some(stripped) = value.strip_prefix('0') {
                     u32::from_str_radix(stripped, 8)
-                        .map_err(|_| anyhow!("Invalid file mode: {}", value))?
+                        .map_err(|_| anyhow!("Invalid file mode: {value}"))?
                 } else {
                     value
                         .parse()
-                        .map_err(|_| anyhow!("Invalid file mode: {}", value))?
+                        .map_err(|_| anyhow!("Invalid file mode: {value}"))?
                 };
                 security.fmode = Some(mode);
             }
             "dmode" | "dir_mode" => {
                 let mode = if let Some(stripped) = value.strip_prefix('0') {
                     u32::from_str_radix(stripped, 8)
-                        .map_err(|_| anyhow!("Invalid dir mode: {}", value))?
+                        .map_err(|_| anyhow!("Invalid dir mode: {value}"))?
                 } else {
                     value
                         .parse()
-                        .map_err(|_| anyhow!("Invalid dir mode: {}", value))?
+                        .map_err(|_| anyhow!("Invalid dir mode: {value}"))?
                 };
                 security.dmode = Some(mode);
             }
@@ -418,25 +411,25 @@ impl MountOptionParser {
                 performance.timeo = Some(
                     value
                         .parse()
-                        .map_err(|_| anyhow!("Invalid timeout: {}", value))?,
+                        .map_err(|_| anyhow!("Invalid timeout: {value}"))?,
                 );
             }
             "retrans" => {
                 performance.retrans = Some(
                     value
                         .parse()
-                        .map_err(|_| anyhow!("Invalid retrans: {}", value))?,
+                        .map_err(|_| anyhow!("Invalid retrans: {value}"))?,
                 );
             }
             "nfsvers" => {
                 performance.nfsvers = Some(
                     value
                         .parse()
-                        .map_err(|_| anyhow!("Invalid NFS version: {}", value))?,
+                        .map_err(|_| anyhow!("Invalid NFS version: {value}"))?,
                 );
             }
             "vers" => {
-                if value.starts_with("3") || value.starts_with("4") {
+                if value.starts_with('3') || value.starts_with('4') {
                     performance.vers = Some(value.to_string());
                 } else if ["1.0", "2.0", "2.1", "3.0"].contains(&value) {
                     performance.vers_smb = Some(value.to_string());
@@ -464,7 +457,7 @@ impl MountOptionParser {
                     bail!("Conflicting options: ro and rw cannot both be specified");
                 }
                 security.read_only = true;
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             "rw" => {
                 // Check for conflicting option
@@ -472,50 +465,50 @@ impl MountOptionParser {
                     bail!("Conflicting options: ro and rw cannot both be specified");
                 }
                 security.read_only = false;
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             "nosuid" => {
                 security.nosuid = true;
                 security.suid = false;
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             "nodev" => {
                 security.nodev = true;
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             "noexec" => {
                 security.noexec = true;
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             "suid" => {
                 security.suid = true;
                 security.nosuid = false;
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             "soft" => {
                 performance.soft = true;
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             "hard" => {
                 performance.soft = false;
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             "intr" => {
                 performance.intr = true;
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             "nointr" => {
                 performance.intr = false;
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             "noatime" => {
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             "relatime" => {
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
             _ => {
-                options.insert(option.to_string(), "".to_string());
+                options.insert(option.to_string(), String::new());
             }
         }
 
@@ -545,11 +538,11 @@ impl MountOptionParser {
             "nfs" => {
                 // NFS defaults
                 if !options.contains_key("hard") && !options.contains_key("soft") {
-                    options.insert("hard".to_string(), "".to_string());
+                    options.insert("hard".to_string(), String::new());
                     performance.soft = false;
                 }
                 if !options.contains_key("intr") && !options.contains_key("nointr") {
-                    options.insert("intr".to_string(), "".to_string());
+                    options.insert("intr".to_string(), String::new());
                     performance.intr = true;
                 }
                 if !options.contains_key("rsize") {
@@ -572,7 +565,7 @@ impl MountOptionParser {
             "cifs" | "smbfs" => {
                 // SMB/CIFS defaults
                 if !options.contains_key("rw") && !options.contains_key("ro") {
-                    options.insert("rw".to_string(), "".to_string());
+                    options.insert("rw".to_string(), String::new());
                     security.read_only = false;
                 }
                 if !options.contains_key("rsize") {
@@ -587,10 +580,10 @@ impl MountOptionParser {
             "sshfs" => {
                 // SSHFS defaults
                 if !options.contains_key("allow_other") {
-                    options.insert("allow_other".to_string(), "".to_string());
+                    options.insert("allow_other".to_string(), String::new());
                 }
                 if !options.contains_key("default_permissions") {
-                    options.insert("default_permissions".to_string(), "".to_string());
+                    options.insert("default_permissions".to_string(), String::new());
                 }
             }
             _ => {}
@@ -619,33 +612,33 @@ impl MountOptionParser {
         if fs_type == "nfs" {
             if let Some(nfsvers) = performance.nfsvers {
                 if !(3..=4).contains(&nfsvers) {
-                    bail!("Unsupported NFS version: {}", nfsvers);
+                    bail!("Unsupported NFS version: {nfsvers}");
                 }
             }
 
             // Validate rsize and wsize are reasonable (between 1K and 100M)
             if let Some(rsize) = performance.rsize {
                 if rsize < 1024 {
-                    bail!("rsize too small: {} (minimum 1024)", rsize);
+                    bail!("rsize too small: {rsize} (minimum 1024)");
                 }
                 if rsize > 104_857_600 {
-                    bail!("rsize too large: {} (maximum 100MB)", rsize);
+                    bail!("rsize too large: {rsize} (maximum 100MB)");
                 }
             }
 
             if let Some(wsize) = performance.wsize {
                 if wsize < 1024 {
-                    bail!("wsize too small: {} (minimum 1024)", wsize);
+                    bail!("wsize too small: {wsize} (minimum 1024)");
                 }
                 if wsize > 104_857_600 {
-                    bail!("wsize too large: {} (maximum 100MB)", wsize);
+                    bail!("wsize too large: {wsize} (maximum 100MB)");
                 }
             }
 
             // Validate timeout
             if let Some(timeo) = performance.timeo {
                 if !(1..=3600).contains(&timeo) {
-                    bail!("Invalid timeout: {} (must be 1-3600 seconds)", timeo);
+                    bail!("Invalid timeout: {timeo} (must be 1-3600 seconds)");
                 }
             }
         }
@@ -654,19 +647,19 @@ impl MountOptionParser {
         if fs_type == "cifs" {
             if let Some(rsize) = performance.rsize {
                 if rsize < 1024 {
-                    bail!("rsize too small: {} (minimum 1024)", rsize);
+                    bail!("rsize too small: {rsize} (minimum 1024)");
                 }
                 if rsize > 104_857_600 {
-                    bail!("rsize too large: {} (maximum 100MB)", rsize);
+                    bail!("rsize too large: {rsize} (maximum 100MB)");
                 }
             }
 
             if let Some(wsize) = performance.wsize {
                 if wsize < 1024 {
-                    bail!("wsize too small: {} (minimum 1024)", wsize);
+                    bail!("wsize too small: {wsize} (minimum 1024)");
                 }
                 if wsize > 104_857_600 {
-                    bail!("wsize too large: {} (maximum 100MB)", wsize);
+                    bail!("wsize too large: {wsize} (maximum 100MB)");
                 }
             }
         }
@@ -676,6 +669,7 @@ impl MountOptionParser {
 
     /// Format mount options for mount command
     #[allow(dead_code)] // Utility for generating mount command options
+    #[must_use]
     pub fn format(&self, options: &MountOptions) -> String {
         let mut formatted = Vec::new();
 
@@ -687,7 +681,7 @@ impl MountOptionParser {
             if value.is_empty() {
                 formatted.push(key.clone());
             } else {
-                formatted.push(format!("{}={}", key, value));
+                formatted.push(format!("{key}={value}"));
             }
         }
 
@@ -696,14 +690,14 @@ impl MountOptionParser {
 
     /// Check if option is supported for filesystem
     #[allow(dead_code)] // Utility for option validation
+    #[must_use]
     pub fn is_supported(&self, option: &str, fs_type: &str) -> bool {
         self.boolean_options.contains(option)
             || self.global_security.contains(option)
             || self
                 .fs_options
                 .get(fs_type)
-                .map(|opts| opts.contains(option))
-                .unwrap_or(false)
+                .is_some_and(|opts| opts.contains(option))
     }
 }
 

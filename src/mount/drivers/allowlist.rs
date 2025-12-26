@@ -400,8 +400,7 @@ impl MountCommandsAllowlist {
 
         if self.commands.contains_key(&command_name) {
             return Err(anyhow!(
-                "Command '{}' already exists in allowlist",
-                command_name
+                "Command '{command_name}' already exists in allowlist"
             ));
         }
 
@@ -416,7 +415,7 @@ impl MountCommandsAllowlist {
     /// Remove a command from the allowlist
     pub fn remove_command(&mut self, name: &str) -> Result<()> {
         if !self.commands.contains_key(name) {
-            return Err(anyhow!("Command '{}' not found in allowlist", name));
+            return Err(anyhow!("Command '{name}' not found in allowlist"));
         }
 
         self.commands.remove(name);
@@ -437,7 +436,7 @@ impl MountCommandsAllowlist {
         let allowed_cmd = self
             .commands
             .get(command)
-            .ok_or_else(|| anyhow::anyhow!("Command '{}' is not in the allowlist", command))?;
+            .ok_or_else(|| anyhow::anyhow!("Command '{command}' is not in the allowlist"))?;
 
         // Validate argument count
         if args.len() > allowed_cmd.max_args {
@@ -493,14 +492,11 @@ impl MountCommandsAllowlist {
             .and_then(|p| p.as_ref())
         {
             let regex = regex::Regex::new(regex_str)
-                .with_context(|| format!("Invalid regex pattern: {}", regex_str))?;
+                .with_context(|| format!("Invalid regex pattern: {regex_str}"))?;
 
             if !regex.is_match(value) {
                 return Err(anyhow::anyhow!(
-                    "Option value '{}' doesn't match pattern '{}' for option '{}'",
-                    value,
-                    regex_str,
-                    option_name
+                    "Option value '{value}' doesn't match pattern '{regex_str}' for option '{option_name}'"
                 ));
             }
         }
@@ -523,7 +519,7 @@ impl MountCommandsAllowlist {
         ];
         for c in command.name.chars() {
             if dangerous_chars.contains(&c) {
-                return Err(anyhow!("Command name contains dangerous character: {}", c));
+                return Err(anyhow!("Command name contains dangerous character: {c}"));
             }
         }
 
@@ -591,14 +587,11 @@ impl MountCommandsAllowlist {
                     .and_then(|p| p.as_ref())
                 {
                     let regex = regex::Regex::new(regex_str)
-                        .with_context(|| format!("Invalid regex pattern: {}", regex_str))?;
+                        .with_context(|| format!("Invalid regex pattern: {regex_str}"))?;
 
                     if !regex.is_match(arg_value) {
                         return Err(anyhow::anyhow!(
-                            "Argument value '{}' doesn't match pattern '{}' for option '{}'",
-                            arg_value,
-                            regex_str,
-                            arg_name
+                            "Argument value '{arg_value}' doesn't match pattern '{regex_str}' for option '{arg_name}'"
                         ));
                     }
                 }
@@ -616,13 +609,13 @@ impl MountCommandsAllowlist {
         ];
         for c in path.chars() {
             if dangerous_chars.contains(&c) {
-                return Err(anyhow!("Path contains dangerous character: {}", c));
+                return Err(anyhow!("Path contains dangerous character: {c}"));
             }
         }
 
         // Check for command injection patterns
         if path.contains("..") && path.contains('/') {
-            return Err(anyhow!("Path traversal detected in: {}", path));
+            return Err(anyhow!("Path traversal detected in: {path}"));
         }
 
         Ok(())
@@ -647,29 +640,33 @@ impl MountCommandsAllowlist {
     }
 
     /// Get all allowed commands
+    #[must_use]
     pub fn get_allowed_commands(&self) -> Vec<String> {
         self.commands.keys().cloned().collect()
     }
 
     /// Get detailed information about a command
+    #[must_use]
     pub fn get_command_info(&self, name: &str) -> Option<&AllowedCommand> {
         self.commands.get(name)
     }
 
     /// Check if a command requires root privileges
+    #[must_use]
     pub fn command_requires_root(&self, command: &str) -> bool {
         self.commands
             .get(command)
-            .map(|cmd| cmd.requires_root)
-            .unwrap_or(true) // Assume root is required if command is unknown
+            .map_or(true, |cmd| cmd.requires_root) // Assume root is required if command is unknown
     }
 
     /// Get the security context for a command
+    #[must_use]
     pub fn get_command_security_context(&self, command: &str) -> Option<&SecurityContext> {
         self.commands.get(command).map(|cmd| &cmd.security_context)
     }
 
     /// Export the allowlist for inspection or backup
+    #[must_use]
     pub fn export_allowlist(&self) -> serde_json::Value {
         serde_json::to_value(&self.commands).unwrap_or(serde_json::Value::Null)
     }

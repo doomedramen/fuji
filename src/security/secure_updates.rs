@@ -122,7 +122,7 @@ pub struct UpdateMetadata {
 }
 
 /// Update package type
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum UpdatePackageType {
     /// Full system update
     FullSystem,
@@ -142,7 +142,7 @@ pub enum UpdatePackageType {
 }
 
 /// Security level for updates
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SecurityLevel {
     /// Critical security update
     Critical,
@@ -187,7 +187,7 @@ pub enum SignatureAlgorithm {
 }
 
 /// Update classification
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum UpdateClassification {
     /// Official release
     Official,
@@ -202,7 +202,7 @@ pub enum UpdateClassification {
 }
 
 /// Update status
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum UpdateStatus {
     /// Update is pending
     Pending,
@@ -530,7 +530,7 @@ impl SecureUpdateManager {
 
         let event = create_audit_event(
             "trusted_key_added",
-            &format!("Added trusted key: {}", key_id),
+            &format!("Added trusted key: {key_id}"),
             AuditOutcome::Success,
         );
         self.audit_logger.log_event(event).await?;
@@ -547,7 +547,7 @@ impl SecureUpdateManager {
 
         let event = create_audit_event(
             "trusted_key_removed",
-            &format!("Removed trusted key: {}", _key_id),
+            &format!("Removed trusted key: {_key_id}"),
             AuditOutcome::Success,
         );
         self.audit_logger.log_event(event).await?;
@@ -604,7 +604,7 @@ impl SecureUpdateManager {
 
         let event = create_audit_event(
             "update_package_created",
-            &format!("Created update package: {}", package_id),
+            &format!("Created update package: {package_id}"),
             AuditOutcome::Success,
         );
         self.audit_logger.log_event(event).await?;
@@ -619,7 +619,7 @@ impl SecureUpdateManager {
         let mut active_updates = self.active_updates.write().await;
         let update_package = active_updates
             .get_mut(package_id)
-            .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?;
+            .ok_or_else(|| anyhow!("Update package not found: {package_id}"))?;
 
         // Update status and start download stage
         update_package.status = UpdateStatus::Downloading;
@@ -636,7 +636,7 @@ impl SecureUpdateManager {
         let local_path = self
             .config
             .staging_directory
-            .join(format!("{}.pkg", package_id));
+            .join(format!("{package_id}.pkg"));
 
         // Download the file
         self.download_file(download_url, &local_path).await?;
@@ -657,10 +657,7 @@ impl SecureUpdateManager {
 
         let event = create_audit_event(
             "update_downloaded",
-            &format!(
-                "Downloaded update package: {} from {}",
-                package_id, download_url
-            ),
+            &format!("Downloaded update package: {package_id} from {download_url}"),
             AuditOutcome::Success,
         );
         self.audit_logger.log_event(event).await?;
@@ -685,7 +682,7 @@ impl SecureUpdateManager {
         }
 
         // Create a dummy file for testing
-        tokio::fs::write(local_path, format!("dummy update package from {}", url)).await?;
+        tokio::fs::write(local_path, format!("dummy update package from {url}")).await?;
 
         Ok(())
     }
@@ -708,7 +705,7 @@ impl SecureUpdateManager {
             let active_updates = self.active_updates.read().await;
             let update_package = active_updates
                 .get(package_id)
-                .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?;
+                .ok_or_else(|| anyhow!("Update package not found: {package_id}"))?;
 
             update_package
                 .local_path
@@ -727,21 +724,21 @@ impl SecureUpdateManager {
                 let active_updates = self.active_updates.read().await;
                 active_updates
                     .get(package_id)
-                    .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?
+                    .ok_or_else(|| anyhow!("Update package not found: {package_id}"))?
                     .clone()
             };
             match self
                 .verify_package_integrity(local_path.as_path(), &update_package.metadata)
                 .await
             {
-                Ok(_) => {
+                Ok(()) => {
                     result.integrity_verified = true;
                     info!("Package integrity verified for: {}", package_id);
                 }
                 Err(e) => {
                     result
                         .errors
-                        .push(format!("Integrity verification failed: {}", e));
+                        .push(format!("Integrity verification failed: {e}"));
                     error!("Integrity verification failed for {}: {}", package_id, e);
                 }
             }
@@ -758,21 +755,21 @@ impl SecureUpdateManager {
                 let active_updates = self.active_updates.read().await;
                 active_updates
                     .get(package_id)
-                    .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?
+                    .ok_or_else(|| anyhow!("Update package not found: {package_id}"))?
                     .clone()
             };
             match self
                 .verify_package_signatures(&update_package.metadata)
                 .await
             {
-                Ok(_) => {
+                Ok(()) => {
                     result.signatures_verified = true;
                     info!("Package signatures verified for: {}", package_id);
                 }
                 Err(e) => {
                     result
                         .errors
-                        .push(format!("Signature verification failed: {}", e));
+                        .push(format!("Signature verification failed: {e}"));
                     error!("Signature verification failed for {}: {}", package_id, e);
                 }
             }
@@ -788,7 +785,7 @@ impl SecureUpdateManager {
             let active_updates = self.active_updates.read().await;
             active_updates
                 .get(package_id)
-                .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?
+                .ok_or_else(|| anyhow!("Update package not found: {package_id}"))?
                 .clone()
         };
         result.dependencies_satisfied = self.check_dependencies(&update_package.metadata).await?;
@@ -796,12 +793,12 @@ impl SecureUpdateManager {
         // Perform security checks
         if self.config.enable_security_scanning {
             match self.perform_security_checks(local_path.as_path()).await {
-                Ok(_) => {
+                Ok(()) => {
                     result.security_checks_passed = true;
                     info!("Security checks passed for: {}", package_id);
                 }
                 Err(e) => {
-                    result.errors.push(format!("Security checks failed: {}", e));
+                    result.errors.push(format!("Security checks failed: {e}"));
                     error!("Security checks failed for {}: {}", package_id, e);
                 }
             }
@@ -863,9 +860,7 @@ impl SecureUpdateManager {
         if let Some(expected_hash) = metadata.checksums.get("sha256") {
             if calculated_hash != *expected_hash {
                 return Err(anyhow!(
-                    "Checksum mismatch: expected {}, got {}",
-                    expected_hash,
-                    calculated_hash
+                    "Checksum mismatch: expected {expected_hash}, got {calculated_hash}"
                 ));
             }
         } else {
@@ -985,7 +980,7 @@ impl SecureUpdateManager {
             let mut active_updates = self.active_updates.write().await;
             let update_package = active_updates
                 .get_mut(package_id)
-                .ok_or_else(|| anyhow!("Update package not found: {}", package_id))?;
+                .ok_or_else(|| anyhow!("Update package not found: {package_id}"))?;
 
             let local_path = update_package
                 .local_path
@@ -1015,7 +1010,7 @@ impl SecureUpdateManager {
             .perform_installation(package_id, local_path.as_path())
             .await
         {
-            Ok(_) => {
+            Ok(()) => {
                 // Update installation stage
                 self.update_stage_status(package_id, "install", UpdateStatus::Completed)
                     .await?;
@@ -1025,7 +1020,7 @@ impl SecureUpdateManager {
 
                 let event = create_audit_event(
                     "update_installed",
-                    &format!("Successfully installed update package: {}", package_id),
+                    &format!("Successfully installed update package: {package_id}"),
                     AuditOutcome::Success,
                 );
                 self.audit_logger.log_event(event).await?;
@@ -1068,14 +1063,14 @@ impl SecureUpdateManager {
         let backup_path = self
             .config
             .backup_directory
-            .join(format!("backup_{}", package_id));
+            .join(format!("backup_{package_id}"));
         tokio::fs::create_dir_all(&backup_path).await?;
 
         // In a real implementation, this would backup relevant files
         // For now, create a marker file
         tokio::fs::write(
             backup_path.join("backup_info.txt"),
-            format!("Backup created for update: {}", package_id),
+            format!("Backup created for update: {package_id}"),
         )
         .await?;
 
@@ -1159,7 +1154,7 @@ impl SecureUpdateManager {
         info!("Rolling back update: {} - Reason: {}", package_id, reason);
 
         let mut rollback_info = RollbackInfo {
-            rollback_id: format!("rollback_{}", package_id),
+            rollback_id: format!("rollback_{package_id}"),
             original_update_id: package_id.to_string(),
             reason: reason.to_string(),
             timestamp: Utc::now(),
@@ -1191,7 +1186,7 @@ impl SecureUpdateManager {
 
         let event = create_audit_event(
             "update_rolled_back",
-            &format!("Update rolled back: {} - Reason: {}", package_id, reason),
+            &format!("Update rolled back: {package_id} - Reason: {reason}"),
             AuditOutcome::Success,
         );
         self.audit_logger.log_event(event).await?;
@@ -1269,7 +1264,7 @@ impl SecureUpdateManager {
 
             let event = create_audit_event(
                 "update_cancelled",
-                &format!("Update cancelled: {}", package_id),
+                &format!("Update cancelled: {package_id}"),
                 AuditOutcome::Success,
             );
             self.audit_logger.log_event(event).await?;
@@ -1327,7 +1322,7 @@ impl SecureUpdateManager {
 
         let event = create_audit_event(
             "cleanup_completed",
-            &format!("Cleaned up {} old update files", cleaned_count),
+            &format!("Cleaned up {cleaned_count} old update files"),
             AuditOutcome::Success,
         );
         self.audit_logger.log_event(event).await?;

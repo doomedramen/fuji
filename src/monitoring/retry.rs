@@ -74,7 +74,8 @@ pub struct CircuitBreakerState {
 
 impl CircuitBreakerState {
     /// Create a new circuit breaker state
-    pub fn new(failure_threshold: u32, open_timeout: StdDuration) -> Self {
+    #[must_use]
+    pub const fn new(failure_threshold: u32, open_timeout: StdDuration) -> Self {
         Self {
             failure_count: 0,
             last_failure: None,
@@ -125,6 +126,7 @@ impl CircuitBreakerState {
     }
 
     /// Get time until circuit closes
+    #[must_use]
     pub fn time_until_close(&self) -> Option<StdDuration> {
         if !self.is_open {
             return None;
@@ -161,6 +163,7 @@ pub struct RetryResult<T> {
 #[allow(dead_code)]
 impl RetryHandler {
     /// Create a new retry handler
+    #[must_use]
     pub fn new() -> Self {
         Self {
             retry_policies: Arc::new(RwLock::new(HashMap::new())),

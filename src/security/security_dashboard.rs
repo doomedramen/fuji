@@ -420,6 +420,7 @@ impl Default for AlertThresholds {
 #[allow(dead_code)]
 impl SecurityDashboard {
     /// Create a new security dashboard
+    #[must_use]
     pub fn new(config: DashboardConfig) -> Self {
         Self {
             config,
@@ -606,18 +607,18 @@ impl SecurityDashboard {
         // Adjust based on outcome
         let adjusted_score = match event.outcome {
             AuditOutcome::Success => base_score,
-            AuditOutcome::Failure => (base_score as f32 * 1.2) as u8,
-            AuditOutcome::Partial => (base_score as f32 * 1.1) as u8,
-            AuditOutcome::Blocked => (base_score as f32 * 0.8) as u8,
-            AuditOutcome::Error => (base_score as f32 * 1.3) as u8,
-            AuditOutcome::Timeout => (base_score as f32 * 1.4) as u8,
+            AuditOutcome::Failure => (f32::from(base_score) * 1.2) as u8,
+            AuditOutcome::Partial => (f32::from(base_score) * 1.1) as u8,
+            AuditOutcome::Blocked => (f32::from(base_score) * 0.8) as u8,
+            AuditOutcome::Error => (f32::from(base_score) * 1.3) as u8,
+            AuditOutcome::Timeout => (f32::from(base_score) * 1.4) as u8,
         };
 
         adjusted_score.min(100)
     }
 
     /// Categorize an event
-    fn categorize_event(&self, event: &AuditEvent) -> EventCategory {
+    const fn categorize_event(&self, event: &AuditEvent) -> EventCategory {
         match event.event_type {
             AuditEventType::Authentication => EventCategory::Authentication,
             AuditEventType::Authorization => EventCategory::Authorization,
@@ -639,7 +640,7 @@ impl SecurityDashboard {
     }
 
     /// Assess risk level for an event
-    fn assess_risk(&self, event: &SecurityEvent) -> RiskLevel {
+    const fn assess_risk(&self, event: &SecurityEvent) -> RiskLevel {
         if event.severity_score >= 80 {
             RiskLevel::Critical
         } else if event.severity_score >= 60 {
@@ -662,18 +663,18 @@ impl SecurityDashboard {
             entities.push(format!("user:{}", event.source.identifier));
         } else if let Some(user) = event.details.get("user_id") {
             if let Some(user_str) = user.as_str() {
-                entities.push(format!("user:{}", user_str));
+                entities.push(format!("user:{user_str}"));
             }
         }
 
         // Extract resource information from details
         if let Some(resource) = event.details.get("resource") {
             if let Some(resource_str) = resource.as_str() {
-                entities.push(format!("resource:{}", resource_str));
+                entities.push(format!("resource:{resource_str}"));
             }
         } else if let Some(resource_name) = event.details.get("resource_name") {
             if let Some(resource_str) = resource_name.as_str() {
-                entities.push(format!("resource:{}", resource_str));
+                entities.push(format!("resource:{resource_str}"));
             }
         }
 
@@ -682,7 +683,7 @@ impl SecurityDashboard {
         if let Some(network) = &event.network_context {
             entities.push(format!("ip:{}", network.source_ip));
             if let Some(dest_ip) = &network.destination_ip {
-                entities.push(format!("dest_ip:{}", dest_ip));
+                entities.push(format!("dest_ip:{dest_ip}"));
             }
         }
 
@@ -709,18 +710,17 @@ impl SecurityDashboard {
                 actions.push("Increase monitoring frequency".to_string());
                 actions.push("Review security controls".to_string());
             }
-            (AuditEventType::SecurityViolation, outcome) => match outcome {
-                AuditOutcome::Success => {
+            (AuditEventType::SecurityViolation, outcome) => {
+                if outcome == AuditOutcome::Success {
                     actions.push("Revoke elevated privileges".to_string());
                     actions.push("Audit user activities".to_string());
                     actions.push("Review access controls".to_string());
-                }
-                _ => {
+                } else {
                     actions.push("Isolate affected system".to_string());
                     actions.push("Perform forensic analysis".to_string());
                     actions.push("Restore from backup".to_string());
                 }
-            },
+            }
             _ => {}
         }
 
@@ -1036,7 +1036,7 @@ impl SecurityDashboard {
             let user_id = if event.audit_event.source.source_type == AuditSourceType::User {
                 Some(event.audit_event.source.identifier.clone())
             } else if let Some(user) = event.audit_event.details.get("user_id") {
-                user.as_str().map(|s| s.to_string())
+                user.as_str().map(std::string::ToString::to_string)
             } else {
                 None
             };
@@ -1053,7 +1053,7 @@ impl SecurityDashboard {
             } else {
                 "N/A".to_string()
             };
-            html.push_str(&format!("<td>{}</td>\n", source_address));
+            html.push_str(&format!("<td>{source_address}</td>\n"));
             html.push_str("</tr>\n");
         }
 
@@ -1073,7 +1073,7 @@ impl SecurityDashboard {
                     AlertSeverity::Info => "info",
                 };
 
-                html.push_str(&format!("<div class=\"alert {}\">\n", alert_class));
+                html.push_str(&format!("<div class=\"alert {alert_class}\">\n"));
                 html.push_str(&format!("<h3>{}</h3>\n", alert.title));
                 html.push_str(&format!("<p>{}</p>\n", alert.description));
                 html.push_str(&format!(
@@ -1106,7 +1106,7 @@ impl SecurityDashboard {
             let user_id = if event.audit_event.source.source_type == AuditSourceType::User {
                 Some(event.audit_event.source.identifier.clone())
             } else if let Some(user) = event.audit_event.details.get("user_id") {
-                user.as_str().map(|s| s.to_string())
+                user.as_str().map(std::string::ToString::to_string)
             } else {
                 None
             };

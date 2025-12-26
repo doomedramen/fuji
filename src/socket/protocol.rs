@@ -740,9 +740,7 @@ impl PartialEq for IssueSeverity {
     fn eq(&self, other: &Self) -> bool {
         matches!(
             (self, other),
-            (IssueSeverity::Error, IssueSeverity::Error)
-                | (IssueSeverity::Warning, IssueSeverity::Warning)
-                | (IssueSeverity::Info, IssueSeverity::Info)
+            (Self::Error, Self::Error) | (Self::Warning, Self::Warning) | (Self::Info, Self::Info)
         )
     }
 }

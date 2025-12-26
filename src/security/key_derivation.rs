@@ -30,9 +30,10 @@ pub enum KeyDerivationFunction {
 
 impl KeyDerivationFunction {
     /// Get default parameters for this KDF
-    pub fn default_parameters(&self) -> KDFParameters {
+    #[must_use]
+    pub const fn default_parameters(&self) -> KDFParameters {
         match self {
-            KeyDerivationFunction::PBKDF2Sha256 => KDFParameters {
+            Self::PBKDF2Sha256 => KDFParameters {
                 function: *self,
                 iterations: 200_000,
                 salt_length: 32,
@@ -42,7 +43,7 @@ impl KeyDerivationFunction {
                 estimated_time_ms: 1000,
                 security_level: SecurityLevel::Standard,
             },
-            KeyDerivationFunction::PBKDF2Sha512 => KDFParameters {
+            Self::PBKDF2Sha512 => KDFParameters {
                 function: *self,
                 iterations: 150_000,
                 salt_length: 64,
@@ -52,7 +53,7 @@ impl KeyDerivationFunction {
                 estimated_time_ms: 1500,
                 security_level: SecurityLevel::Standard,
             },
-            KeyDerivationFunction::Argon2id => KDFParameters {
+            Self::Argon2id => KDFParameters {
                 function: *self,
                 iterations: 3,
                 salt_length: 16,
@@ -62,7 +63,7 @@ impl KeyDerivationFunction {
                 estimated_time_ms: 800,
                 security_level: SecurityLevel::High,
             },
-            KeyDerivationFunction::Scrypt => KDFParameters {
+            Self::Scrypt => KDFParameters {
                 function: *self,
                 iterations: 1,
                 salt_length: 32,
@@ -76,9 +77,10 @@ impl KeyDerivationFunction {
     }
 
     /// Get high security parameters for this KDF
-    pub fn high_security_parameters(&self) -> KDFParameters {
+    #[must_use]
+    pub const fn high_security_parameters(&self) -> KDFParameters {
         match self {
-            KeyDerivationFunction::PBKDF2Sha256 => KDFParameters {
+            Self::PBKDF2Sha256 => KDFParameters {
                 function: *self,
                 iterations: 500_000,
                 salt_length: 32,
@@ -88,7 +90,7 @@ impl KeyDerivationFunction {
                 estimated_time_ms: 2500,
                 security_level: SecurityLevel::High,
             },
-            KeyDerivationFunction::PBKDF2Sha512 => KDFParameters {
+            Self::PBKDF2Sha512 => KDFParameters {
                 function: *self,
                 iterations: 350_000,
                 salt_length: 64,
@@ -98,7 +100,7 @@ impl KeyDerivationFunction {
                 estimated_time_ms: 3000,
                 security_level: SecurityLevel::High,
             },
-            KeyDerivationFunction::Argon2id => KDFParameters {
+            Self::Argon2id => KDFParameters {
                 function: *self,
                 iterations: 4,
                 salt_length: 16,
@@ -108,7 +110,7 @@ impl KeyDerivationFunction {
                 estimated_time_ms: 1500,
                 security_level: SecurityLevel::VeryHigh,
             },
-            KeyDerivationFunction::Scrypt => KDFParameters {
+            Self::Scrypt => KDFParameters {
                 function: *self,
                 iterations: 2,
                 salt_length: 32,
@@ -122,9 +124,10 @@ impl KeyDerivationFunction {
     }
 
     /// Get fast parameters for this KDF (useful for testing)
-    pub fn fast_parameters(&self) -> KDFParameters {
+    #[must_use]
+    pub const fn fast_parameters(&self) -> KDFParameters {
         match self {
-            KeyDerivationFunction::PBKDF2Sha256 => KDFParameters {
+            Self::PBKDF2Sha256 => KDFParameters {
                 function: *self,
                 iterations: 10_000,
                 salt_length: 16,
@@ -134,7 +137,7 @@ impl KeyDerivationFunction {
                 estimated_time_ms: 50,
                 security_level: SecurityLevel::Low,
             },
-            KeyDerivationFunction::PBKDF2Sha512 => KDFParameters {
+            Self::PBKDF2Sha512 => KDFParameters {
                 function: *self,
                 iterations: 8_000,
                 salt_length: 32,
@@ -144,7 +147,7 @@ impl KeyDerivationFunction {
                 estimated_time_ms: 60,
                 security_level: SecurityLevel::Low,
             },
-            KeyDerivationFunction::Argon2id => KDFParameters {
+            Self::Argon2id => KDFParameters {
                 function: *self,
                 iterations: 1,
                 salt_length: 16,
@@ -154,7 +157,7 @@ impl KeyDerivationFunction {
                 estimated_time_ms: 40,
                 security_level: SecurityLevel::Low,
             },
-            KeyDerivationFunction::Scrypt => KDFParameters {
+            Self::Scrypt => KDFParameters {
                 function: *self,
                 iterations: 1,
                 salt_length: 16,
@@ -204,6 +207,7 @@ pub struct KDFParameters {
 
 impl KDFParameters {
     /// Generate a random salt
+    #[must_use]
     pub fn generate_salt(&self) -> Vec<u8> {
         let mut salt = vec![0u8; self.salt_length];
         OsRng.fill_bytes(&mut salt);
@@ -236,7 +240,7 @@ impl KDFParameters {
             self.function
         );
 
-        if elapsed.as_millis() < self.estimated_time_ms as u128 / 2 {
+        if elapsed.as_millis() < u128::from(self.estimated_time_ms) / 2 {
             warn!("Key derivation completed faster than expected. Consider increasing parameters.");
         }
 
@@ -290,7 +294,7 @@ impl KDFParameters {
                 // Tune iteration count
                 for multiplier in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0] {
                     let mut test_params = self.clone();
-                    test_params.iterations = (self.iterations as f64 * multiplier) as u32;
+                    test_params.iterations = (f64::from(self.iterations) * multiplier) as u32;
 
                     let actual_time = test_params.benchmark(password, &salt)?;
                     let actual_ms = actual_time.as_millis() as u64;
@@ -308,9 +312,10 @@ impl KDFParameters {
                     for mem_multiplier in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0] {
                         for par_multiplier in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0] {
                             let mut test_params = self.clone();
-                            test_params.memory_cost = Some((memory as f64 * mem_multiplier) as u32);
+                            test_params.memory_cost =
+                                Some((f64::from(memory) * mem_multiplier) as u32);
                             test_params.parallelism =
-                                Some((parallel as f64 * par_multiplier) as u32);
+                                Some((f64::from(parallel) * par_multiplier) as u32);
 
                             let actual_time = test_params.benchmark(password, &salt)?;
                             let actual_ms = actual_time.as_millis() as u64;
@@ -343,6 +348,7 @@ pub struct KeyDerivationManager {
 
 impl KeyDerivationManager {
     /// Create a new key derivation manager
+    #[must_use]
     pub fn new(default_function: KeyDerivationFunction) -> Self {
         let mut manager = Self {
             default_function,

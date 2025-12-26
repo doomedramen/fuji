@@ -74,7 +74,7 @@ impl MountUrlValidator {
     }
 
     /// Create a new validator with custom configuration
-    pub fn with_config(config: ValidationConfig) -> Result<Self> {
+    pub const fn with_config(config: ValidationConfig) -> Result<Self> {
         Ok(Self {
             config,
         })
@@ -87,8 +87,7 @@ impl MountUrlValidator {
         // Check for shell injection patterns
         if self.contains_shell_injection(url_str) {
             return Err(anyhow::anyhow!(
-                "URL contains potentially dangerous shell characters: {}",
-                url_str
+                "URL contains potentially dangerous shell characters: {url_str}"
             ));
         }
 
@@ -103,14 +102,13 @@ impl MountUrlValidator {
         if let Some(hostname_part) = self.extract_hostname_from_url(url_str) {
             for blocked in &self.config.blocked_hostnames {
                 if hostname_part == *blocked {
-                    return Err(anyhow::anyhow!("Hostname is blocked: {}", hostname_part));
+                    return Err(anyhow::anyhow!("Hostname is blocked: {hostname_part}"));
                 }
             }
         }
 
         // Parse the URL
-        let url =
-            Url::parse(url_str).with_context(|| format!("Invalid URL format: {}", url_str))?;
+        let url = Url::parse(url_str).with_context(|| format!("Invalid URL format: {url_str}"))?;
 
         // Check scheme
         let scheme = url.scheme();
@@ -139,13 +137,13 @@ impl MountUrlValidator {
 
         // Skip hostname regex validation for IP addresses
         if !self.is_ip_address(hostname) && !self.is_valid_hostname(hostname) {
-            return Err(anyhow::anyhow!("Invalid hostname format: {}", hostname));
+            return Err(anyhow::anyhow!("Invalid hostname format: {hostname}"));
         }
 
         // Check against blocked hostnames
         for blocked in &self.config.blocked_hostnames {
             if hostname == blocked {
-                return Err(anyhow::anyhow!("Hostname is blocked: {}", hostname));
+                return Err(anyhow::anyhow!("Hostname is blocked: {hostname}"));
             }
         }
 
@@ -161,14 +159,13 @@ impl MountUrlValidator {
             let traversal_count = path.matches("..").count();
             if traversal_count > 10 {
                 return Err(anyhow::anyhow!(
-                    "Excessive path traversal detected ({} instances)",
-                    traversal_count
+                    "Excessive path traversal detected ({traversal_count} instances)"
                 ));
             }
 
             // This will detect path traversal attempts and dangerous components
             if let Err(e) = self.sanitize_path_component(path) {
-                return Err(anyhow::anyhow!("Path validation failed: {}", e));
+                return Err(anyhow::anyhow!("Path validation failed: {e}"));
             }
 
             // Also check against blocked paths list for additional safety
@@ -180,8 +177,7 @@ impl MountUrlValidator {
                         || normalized_path.starts_with(blocked_trimmed)
                     {
                         return Err(anyhow::anyhow!(
-                            "Path contains blocked component: {}",
-                            blocked
+                            "Path contains blocked component: {blocked}"
                         ));
                     }
                 }
@@ -209,8 +205,7 @@ impl MountUrlValidator {
         // Check for shell injection patterns
         if self.contains_shell_injection(&path_str) {
             return Err(anyhow::anyhow!(
-                "Mount path contains potentially dangerous characters: {}",
-                path_str
+                "Mount path contains potentially dangerous characters: {path_str}"
             ));
         }
 
@@ -226,8 +221,7 @@ impl MountUrlValidator {
             let blocked_trimmed = blocked.trim_matches('/');
             if path_normalized == blocked_trimmed || path_normalized.starts_with(blocked_trimmed) {
                 return Err(anyhow::anyhow!(
-                    "Mount path contains blocked component: {}",
-                    blocked
+                    "Mount path contains blocked component: {blocked}"
                 ));
             }
         }
@@ -235,8 +229,7 @@ impl MountUrlValidator {
         // Check path format
         if !self.is_valid_path(path_normalized) {
             return Err(anyhow::anyhow!(
-                "Invalid mount path format: {}",
-                path_normalized
+                "Invalid mount path format: {path_normalized}"
             ));
         }
 
@@ -344,7 +337,7 @@ impl MountUrlValidator {
     }
 
     /// Extract hostname from URL string even if URL parsing would fail
-    /// This helps catch blocked hostnames like ::1 before URL parsing rejects them
+    /// This helps catch blocked hostnames like `::1` before URL parsing rejects them
     fn extract_hostname_from_url(&self, url_str: &str) -> Option<String> {
         // Try to extract hostname portion from URL string
         // Format: scheme://hostname/path or scheme://hostname:port/path
@@ -388,14 +381,13 @@ impl MountUrlValidator {
         // Check for path traversal attempts
         if trimmed.contains("..") {
             return Err(anyhow::anyhow!(
-                "Path traversal detected in path component: {}",
-                path
+                "Path traversal detected in path component: {path}"
             ));
         }
 
         // Check for empty segments (multiple slashes)
         if trimmed.contains("//") {
-            return Err(anyhow::anyhow!("Path contains empty segments: {}", path));
+            return Err(anyhow::anyhow!("Path contains empty segments: {path}"));
         }
 
         // Split path into components and validate each
@@ -409,12 +401,12 @@ impl MountUrlValidator {
 
             // Validate each component
             if !self.is_valid_path(component) {
-                return Err(anyhow::anyhow!("Invalid path component: {}", component));
+                return Err(anyhow::anyhow!("Invalid path component: {component}"));
             }
 
             // Additional validation for dangerous names
             if self.is_dangerous_component(component) {
-                return Err(anyhow::anyhow!("Dangerous path component: {}", component));
+                return Err(anyhow::anyhow!("Dangerous path component: {component}"));
             }
 
             sanitized_components.push(component);
@@ -532,16 +524,15 @@ impl MountUrlValidator {
         let component_lower = component.to_lowercase();
         dangerous_names.iter().any(|dangerous| {
             component_lower == *dangerous
-                || component_lower.starts_with(&format!("{}.", dangerous))
+                || component_lower.starts_with(&format!("{dangerous}."))
                 || component_lower.ends_with(dangerous)
-                || component_lower.contains(&format!(".{}.", dangerous))
+                || component_lower.contains(&format!(".{dangerous}."))
         })
     }
 
     /// Sanitize a mount URL (remove dangerous components)
     pub fn sanitize_url(&self, url_str: &str) -> Result<String> {
-        let url =
-            Url::parse(url_str).with_context(|| format!("Failed to parse URL: {}", url_str))?;
+        let url = Url::parse(url_str).with_context(|| format!("Failed to parse URL: {url_str}"))?;
 
         // Rebuild the URL with validated components
         let mut sanitized = url.scheme().to_string() + "://";

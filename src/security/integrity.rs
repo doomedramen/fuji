@@ -88,31 +88,33 @@ pub enum HashAlgorithm {
 
 impl HashAlgorithm {
     /// Compute hash of data
+    #[must_use]
     pub fn hash(&self, data: &[u8]) -> Vec<u8> {
         match self {
-            HashAlgorithm::Sha256 => {
+            Self::Sha256 => {
                 use sha2::{Digest, Sha256};
                 let mut hasher = Sha256::new();
                 hasher.update(data);
                 hasher.finalize().to_vec()
             }
-            HashAlgorithm::Sha512 => {
+            Self::Sha512 => {
                 use sha2::{Digest, Sha512};
                 let mut hasher = Sha512::new();
                 hasher.update(data);
                 hasher.finalize().to_vec()
             }
-            HashAlgorithm::Sha3 => {
+            Self::Sha3 => {
                 use sha3::{Digest, Sha3_256};
                 let mut hasher = Sha3_256::new();
                 hasher.update(data);
                 hasher.finalize().to_vec()
             }
-            HashAlgorithm::Blake3 => blake3::hash(data).as_bytes().to_vec(),
+            Self::Blake3 => blake3::hash(data).as_bytes().to_vec(),
         }
     }
 
     /// Get hash string representation
+    #[must_use]
     pub fn hash_string(&self, data: &[u8]) -> String {
         let hash = self.hash(data);
         hex::encode(hash)
@@ -120,6 +122,7 @@ impl HashAlgorithm {
 }
 
 /// Convenience function to hash data using default SHA-256 algorithm
+#[must_use]
 pub fn hash_data(data: &[u8]) -> Vec<u8> {
     HashAlgorithm::Sha256.hash(data)
 }
@@ -880,7 +883,7 @@ impl MemoryMapping {
         // Memory map lines have at least 5 parts (address, permissions, offset, device, inode)
         // and optionally a 6th part for the path
         if parts.len() < 5 {
-            return Err(anyhow!("Invalid memory map line: {}", line));
+            return Err(anyhow!("Invalid memory map line: {line}"));
         }
 
         let addresses: Vec<&str> = parts[0].split('-').collect();
@@ -996,7 +999,7 @@ pub mod control_flow_integrity {
 
 /// Memory protection and isolation
 pub mod memory_protection {
-    use super::*;
+    use super::{Result, RwLock, info};
     use nix::sys::mman::{ProtFlags, mprotect};
 
     /// Memory protector
@@ -1013,6 +1016,7 @@ pub mod memory_protection {
 
     impl MemoryProtector {
         /// Create new memory protector
+        #[must_use]
         pub fn new() -> Self {
             Self {
                 protected_regions: RwLock::new(Vec::new()),
@@ -1077,7 +1081,7 @@ pub mod memory_protection {
 
 /// Secure boot and measurement verification
 pub mod secure_boot {
-    use super::*;
+    use super::{HashMap, Result, RwLock, info};
 
     /// Secure boot verifier
     pub struct SecureBootVerifier {
@@ -1095,6 +1099,7 @@ pub mod secure_boot {
 
     impl SecureBootVerifier {
         /// Create new secure boot verifier
+        #[must_use]
         pub fn new() -> Self {
             Self {
                 measurements: RwLock::new(HashMap::new()),

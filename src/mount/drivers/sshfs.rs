@@ -20,7 +20,8 @@ impl Default for SshfsHandler {
 }
 
 impl SshfsHandler {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 
@@ -56,17 +57,17 @@ impl MountHandler for SshfsHandler {
             .ok_or_else(|| anyhow!("No host specified in URL"))?
             .to_string();
 
-        let username = if !parsed.username().is_empty() {
-            Some(parsed.username().to_string())
-        } else {
+        let username = if parsed.username().is_empty() {
             None
+        } else {
+            Some(parsed.username().to_string())
         };
 
         let _port = parsed.port().map(|p| p.to_string());
 
         // Path on the remote server
         let remote_path = if parsed.path().is_empty() || parsed.path() == "/" {
-            "".to_string()
+            String::new()
         } else {
             parsed.path().to_string()
         };
@@ -134,17 +135,14 @@ impl MountHandler for SshfsHandler {
             } => {
                 let mut user_part = String::new();
                 if let Some(user) = username {
-                    user_part.push_str(&format!("{}@", user));
+                    user_part.push_str(&format!("{user}@"));
                 }
                 let remote_path = if path.starts_with('/') {
                     &path[1..]
                 } else {
                     path
                 };
-                (
-                    format!("{}{}:{}", user_part, host, remote_path),
-                    options.clone(),
-                )
+                (format!("{user_part}{host}:{remote_path}"), options.clone())
             }
             MountType::Smb {
                 host: _,
@@ -162,9 +160,9 @@ impl MountHandler for SshfsHandler {
         let deps_checker = SystemDepsChecker::new();
         match deps_checker.check_dependency("sshfs").await {
             Ok(result) if !result.available => {
-                let mut error_msg = format!("sshfs is not installed or not found in PATH");
+                let mut error_msg = "sshfs is not installed or not found in PATH".to_string();
                 if let Some(ref instructions) = result.install_instructions {
-                    error_msg.push_str(&format!("\nTo install: {}", instructions));
+                    error_msg.push_str(&format!("\nTo install: {instructions}"));
                 }
                 return Err(anyhow!(error_msg));
             }
@@ -246,7 +244,7 @@ impl MountHandler for SshfsHandler {
 
                 if let Err(e) = output {
                     error!("Unmount failed: {}", e);
-                    return Err(anyhow!("Failed to unmount SSHFS: {}", e));
+                    return Err(anyhow!("Failed to unmount SSHFS: {e}"));
                 }
             }
         }
@@ -328,7 +326,7 @@ impl MountHandler for SshfsHandler {
     fn generate_mount_id(&self, url: &str) -> Result<String> {
         if let Ok(parsed) = url::Url::parse(url) {
             let host = parsed.host_str().unwrap_or("unknown");
-            let mut id = format!("{}_sshfs", host);
+            let mut id = format!("{host}_sshfs");
 
             // Add path if present and not root
             if !parsed.path().is_empty() && parsed.path() != "/" {
@@ -347,7 +345,7 @@ impl MountHandler for SshfsHandler {
         let host = parsed.host_str().ok_or_else(|| anyhow!("No host in URL"))?;
 
         // Base: /mnt/fuji/{host}_sshfs
-        let mut mount_point = self.get_mount_base_dir().join(format!("{}_sshfs", host));
+        let mut mount_point = self.get_mount_base_dir().join(format!("{host}_sshfs"));
 
         // Sanitize and validate the path from the URL to prevent path traversal
         let path = parsed.path();

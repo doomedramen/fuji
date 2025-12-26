@@ -207,7 +207,7 @@ impl MountOptionsValidator {
             // Check for blocked options (but not x- options)
             for blocked in &self.config.blocked_options {
                 if option.starts_with(blocked) {
-                    return Err(anyhow::anyhow!("Blocked option detected: {}", option));
+                    return Err(anyhow::anyhow!("Blocked option detected: {option}"));
                 }
             }
 
@@ -222,9 +222,7 @@ impl MountOptionsValidator {
 
             if self.config.strict_mode && !is_allowed {
                 return Err(anyhow::anyhow!(
-                    "Option '{}' not in allowlist for filesystem '{}'",
-                    option,
-                    filesystem
+                    "Option '{option}' not in allowlist for filesystem '{filesystem}'"
                 ));
             }
 
@@ -245,9 +243,7 @@ impl MountOptionsValidator {
                     let value = &full_option[eq_pos + 1..];
                     if value.parse::<u32>().is_err() && value != "0" {
                         return Err(anyhow::anyhow!(
-                            "Invalid {} value: {}, must be a numeric UID/GID",
-                            key,
-                            value
+                            "Invalid {key} value: {value}, must be a numeric UID/GID"
                         ));
                     }
                 }
@@ -256,22 +252,18 @@ impl MountOptionsValidator {
                 // Validate octal permissions
                 if let Some(eq_pos) = full_option.find('=') {
                     let value = &full_option[eq_pos + 1..];
-                    if !value.starts_with("0") {
+                    if !value.starts_with('0') {
                         // Try to parse as octal
                         if let Ok(mode) = u32::from_str_radix(value, 16) {
                             // Check if it's a valid octal-like value
                             if mode > 0o777 {
                                 return Err(anyhow::anyhow!(
-                                    "Invalid {} value: {}, must be ≤ 0777",
-                                    key,
-                                    value
+                                    "Invalid {key} value: {value}, must be ≤ 0777"
                                 ));
                             }
                         } else {
                             return Err(anyhow::anyhow!(
-                                "Invalid {} value: {}, must be octal (e.g., 0755)",
-                                key,
-                                value
+                                "Invalid {key} value: {value}, must be octal (e.g., 0755)"
                             ));
                         }
                     }
@@ -286,7 +278,7 @@ impl MountOptionsValidator {
                             return Err(anyhow::anyhow!("Port cannot be 0"));
                         }
                     } else {
-                        return Err(anyhow::anyhow!("Invalid port value: {}", value));
+                        return Err(anyhow::anyhow!("Invalid port value: {value}"));
                     }
                 }
             }
@@ -298,6 +290,7 @@ impl MountOptionsValidator {
     }
 
     /// Get all allowed options for a filesystem
+    #[must_use]
     pub fn get_allowed_options(&self, filesystem: &str) -> Vec<String> {
         let mut options: Vec<String> = self.common_options.iter().cloned().collect();
 
@@ -320,6 +313,7 @@ impl MountOptionsValidator {
     }
 
     /// Check if an option is blocked
+    #[must_use]
     pub fn is_option_blocked(&self, option: &str) -> bool {
         for blocked in &self.config.blocked_options {
             if option.starts_with(blocked) {
@@ -353,6 +347,7 @@ impl MountOptionsValidator {
     }
 
     /// Convert options string to a vector
+    #[must_use]
     pub fn parse_options_string(&self, options_str: &str) -> Vec<String> {
         options_str
             .split(',')
@@ -362,6 +357,7 @@ impl MountOptionsValidator {
     }
 
     /// Convert options vector to a string
+    #[must_use]
     pub fn options_to_string(&self, options: &[String]) -> String {
         options.join(",")
     }

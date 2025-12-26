@@ -171,179 +171,179 @@ pub enum SecurityError {
 impl Clone for SecurityError {
     fn clone(&self) -> Self {
         match self {
-            SecurityError::CryptographicError {
+            Self::CryptographicError {
                 operation,
                 reason,
                 source: _,
             } => {
-                SecurityError::CryptographicError {
+                Self::CryptographicError {
                     operation: operation.clone(),
                     reason: reason.clone(),
                     source: None, // Cannot clone Box<dyn Error>
                 }
             }
-            SecurityError::AuthenticationFailed {
+            Self::AuthenticationFailed {
                 details,
                 user_id,
                 attempt_count,
-            } => SecurityError::AuthenticationFailed {
+            } => Self::AuthenticationFailed {
                 details: details.clone(),
                 user_id: user_id.clone(),
                 attempt_count: *attempt_count,
             },
-            SecurityError::AccessDenied {
+            Self::AccessDenied {
                 operation,
                 reason,
                 required_permission,
-            } => SecurityError::AccessDenied {
+            } => Self::AccessDenied {
                 operation: operation.clone(),
                 reason: reason.clone(),
                 required_permission: required_permission.clone(),
             },
-            SecurityError::CredentialError {
+            Self::CredentialError {
                 operation,
                 reason,
                 credential_type,
-            } => SecurityError::CredentialError {
+            } => Self::CredentialError {
                 operation: operation.clone(),
                 reason: reason.clone(),
                 credential_type: credential_type.clone(),
             },
-            SecurityError::EncryptionError {
+            Self::EncryptionError {
                 algorithm,
                 reason,
                 source: _,
             } => {
-                SecurityError::EncryptionError {
+                Self::EncryptionError {
                     algorithm: algorithm.clone(),
                     reason: reason.clone(),
                     source: None, // Cannot clone Box<dyn Error>
                 }
             }
-            SecurityError::KeyManagementError {
+            Self::KeyManagementError {
                 operation,
                 reason,
                 key_id,
-            } => SecurityError::KeyManagementError {
+            } => Self::KeyManagementError {
                 operation: operation.clone(),
                 reason: reason.clone(),
                 key_id: key_id.clone(),
             },
-            SecurityError::AuditError {
+            Self::AuditError {
                 operation,
                 reason,
                 event_id,
-            } => SecurityError::AuditError {
+            } => Self::AuditError {
                 operation: operation.clone(),
                 reason: reason.clone(),
                 event_id: event_id.clone(),
             },
-            SecurityError::IntrusionDetectionError {
+            Self::IntrusionDetectionError {
                 component,
                 reason,
                 threat_level,
-            } => SecurityError::IntrusionDetectionError {
+            } => Self::IntrusionDetectionError {
                 component: component.clone(),
                 reason: reason.clone(),
                 threat_level: threat_level.clone(),
             },
-            SecurityError::System {
+            Self::System {
                 component,
                 reason,
                 source: _,
             } => {
-                SecurityError::System {
+                Self::System {
                     component: component.clone(),
                     reason: reason.clone(),
                     source: None, // Cannot clone Box<dyn Error>
                 }
             }
-            SecurityError::ConfigurationError {
+            Self::ConfigurationError {
                 setting,
                 reason,
                 config_file,
-            } => SecurityError::ConfigurationError {
+            } => Self::ConfigurationError {
                 setting: setting.clone(),
                 reason: reason.clone(),
                 config_file: config_file.clone(),
             },
-            SecurityError::Network {
+            Self::Network {
                 protocol,
                 reason,
                 remote_address,
-            } => SecurityError::Network {
+            } => Self::Network {
                 protocol: protocol.clone(),
                 reason: reason.clone(),
                 remote_address: remote_address.clone(),
             },
-            SecurityError::FileSystem {
+            Self::FileSystem {
                 path,
                 reason,
                 operation,
-            } => SecurityError::FileSystem {
+            } => Self::FileSystem {
                 path: path.clone(),
                 reason: reason.clone(),
                 operation: operation.clone(),
             },
-            SecurityError::ValidationError {
+            Self::ValidationError {
                 field,
                 reason,
                 value,
-            } => SecurityError::ValidationError {
+            } => Self::ValidationError {
                 field: field.clone(),
                 reason: reason.clone(),
                 value: value.clone(),
             },
-            SecurityError::ResourceLimitExceeded {
+            Self::ResourceLimitExceeded {
                 resource,
                 current,
                 limit,
-            } => SecurityError::ResourceLimitExceeded {
+            } => Self::ResourceLimitExceeded {
                 resource: resource.clone(),
                 current: *current,
                 limit: *limit,
             },
-            SecurityError::TimeoutError {
+            Self::TimeoutError {
                 operation,
                 duration_ms,
-            } => SecurityError::TimeoutError {
+            } => Self::TimeoutError {
                 operation: operation.clone(),
                 duration_ms: *duration_ms,
             },
-            SecurityError::HsmError {
+            Self::HsmError {
                 module,
                 reason,
                 source: _,
             } => {
-                SecurityError::HsmError {
+                Self::HsmError {
                     module: module.clone(),
                     reason: reason.clone(),
                     source: None, // Cannot clone Box<dyn Error>
                 }
             }
-            SecurityError::SecureUpdateError {
+            Self::SecureUpdateError {
                 stage,
                 reason,
                 update_id,
-            } => SecurityError::SecureUpdateError {
+            } => Self::SecureUpdateError {
                 stage: stage.clone(),
                 reason: reason.clone(),
                 update_id: update_id.clone(),
             },
-            SecurityError::PolicyViolation {
+            Self::PolicyViolation {
                 policy,
                 reason,
                 severity,
-            } => SecurityError::PolicyViolation {
+            } => Self::PolicyViolation {
                 policy: policy.clone(),
                 reason: reason.clone(),
                 severity: *severity,
             },
-            SecurityError::Generic {
+            Self::Generic {
                 context,
                 source,
             } => {
-                SecurityError::Generic {
+                Self::Generic {
                     context: context.clone(),
                     source: anyhow::anyhow!(source.to_string()), // Create new anyhow::Error from string
                 }
@@ -372,12 +372,12 @@ pub enum PolicySeverity {
 impl fmt::Display for PolicySeverity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PolicySeverity::Info => write!(f, "INFO"),
-            PolicySeverity::Warning => write!(f, "WARNING"),
-            PolicySeverity::Low => write!(f, "LOW"),
-            PolicySeverity::Medium => write!(f, "MEDIUM"),
-            PolicySeverity::High => write!(f, "HIGH"),
-            PolicySeverity::Critical => write!(f, "CRITICAL"),
+            Self::Info => write!(f, "INFO"),
+            Self::Warning => write!(f, "WARNING"),
+            Self::Low => write!(f, "LOW"),
+            Self::Medium => write!(f, "MEDIUM"),
+            Self::High => write!(f, "HIGH"),
+            Self::Critical => write!(f, "CRITICAL"),
         }
     }
 }
@@ -385,9 +385,9 @@ impl fmt::Display for PolicySeverity {
 /// Result type alias for security operations
 pub type SecurityResult<T> = Result<T, SecurityError>;
 
-/// Extension trait for converting common error types to SecurityError
+/// Extension trait for converting common error types to `SecurityError`
 pub trait IntoSecurityError<T> {
-    /// Convert the result into a SecurityResult with context
+    /// Convert the result into a `SecurityResult` with context
     fn with_security_context(self, context: &str) -> SecurityResult<T>;
 
     /// Convert the result with operation context
@@ -407,7 +407,7 @@ where
 
     fn with_operation(self, operation: &str) -> SecurityResult<T> {
         self.map_err(|e| SecurityError::Generic {
-            context: format!("Operation failed: {}", operation),
+            context: format!("Operation failed: {operation}"),
             source: anyhow::Error::from(e),
         })
     }
@@ -429,7 +429,7 @@ pub trait SecurityResultExt<T> {
 }
 
 impl<T> SecurityResultExt<T> for SecurityResult<T> {
-    fn with_credential_context(self, operation: &str, credential_type: &str) -> SecurityResult<T> {
+    fn with_credential_context(self, operation: &str, credential_type: &str) -> Self {
         self.map_err(|e| match e {
             SecurityError::Generic {
                 context,
@@ -443,7 +443,7 @@ impl<T> SecurityResultExt<T> for SecurityResult<T> {
         })
     }
 
-    fn with_crypto_context(self, operation: &str, reason: &str) -> SecurityResult<T> {
+    fn with_crypto_context(self, operation: &str, reason: &str) -> Self {
         self.map_err(|e| match e {
             SecurityError::Generic {
                 context: _context,
@@ -457,21 +457,21 @@ impl<T> SecurityResultExt<T> for SecurityResult<T> {
         })
     }
 
-    fn with_auth_context(self, details: &str, user_id: Option<&str>) -> SecurityResult<T> {
+    fn with_auth_context(self, details: &str, user_id: Option<&str>) -> Self {
         self.map_err(|e| match e {
             SecurityError::Generic {
                 context: _context,
                 ..
             } => SecurityError::AuthenticationFailed {
                 details: details.to_string(),
-                user_id: user_id.map(|u| u.to_string()),
+                user_id: user_id.map(std::string::ToString::to_string),
                 attempt_count: 1,
             },
             other => other,
         })
     }
 
-    fn with_audit_context(self, operation: &str, reason: &str) -> SecurityResult<T> {
+    fn with_audit_context(self, operation: &str, reason: &str) -> Self {
         self.map_err(|e| match e {
             SecurityError::Generic {
                 context: _context,
@@ -576,6 +576,7 @@ pub struct SecurityErrorMetrics {
 
 impl SecurityErrorMetrics {
     /// Create new error metrics
+    #[must_use]
     pub fn new() -> Self {
         Self {
             total_errors: 0,
@@ -671,12 +672,12 @@ impl Default for SecurityErrorMetrics {
     }
 }
 
-/// Conversions from common error types to SecurityError
+/// Conversions from common error types to `SecurityError`
 impl From<std::io::Error> for SecurityError {
     fn from(err: std::io::Error) -> Self {
-        SecurityError::System {
+        Self::System {
             component: "filesystem".to_string(),
-            reason: format!("I/O error: {}", err),
+            reason: format!("I/O error: {err}"),
             source: Some(Box::new(err)),
         }
     }
@@ -684,9 +685,9 @@ impl From<std::io::Error> for SecurityError {
 
 impl From<serde_json::Error> for SecurityError {
     fn from(err: serde_json::Error) -> Self {
-        SecurityError::ValidationError {
+        Self::ValidationError {
             field: "serialization".to_string(),
-            reason: format!("JSON serialization error: {}", err),
+            reason: format!("JSON serialization error: {err}"),
             value: None,
         }
     }
@@ -694,9 +695,9 @@ impl From<serde_json::Error> for SecurityError {
 
 impl From<toml::de::Error> for SecurityError {
     fn from(err: toml::de::Error) -> Self {
-        SecurityError::ConfigurationError {
+        Self::ConfigurationError {
             setting: "config_parsing".to_string(),
-            reason: format!("TOML parsing error: {}", err),
+            reason: format!("TOML parsing error: {err}"),
             config_file: None,
         }
     }

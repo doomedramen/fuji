@@ -24,7 +24,8 @@ pub struct SocketManager {
 #[allow(dead_code)]
 impl SocketManager {
     /// Create a new socket manager
-    pub fn new(socket_path: PathBuf) -> Self {
+    #[must_use]
+    pub const fn new(socket_path: PathBuf) -> Self {
         Self {
             socket_path,
             owner_uid: None,
@@ -34,14 +35,16 @@ impl SocketManager {
     }
 
     /// Set socket owner
-    pub fn with_owner(mut self, uid: uid_t, gid: gid_t) -> Self {
+    #[must_use]
+    pub const fn with_owner(mut self, uid: uid_t, gid: gid_t) -> Self {
         self.owner_uid = Some(uid);
         self.owner_gid = Some(gid);
         self
     }
 
     /// Set socket permissions (default: 0o600)
-    pub fn with_permissions(mut self, permissions: u32) -> Self {
+    #[must_use]
+    pub const fn with_permissions(mut self, permissions: u32) -> Self {
         self.permissions = permissions;
         self
     }
@@ -57,12 +60,12 @@ impl SocketManager {
         // Ensure parent directory exists
         if let Some(parent) = self.socket_path.parent() {
             fs::create_dir_all(parent)
-                .map_err(|e| anyhow!("Failed to create socket directory: {}", e))?;
+                .map_err(|e| anyhow!("Failed to create socket directory: {e}"))?;
         }
 
         // Create the socket
         let listener = UnixListener::bind(&self.socket_path)
-            .map_err(|e| anyhow!("Failed to bind socket: {}", e))?;
+            .map_err(|e| anyhow!("Failed to bind socket: {e}"))?;
 
         // Set permissions
         self.set_socket_permissions()?;
@@ -79,7 +82,7 @@ impl SocketManager {
     fn set_socket_permissions(&self) -> Result<()> {
         // Convert path to C string
         let path_cstr = std::ffi::CString::new(self.socket_path.to_string_lossy().as_bytes())
-            .map_err(|e| anyhow!("Failed to create path CString: {}", e))?;
+            .map_err(|e| anyhow!("Failed to create path CString: {e}"))?;
 
         // Set ownership if specified
         if let (Some(uid), Some(gid)) = (self.owner_uid, self.owner_gid) {
@@ -87,7 +90,7 @@ impl SocketManager {
                 if chown(path_cstr.as_ptr(), uid, gid) != 0 {
                     let error = std::io::Error::last_os_error();
                     error!("Failed to set socket ownership: {}", error);
-                    return Err(anyhow!("Failed to set socket ownership: {}", error));
+                    return Err(anyhow!("Failed to set socket ownership: {error}"));
                 }
             }
             debug!("Set socket ownership to uid:{} gid:{}", uid, gid);
@@ -98,7 +101,7 @@ impl SocketManager {
             if chmod(path_cstr.as_ptr(), self.permissions as libc::mode_t) != 0 {
                 let error = std::io::Error::last_os_error();
                 error!("Failed to set socket permissions: {}", error);
-                return Err(anyhow!("Failed to set socket permissions: {}", error));
+                return Err(anyhow!("Failed to set socket permissions: {error}"));
             }
         }
 
@@ -144,6 +147,7 @@ impl SocketManager {
     }
 
     /// Get socket path
+    #[must_use]
     pub fn socket_path(&self) -> &Path {
         &self.socket_path
     }

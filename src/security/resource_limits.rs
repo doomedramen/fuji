@@ -319,7 +319,7 @@ impl From<crate::config::ResourceLimitsConfig> for ResourceLimits {
     fn from(config: crate::config::ResourceLimitsConfig) -> Self {
         Self {
             memory: MemoryLimits {
-                max_memory_bytes: config.max_memory_mb as u64 * 1024 * 1024,
+                max_memory_bytes: u64::from(config.max_memory_mb) * 1024 * 1024,
                 max_memory_percent: 70, // Fixed: Use default memory limit instead of CPU limit
                 warning_threshold_percent: 70,
                 enforcement_threshold_percent: 90,
@@ -375,6 +375,7 @@ impl From<crate::config::ResourceLimitsConfig> for ResourceLimits {
 #[allow(dead_code)]
 impl ResourceLimitsManager {
     /// Create a new resource limits manager
+    #[must_use]
     pub fn new(limits: ResourceLimits) -> Self {
         let mount_semaphore = Arc::new(Semaphore::new(
             limits.process.max_concurrent_mounts as usize,
@@ -398,6 +399,7 @@ impl ResourceLimitsManager {
     }
 
     /// Create with default limits
+    #[must_use]
     pub fn with_defaults() -> Self {
         Self::new(ResourceLimits::default())
     }
@@ -414,9 +416,9 @@ impl ResourceLimitsManager {
 
         // Start memory monitoring
         if limits.memory.enable_tracking {
-            let memory_limits = limits.memory.clone();
-            let memory_usage = usage.clone();
-            let memory_system = system.clone();
+            let memory_limits = limits.memory;
+            let memory_usage = usage;
+            let memory_system = system;
             let memory_violations = violations.clone();
 
             tokio::spawn(async move {
@@ -465,7 +467,7 @@ impl ResourceLimitsManager {
         if self.limits.enforcement.enable_reporting {
             let report_limits = self.limits.clone();
             let report_usage = self.usage.clone();
-            let report_violations = violations.clone();
+            let report_violations = violations;
 
             tokio::spawn(async move {
                 let mut interval = interval(StdDuration::from_secs(
@@ -491,25 +493,24 @@ impl ResourceLimitsManager {
 
     /// Get a permit for mount operation
     pub async fn acquire_mount_permit(&self) -> Result<()> {
-        match self.limits.process.enable_queuing {
-            true => {
-                match tokio::time::timeout(
-                    StdDuration::from_secs(self.limits.process.operation_timeout_secs),
-                    self.mount_semaphore.acquire(),
-                )
-                .await
-                {
-                    Ok(permit) => {
-                        permit?.forget(); // Don't hold the permit
-                        Ok(())
-                    }
-                    Err(_) => Err(anyhow!("Mount operation timeout")),
+        if self.limits.process.enable_queuing {
+            match tokio::time::timeout(
+                StdDuration::from_secs(self.limits.process.operation_timeout_secs),
+                self.mount_semaphore.acquire(),
+            )
+            .await
+            {
+                Ok(permit) => {
+                    permit?.forget(); // Don't hold the permit
+                    Ok(())
                 }
+                Err(_) => Err(anyhow!("Mount operation timeout")),
             }
-            false => match self.mount_semaphore.try_acquire() {
+        } else {
+            match self.mount_semaphore.try_acquire() {
                 Ok(_) => Ok(()),
                 Err(_) => Err(anyhow!("Too many concurrent mount operations")),
-            },
+            }
         }
     }
 
@@ -520,25 +521,24 @@ impl ResourceLimitsManager {
 
     /// Get a permit for reconnection operation
     pub async fn acquire_reconnection_permit(&self) -> Result<()> {
-        match self.limits.process.enable_queuing {
-            true => {
-                match tokio::time::timeout(
-                    StdDuration::from_secs(self.limits.process.operation_timeout_secs),
-                    self.reconnection_semaphore.acquire(),
-                )
-                .await
-                {
-                    Ok(permit) => {
-                        permit?.forget();
-                        Ok(())
-                    }
-                    Err(_) => Err(anyhow!("Reconnection operation timeout")),
+        if self.limits.process.enable_queuing {
+            match tokio::time::timeout(
+                StdDuration::from_secs(self.limits.process.operation_timeout_secs),
+                self.reconnection_semaphore.acquire(),
+            )
+            .await
+            {
+                Ok(permit) => {
+                    permit?.forget();
+                    Ok(())
                 }
+                Err(_) => Err(anyhow!("Reconnection operation timeout")),
             }
-            false => match self.reconnection_semaphore.try_acquire() {
+        } else {
+            match self.reconnection_semaphore.try_acquire() {
                 Ok(_) => Ok(()),
                 Err(_) => Err(anyhow!("Too many concurrent reconnection operations")),
-            },
+            }
         }
     }
 
@@ -549,26 +549,24 @@ impl ResourceLimitsManager {
 
     /// Get a permit for network connection
     pub async fn acquire_connection_permit(&self) -> Result<()> {
-        match self.limits.network.enable_connection_pooling {
-            true => {
-                match tokio::time::timeout(
-                    StdDuration::from_secs(self.limits.network.connection_timeout_secs),
-                    self.connection_semaphore.acquire(),
-                )
-                .await
-                {
-                    Ok(permit) => {
-                        permit?.forget();
-                        Ok(())
-                    }
-                    Err(_) => Err(anyhow!("Connection timeout")),
+        if self.limits.network.enable_connection_pooling {
+            match tokio::time::timeout(
+                StdDuration::from_secs(self.limits.network.connection_timeout_secs),
+                self.connection_semaphore.acquire(),
+            )
+            .await
+            {
+                Ok(permit) => {
+                    permit?.forget();
+                    Ok(())
                 }
+                Err(_) => Err(anyhow!("Connection timeout")),
             }
-            false => self
-                .connection_semaphore
+        } else {
+            self.connection_semaphore
                 .try_acquire()
                 .map(|_| ())
-                .map_err(|_| anyhow!("Too many concurrent connections")),
+                .map_err(|_| anyhow!("Too many concurrent connections"))
         }
     }
 
@@ -640,7 +638,8 @@ impl ResourceLimitsManager {
         let mut should_enforce = false;
 
         // Check memory limits
-        if usage.memory.usage_percent > self.limits.memory.enforcement_threshold_percent as f32 {
+        if usage.memory.usage_percent > f32::from(self.limits.memory.enforcement_threshold_percent)
+        {
             should_enforce = true;
             warn!(
                 "Memory usage exceeded enforcement threshold: {:.1}%",
@@ -649,7 +648,7 @@ impl ResourceLimitsManager {
         }
 
         // Check CPU limits
-        if usage.cpu.usage_percent > self.limits.cpu.max_cpu_percent as f32 {
+        if usage.cpu.usage_percent > f32::from(self.limits.cpu.max_cpu_percent) {
             should_enforce = true;
             warn!("CPU usage exceeded limit: {:.1}%", usage.cpu.usage_percent);
         }
@@ -716,11 +715,11 @@ impl ResourceLimitsManager {
         }
 
         // Check for violations
-        if usage_percent > limits.enforcement_threshold_percent as f32 {
+        if usage_percent > f32::from(limits.enforcement_threshold_percent) {
             let violation = ResourceViolation {
                 resource_type: ResourceType::Memory,
-                current_value: usage_percent as f64,
-                max_value: limits.enforcement_threshold_percent as f64,
+                current_value: f64::from(usage_percent),
+                max_value: f64::from(limits.enforcement_threshold_percent),
                 usage_percent,
                 timestamp: Instant::now(),
                 consecutive_count: 1,
@@ -729,7 +728,7 @@ impl ResourceLimitsManager {
             let mut violation_list = violations.write().await;
             violation_list.push(violation);
 
-            if usage_percent > limits.warning_threshold_percent as f32 {
+            if usage_percent > f32::from(limits.warning_threshold_percent) {
                 warn!(
                     "Memory usage high: {:.1}% ({} MB)",
                     usage_percent,
@@ -767,11 +766,11 @@ impl ResourceLimitsManager {
         }
 
         // Check for violations
-        if usage_percent > limits.max_cpu_percent as f32 {
+        if usage_percent > f32::from(limits.max_cpu_percent) {
             let violation = ResourceViolation {
                 resource_type: ResourceType::Cpu,
-                current_value: usage_percent as f64,
-                max_value: limits.max_cpu_percent as f64,
+                current_value: f64::from(usage_percent),
+                max_value: f64::from(limits.max_cpu_percent),
                 usage_percent,
                 timestamp: Instant::now(),
                 consecutive_count: 1,
@@ -780,7 +779,7 @@ impl ResourceLimitsManager {
             let mut violation_list = violations.write().await;
             violation_list.push(violation);
 
-            if usage_percent > (limits.max_cpu_percent - 10) as f32 {
+            if usage_percent > f32::from(limits.max_cpu_percent - 10) {
                 warn!("CPU usage high: {:.1}%", usage_percent);
             }
         }

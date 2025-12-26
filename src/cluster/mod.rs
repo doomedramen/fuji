@@ -36,6 +36,7 @@ pub struct ClusterState {
 #[allow(dead_code)]
 impl ClusterState {
     /// Create a new cluster state
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: Arc::new(RwLock::new(None)),
@@ -64,12 +65,7 @@ impl ClusterState {
 
     /// Check if clustering is enabled
     pub async fn is_enabled(&self) -> bool {
-        self.config
-            .read()
-            .await
-            .as_ref()
-            .map(|c| c.enabled)
-            .unwrap_or(false)
+        self.config.read().await.as_ref().is_some_and(|c| c.enabled)
     }
 
     /// Get instance ID
@@ -120,7 +116,7 @@ impl ClusterState {
         }
     }
 
-    /// Mark peer as seen (update last_seen timestamp)
+    /// Mark peer as seen (update `last_seen` timestamp)
     pub async fn mark_peer_seen(&self, peer_id: &str) {
         let mut peers = self.peers.write().await;
         if let Some(peer) = peers.get_mut(peer_id) {

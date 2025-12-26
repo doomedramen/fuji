@@ -137,7 +137,8 @@ pub enum SecurityProfile {
 
 impl SecurityProfile {
     /// Get the maximum allowed symlink depth
-    pub fn max_symlink_depth(&self) -> usize {
+    #[must_use]
+    pub const fn max_symlink_depth(&self) -> usize {
         match self {
             Self::Minimal => 5,
             Self::Standard => 3,
@@ -147,7 +148,8 @@ impl SecurityProfile {
     }
 
     /// Get validation interval in seconds
-    pub fn validation_interval(&self) -> StdDuration {
+    #[must_use]
+    pub const fn validation_interval(&self) -> StdDuration {
         match self {
             Self::Minimal => StdDuration::from_secs(300), // 5 minutes
             Self::Standard => StdDuration::from_secs(120), // 2 minutes
@@ -157,7 +159,8 @@ impl SecurityProfile {
     }
 
     /// Get maximum mount age before requiring re-validation
-    pub fn max_mount_age(&self) -> StdDuration {
+    #[must_use]
+    pub const fn max_mount_age(&self) -> StdDuration {
         match self {
             Self::Minimal => StdDuration::from_secs(86400), // 24 hours
             Self::Standard => StdDuration::from_secs(43200), // 12 hours
@@ -179,6 +182,7 @@ pub struct PathSecurityValidator {
 
 impl PathSecurityValidator {
     /// Create a new path security validator
+    #[must_use]
     pub fn new(security_profile: SecurityProfile) -> Self {
         let dangerous_system_files = vec![
             // System configuration files
@@ -325,8 +329,7 @@ impl PathSecurityValidator {
                 return Ok(ValidationResult {
                     is_safe: false,
                     warning_message: Some(format!(
-                        "Access to dangerous system file: {}",
-                        dangerous_file
+                        "Access to dangerous system file: {dangerous_file}"
                     )),
                     security_events: vec![],
                     status: ValidationStatus::Blocked("Access violation".to_string()),
@@ -339,8 +342,7 @@ impl PathSecurityValidator {
                     return Ok(ValidationResult {
                         is_safe: false,
                         warning_message: Some(format!(
-                            "Access to dangerous system file: {}",
-                            dangerous_file
+                            "Access to dangerous system file: {dangerous_file}"
                         )),
                         security_events: vec![],
                         status: ValidationStatus::Blocked("Access violation".to_string()),
@@ -393,11 +395,10 @@ impl PathSecurityValidator {
                 {
                     return Ok(ValidationResult {
                         is_safe: false,
-                        warning_message: Some(format!("Symlink validation failed: {}", e)),
+                        warning_message: Some(format!("Symlink validation failed: {e}")),
                         security_events: vec![],
                         status: ValidationStatus::Blocked(format!(
-                            "Symlink validation failed: {}",
-                            e
+                            "Symlink validation failed: {e}"
                         )),
                     });
                 }
@@ -462,14 +463,10 @@ impl PathSecurityValidator {
             if mount_point.starts_with(location) {
                 return Ok(ValidationResult {
                     is_safe: false,
-                    warning_message: Some(format!(
-                        "Mount point in dangerous location: {}",
-                        location
-                    )),
+                    warning_message: Some(format!("Mount point in dangerous location: {location}")),
                     security_events: vec![],
                     status: ValidationStatus::Blocked(format!(
-                        "Mount point in dangerous location: {}",
-                        location
+                        "Mount point in dangerous location: {location}"
                     )),
                 });
             }
@@ -578,8 +575,7 @@ impl PathSecurityValidator {
                     current_depth += 1;
                     if current_depth > max_depth {
                         return Err(anyhow!(
-                            "Symlink depth exceeded maximum allowed depth: {}",
-                            max_depth
+                            "Symlink depth exceeded maximum allowed depth: {max_depth}"
                         ));
                     }
 
@@ -596,13 +592,13 @@ impl PathSecurityValidator {
                             }
                         }
                         Err(e) => {
-                            return Err(anyhow!("Failed to read symlink: {}", e));
+                            return Err(anyhow!("Failed to read symlink: {e}"));
                         }
                     }
                 }
                 Ok(_) => break, // Not a symlink, validation complete
                 Err(e) => {
-                    return Err(anyhow!("Failed to check symlink metadata: {}", e));
+                    return Err(anyhow!("Failed to check symlink metadata: {e}"));
                 }
             }
         }
@@ -626,10 +622,7 @@ impl PathSecurityValidator {
 
         for pattern in sensitive_patterns {
             if path.to_string_lossy().starts_with(pattern) {
-                return Err(anyhow!(
-                    "Write access denied to sensitive path: {}",
-                    pattern
-                ));
+                return Err(anyhow!("Write access denied to sensitive path: {pattern}"));
             }
         }
 
@@ -796,6 +789,7 @@ impl PathSecurityValidator {
     }
 
     /// Get recent security events
+    #[must_use]
     pub fn get_security_events(&self, limit: usize) -> Vec<PathSecurityEvent> {
         let events = self.security_events.lock().unwrap();
         let len = events.len();
@@ -807,6 +801,7 @@ impl PathSecurityValidator {
     }
 
     /// Get security statistics
+    #[must_use]
     pub fn get_security_statistics(&self) -> HashMap<String, u64> {
         let events = self.security_events.lock().unwrap();
         let mut stats = HashMap::new();
@@ -883,7 +878,7 @@ impl PathSecurityValidator {
         report.push_str("| Metric | Count |\n");
         report.push_str("|--------|-------|\n");
         for (key, value) in stats {
-            report.push_str(&format!("| {} | {} |\n", key, value));
+            report.push_str(&format!("| {key} | {value} |\n"));
         }
         report.push('\n');
 
@@ -892,7 +887,7 @@ impl PathSecurityValidator {
         report.push_str("| Mount ID | Status |\n");
         report.push_str("|----------|--------|\n");
         for (mount_id, status) in validation_results {
-            report.push_str(&format!("| {} | {:?} |\n", mount_id, status));
+            report.push_str(&format!("| {mount_id} | {status:?} |\n"));
         }
         report.push('\n');
 
@@ -911,11 +906,11 @@ impl PathSecurityValidator {
                     } => {
                         let status_str = match &result.status {
                             ValidationStatus::Valid => "✅ Valid".to_string(),
-                            ValidationStatus::Blocked(reason) => format!("🚫 Blocked: {}", reason),
+                            ValidationStatus::Blocked(reason) => format!("🚫 Blocked: {reason}"),
                             ValidationStatus::RequiresVerification => {
                                 "⚠️  Requires Verification".to_string()
                             }
-                            ValidationStatus::Failed(reason) => format!("❌ Failed: {}", reason),
+                            ValidationStatus::Failed(reason) => format!("❌ Failed: {reason}"),
                         };
                         report.push_str(&format!(
                             "- [{}] {}: {}\n",

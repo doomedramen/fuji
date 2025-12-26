@@ -175,7 +175,12 @@ pub enum ConflictResolution {
 
 impl SyncMessage {
     /// Create a new sync request
-    pub fn sync_request(request_id: String, requester_id: String, known_version: u64) -> Self {
+    #[must_use]
+    pub const fn sync_request(
+        request_id: String,
+        requester_id: String,
+        known_version: u64,
+    ) -> Self {
         Self::SyncRequest(SyncRequest {
             request_id,
             requester_id,
@@ -185,7 +190,8 @@ impl SyncMessage {
     }
 
     /// Create a sync response
-    pub fn sync_response(
+    #[must_use]
+    pub const fn sync_response(
         request_id: String,
         config: Config,
         sync_version: u64,
@@ -200,6 +206,7 @@ impl SyncMessage {
     }
 
     /// Create a config update notification
+    #[must_use]
     pub fn config_update(
         config: Config,
         sync_version: u64,
@@ -216,7 +223,8 @@ impl SyncMessage {
     }
 
     /// Create a sync complete notification
-    pub fn sync_complete(
+    #[must_use]
+    pub const fn sync_complete(
         sync_version: u64,
         initiator_id: String,
         result: SyncResult,
@@ -233,6 +241,7 @@ impl SyncMessage {
     }
 
     /// Create a heartbeat message
+    #[must_use]
     pub fn heartbeat(
         instance_id: String,
         sync_version: u64,
@@ -249,28 +258,30 @@ impl SyncMessage {
     }
 
     /// Get the message type as a string
-    pub fn message_type(&self) -> &'static str {
+    #[must_use]
+    pub const fn message_type(&self) -> &'static str {
         match self {
-            SyncMessage::SyncRequest(_) => "SyncRequest",
-            SyncMessage::SyncResponse(_) => "SyncResponse",
-            SyncMessage::ConfigUpdate(_) => "ConfigUpdate",
-            SyncMessage::SyncComplete(_) => "SyncComplete",
-            SyncMessage::Heartbeat(_) => "Heartbeat",
+            Self::SyncRequest(_) => "SyncRequest",
+            Self::SyncResponse(_) => "SyncResponse",
+            Self::ConfigUpdate(_) => "ConfigUpdate",
+            Self::SyncComplete(_) => "SyncComplete",
+            Self::Heartbeat(_) => "Heartbeat",
         }
     }
 
     /// Get a unique identifier for the message
+    #[must_use]
     pub fn message_id(&self) -> String {
         match self {
-            SyncMessage::SyncRequest(req) => format!("req-{}", req.request_id),
-            SyncMessage::SyncResponse(resp) => format!("resp-{}", resp.request_id),
-            SyncMessage::ConfigUpdate(_) => {
+            Self::SyncRequest(req) => format!("req-{}", req.request_id),
+            Self::SyncResponse(resp) => format!("resp-{}", resp.request_id),
+            Self::ConfigUpdate(_) => {
                 format!("update-{}", Utc::now().timestamp_nanos_opt().unwrap_or(0))
             }
-            SyncMessage::SyncComplete(comp) => {
+            Self::SyncComplete(comp) => {
                 format!("complete-{}-{}", comp.sync_version, comp.initiator_id)
             }
-            SyncMessage::Heartbeat(hb) => format!(
+            Self::Heartbeat(hb) => format!(
                 "hb-{}-{}",
                 hb.instance_id,
                 hb.timestamp.timestamp_nanos_opt().unwrap_or(0)

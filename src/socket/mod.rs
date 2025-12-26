@@ -143,6 +143,7 @@ impl Default for ConnectionMetrics {
 
 impl ConnectionLimiter {
     /// Create a new connection limiter
+    #[must_use]
     pub fn new(limits: ConnectionLimits) -> Self {
         Self {
             global_semaphore: Arc::new(Semaphore::new(limits.max_connections)),
@@ -158,12 +159,11 @@ impl ConnectionLimiter {
     /// Attempt to acquire a connection permit
     pub async fn acquire_connection(&self, client_id: &str) -> Result<ConnectionPermit> {
         // Check global limit (try_acquire_owned returns immediately if no permits available)
-        let global_permit = match self.global_semaphore.clone().try_acquire_owned() {
-            Ok(permit) => permit,
-            Err(_) => {
-                self.increment_rejected("global_limit").await;
-                return Err(anyhow!("Failed to acquire connection permit"));
-            }
+        let global_permit = if let Ok(permit) = self.global_semaphore.clone().try_acquire_owned() {
+            permit
+        } else {
+            self.increment_rejected("global_limit").await;
+            return Err(anyhow!("Failed to acquire connection permit"));
         };
 
         // Check client-specific limits
@@ -183,8 +183,7 @@ impl ConnectionLimiter {
                 drop(global_permit);
                 self.increment_rejected("rate_limited").await;
                 return Err(anyhow!(
-                    "Connection rate limit exceeded for client: {}",
-                    client_id
+                    "Connection rate limit exceeded for client: {client_id}"
                 ));
             }
 
@@ -192,10 +191,7 @@ impl ConnectionLimiter {
             if client_info.active_connections >= self.limits.max_connections_per_client {
                 drop(global_permit);
                 self.increment_rejected("per_client_limit").await;
-                return Err(anyhow!(
-                    "Per-client connection limit exceeded: {}",
-                    client_id
-                ));
+                return Err(anyhow!("Per-client connection limit exceeded: {client_id}"));
             }
 
             // Record the connection
@@ -297,6 +293,7 @@ pub struct ConnectionPermit {
 
 impl ConnectionPermit {
     /// Get the client ID for this connection
+    #[must_use]
     pub fn client_id(&self) -> &str {
         &self.client_id
     }
@@ -456,7 +453,7 @@ impl SocketServer {
                         if let Some(path) = addr.as_pathname() {
                             Ok(path.to_string_lossy().to_string())
                         } else {
-                            Ok(format!("addr-{:?}", addr))
+                            Ok(format!("addr-{addr:?}"))
                         }
                     }
                     Err(_) => {
@@ -465,7 +462,7 @@ impl SocketServer {
                             .duration_since(UNIX_EPOCH)
                             .map(|d| d.as_secs())
                             .unwrap_or(0);
-                        Ok(format!("anon-{}", ts))
+                        Ok(format!("anon-{ts}"))
                     }
                 }
             }
@@ -493,7 +490,7 @@ where
     let n = timeout(StdDuration::from_secs(5), stream.read(&mut buf))
         .await
         .map_err(|_| anyhow!("Connection read timeout"))?
-        .map_err(|e| anyhow!("Failed to read from socket: {}", e))?;
+        .map_err(|e| anyhow!("Failed to read from socket: {e}"))?;
 
     if n == 0 {
         return Ok(());
@@ -501,7 +498,7 @@ where
 
     // Parse request
     let request: Request =
-        serde_json::from_slice(&buf[..n]).map_err(|e| anyhow!("Failed to parse request: {}", e))?;
+        serde_json::from_slice(&buf[..n]).map_err(|e| anyhow!("Failed to parse request: {e}"))?;
 
     debug!("Received request: {:?}", request);
 
@@ -528,7 +525,7 @@ where
     let n = timeout(StdDuration::from_secs(5), stream.read(&mut buf))
         .await
         .map_err(|_| anyhow!("Connection read timeout"))?
-        .map_err(|e| anyhow!("Failed to read from socket: {}", e))?;
+        .map_err(|e| anyhow!("Failed to read from socket: {e}"))?;
 
     if n == 0 {
         return Ok(());
@@ -536,7 +533,7 @@ where
 
     // Parse request
     let request: Request =
-        serde_json::from_slice(&buf[..n]).map_err(|e| anyhow!("Failed to parse request: {}", e))?;
+        serde_json::from_slice(&buf[..n]).map_err(|e| anyhow!("Failed to parse request: {e}"))?;
 
     debug!("Received request: {:?}", request);
 
@@ -578,7 +575,7 @@ impl SocketClient {
             if e.kind() == std::io::ErrorKind::ConnectionRefused {
                 anyhow!("Could not connect to Fuji daemon. Is it running?")
             } else {
-                anyhow!("Failed to connect to daemon: {}", e)
+                anyhow!("Failed to connect to daemon: {e}")
             }
         })?;
 
@@ -593,7 +590,7 @@ impl SocketClient {
         let n = timeout(StdDuration::from_secs(30), stream.read(&mut buf))
             .await
             .map_err(|_| anyhow!("Response timeout from daemon"))?
-            .map_err(|e| anyhow!("Failed to read response: {}", e))?;
+            .map_err(|e| anyhow!("Failed to read response: {e}"))?;
 
         if n == 0 {
             return Err(anyhow!("Empty response from daemon"));
@@ -601,7 +598,7 @@ impl SocketClient {
 
         // Parse response
         let response: Response = serde_json::from_slice(&buf[..n])
-            .map_err(|e| anyhow!("Failed to parse response: {}", e))?;
+            .map_err(|e| anyhow!("Failed to parse response: {e}"))?;
 
         Ok(response)
     }

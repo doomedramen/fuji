@@ -489,7 +489,8 @@ pub enum SeccompProfile {
 
 impl SeccompProfile {
     /// Get a description of the profile
-    pub fn description(&self) -> &'static str {
+    #[must_use]
+    pub const fn description(&self) -> &'static str {
         match self {
             Self::Minimal => "Minimal system calls for basic operations (very restrictive)",
             Self::Network => "Network operations with socket syscalls",
@@ -501,12 +502,14 @@ impl SeccompProfile {
     }
 
     /// Check if profile allows network operations
-    pub fn allows_network(&self) -> bool {
+    #[must_use]
+    pub const fn allows_network(&self) -> bool {
         matches!(self, Self::Network | Self::Daemon | Self::Test)
     }
 
     /// Check if profile allows file system operations
-    pub fn allows_filesystem(&self) -> bool {
+    #[must_use]
+    pub const fn allows_filesystem(&self) -> bool {
         matches!(
             self,
             Self::FileSystem | Self::Mount | Self::Daemon | Self::Test
@@ -514,7 +517,8 @@ impl SeccompProfile {
     }
 
     /// Check if profile allows mount operations
-    pub fn allows_mount(&self) -> bool {
+    #[must_use]
+    pub const fn allows_mount(&self) -> bool {
         matches!(self, Self::Mount | Self::Daemon | Self::Test)
     }
 
@@ -818,14 +822,16 @@ impl SeccompProfile {
 
     /// Get allowed syscalls for this profile (non-Linux fallback)
     #[cfg(not(target_os = "linux"))]
-    pub fn get_allowed_syscalls(&self) -> Vec<i32> {
+    #[must_use]
+    pub const fn get_allowed_syscalls(&self) -> Vec<i32> {
         // On non-Linux platforms, return empty list since seccomp is not available
         Vec::new()
     }
 
     /// Get the default action for this profile (non-Linux fallback)
     #[cfg(not(target_os = "linux"))]
-    pub fn get_default_action(&self) -> u32 {
+    #[must_use]
+    pub const fn get_default_action(&self) -> u32 {
         // On non-Linux platforms, return allow action since seccomp is not available
         0x7fff0000 // ALLOW
     }
@@ -845,6 +851,7 @@ pub struct SyscallFilter {
 
 impl SyscallFilter {
     /// Create a new syscall filter with the specified profile
+    #[must_use]
     pub fn new(profile: SeccompProfile) -> Self {
         let (allowed_paths, allowed_commands) = Self::get_profile_rules(profile);
 
@@ -1129,31 +1136,37 @@ impl SyscallFilter {
     }
 
     /// Get the current profile
-    pub fn profile(&self) -> SeccompProfile {
+    #[must_use]
+    pub const fn profile(&self) -> SeccompProfile {
         self.profile
     }
 
     /// Check if seccomp is initialized
-    pub fn is_initialized(&self) -> bool {
+    #[must_use]
+    pub const fn is_initialized(&self) -> bool {
         self.initialized
     }
 
     /// Check if real seccomp filtering is active
-    pub fn is_real_filter_active(&self) -> bool {
+    #[must_use]
+    pub const fn is_real_filter_active(&self) -> bool {
         self.real_filter_active
     }
 
     /// Get allowed commands for the profile
+    #[must_use]
     pub fn allowed_commands(&self) -> &[String] {
         &self.allowed_commands
     }
 
     /// Get allowed paths for the profile
+    #[must_use]
     pub fn allowed_paths(&self) -> &[String] {
         &self.allowed_paths
     }
 
     /// Get syscall statistics
+    #[must_use]
     pub fn get_syscall_stats(&self) -> HashMap<i32, u64> {
         if let Ok(counts) = self.syscall_count.lock() {
             counts.clone()
@@ -1163,6 +1176,7 @@ impl SyscallFilter {
     }
 
     /// Get violation count
+    #[must_use]
     pub fn get_violation_count(&self) -> u64 {
         if let Ok(count) = self.violation_count.lock() {
             *count
@@ -1214,11 +1228,13 @@ impl SyscallFilter {
     }
 
     /// Check if a syscall is allowed by this profile
+    #[must_use]
     pub fn is_syscall_allowed(&self, syscall_num: i32) -> bool {
         self.profile.get_allowed_syscalls().contains(&syscall_num)
     }
 
     /// Get detailed profile information
+    #[must_use]
     pub fn get_profile_info(&self) -> HashMap<String, String> {
         let mut info = HashMap::new();
 
@@ -1288,6 +1304,7 @@ impl SecureExecutor {
     }
 
     /// Get the seccomp profile
+    #[must_use]
     pub fn profile(&self) -> SeccompProfile {
         self.filter.profile()
     }
@@ -1309,8 +1326,7 @@ impl SecureExecutor {
             SeccompProfile::Minimal => {
                 if !["read", "write", "socket_read", "socket_write"].contains(&operation) {
                     return Err(anyhow!(
-                        "Operation '{}' not allowed in Minimal profile",
-                        operation
+                        "Operation '{operation}' not allowed in Minimal profile"
                     ));
                 }
             }
@@ -1327,8 +1343,7 @@ impl SecureExecutor {
                 .contains(&operation)
                 {
                     return Err(anyhow!(
-                        "Operation '{}' not allowed in Network profile",
-                        operation
+                        "Operation '{operation}' not allowed in Network profile"
                     ));
                 }
             }
@@ -1345,8 +1360,7 @@ impl SecureExecutor {
                 .contains(&operation)
                 {
                     return Err(anyhow!(
-                        "Operation '{}' not allowed in FileSystem profile",
-                        operation
+                        "Operation '{operation}' not allowed in FileSystem profile"
                     ));
                 }
             }
@@ -1365,8 +1379,7 @@ impl SecureExecutor {
                 .contains(&operation)
                 {
                     return Err(anyhow!(
-                        "Operation '{}' not allowed in Mount profile",
-                        operation
+                        "Operation '{operation}' not allowed in Mount profile"
                     ));
                 }
             }
@@ -1398,6 +1411,7 @@ pub struct GlobalSeccompManager {
 #[allow(dead_code)]
 impl GlobalSeccompManager {
     /// Create a new global seccomp manager
+    #[must_use]
     pub fn new(default_profile: SeccompProfile) -> Self {
         Self {
             filters: HashMap::new(),
@@ -1427,25 +1441,28 @@ impl GlobalSeccompManager {
 
         // Add to global stats
         if let Ok(mut stats) = self.global_stats.lock() {
-            stats.insert(format!("operation:{}", operation), 0);
+            stats.insert(format!("operation:{operation}"), 0);
         }
 
         Ok(())
     }
 
     /// Check if an operation is initialized
+    #[must_use]
     pub fn is_operation_initialized(&self, operation: &str) -> bool {
         self.filters
             .get(operation)
-            .is_some_and(|f| f.is_initialized())
+            .is_some_and(SyscallFilter::is_initialized)
     }
 
     /// Get profile for an operation
+    #[must_use]
     pub fn operation_profile(&self, operation: &str) -> Option<SeccompProfile> {
-        self.filters.get(operation).map(|f| f.profile())
+        self.filters.get(operation).map(SyscallFilter::profile)
     }
 
     /// Get filter for an operation
+    #[must_use]
     pub fn get_operation_filter(&self, operation: &str) -> Option<&SyscallFilter> {
         self.filters.get(operation)
     }
@@ -1456,18 +1473,20 @@ impl GlobalSeccompManager {
 
         // Remove from global stats
         if let Ok(mut stats) = self.global_stats.lock() {
-            stats.remove(&format!("operation:{}", operation));
+            stats.remove(&format!("operation:{operation}"));
         }
 
         filter
     }
 
     /// List all operations
+    #[must_use]
     pub fn list_operations(&self) -> Vec<String> {
         self.filters.keys().cloned().collect()
     }
 
     /// Get global statistics
+    #[must_use]
     pub fn get_global_stats(&self) -> (HashMap<String, u64>, u64) {
         let stats = if let Ok(s) = self.global_stats.lock() {
             s.clone()
@@ -1485,6 +1504,7 @@ impl GlobalSeccompManager {
     }
 
     /// Get comprehensive security report
+    #[must_use]
     pub fn get_security_report(&self) -> HashMap<String, String> {
         let mut report = HashMap::new();
 
@@ -1503,7 +1523,7 @@ impl GlobalSeccompManager {
 
             let info = filter.get_profile_info();
             for (key, value) in info {
-                report.insert(format!("operations.{}.{}", operation, key), value);
+                report.insert(format!("operations.{operation}.{key}"), value);
             }
         }
 
@@ -1602,6 +1622,7 @@ impl GlobalSeccompManager {
     }
 
     /// Get total violation count across all operations
+    #[must_use]
     pub fn get_violation_count(&self) -> u64 {
         let mut total = 0;
         for filter in self.filters.values() {

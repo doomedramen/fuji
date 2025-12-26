@@ -81,7 +81,7 @@ pub trait Platform: Send + Sync {
     fn get_mount_info(&self, path: &Path) -> Result<Option<MountInfo>>;
 
     /// Get the socket path for the daemon (with fallback logic)
-    /// If config_path is provided, try that first, then fall back to defaults
+    /// If `config_path` is provided, try that first, then fall back to defaults
     fn get_socket_path(&self, config_path: Option<&Path>) -> PathBuf;
 
     /// Get the configuration directory path (with fallback logic)
@@ -117,6 +117,7 @@ pub enum Signal {
 }
 
 /// Get the platform implementation
+#[must_use]
 pub fn get_platform() -> Box<dyn Platform> {
     platform_impl::get_platform()
 }

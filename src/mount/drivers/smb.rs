@@ -21,7 +21,8 @@ impl Default for SmbHandler {
 }
 
 impl SmbHandler {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 }
@@ -54,12 +55,12 @@ impl MountHandler for SmbHandler {
             parsed.path().trim_start_matches('/').to_string()
         };
 
-        let username = if !parsed.username().is_empty() {
-            Some(parsed.username().to_string())
-        } else {
+        let username = if parsed.username().is_empty() {
             None
+        } else {
+            Some(parsed.username().to_string())
         };
-        let password = parsed.password().map(|p| p.to_string());
+        let password = parsed.password().map(std::string::ToString::to_string);
 
         Ok(MountType::Smb {
             host,
@@ -137,9 +138,9 @@ impl MountHandler for SmbHandler {
         match deps_checker.check_dependency("smb").await {
             Ok(result) if !result.available => {
                 let mut error_msg =
-                    format!("SMB/CIFS client is not installed or not found in PATH");
+                    "SMB/CIFS client is not installed or not found in PATH".to_string();
                 if let Some(ref instructions) = result.install_instructions {
-                    error_msg.push_str(&format!("\nTo install: {}", instructions));
+                    error_msg.push_str(&format!("\nTo install: {instructions}"));
                 }
                 return Err(anyhow!(error_msg));
             }
@@ -172,13 +173,13 @@ impl MountHandler for SmbHandler {
 
                 // Add credentials to options
                 if let Some(user) = username {
-                    mount_options.push(format!("username={}", user));
+                    mount_options.push(format!("username={user}"));
                 }
                 if let Some(pass) = password {
-                    mount_options.push(format!("password={}", pass));
+                    mount_options.push(format!("password={pass}"));
                 }
                 if let Some(d) = domain {
-                    mount_options.push(format!("domain={}", d));
+                    mount_options.push(format!("domain={d}"));
                 }
 
                 // Add default options if none specified
@@ -190,7 +191,7 @@ impl MountHandler for SmbHandler {
                 validator.validate_options("smb", &mount_options)?;
 
                 // Build remote path
-                let remote_path = format!("//{}/{}", host, share);
+                let remote_path = format!("//{host}/{share}");
 
                 // Create secure mount command
                 let cmd = create_secure_mount_command(
@@ -235,7 +236,7 @@ impl MountHandler for SmbHandler {
             // Check if output contains error indicators
             if output.to_lowercase().contains("error") || output.to_lowercase().contains("failed") {
                 error!("Unmount failed: {}", output);
-                return Err(anyhow!("Failed to unmount: {}", output));
+                return Err(anyhow!("Failed to unmount: {output}"));
             }
         }
 
@@ -319,7 +320,7 @@ impl MountHandler for SmbHandler {
     fn generate_mount_id(&self, url: &str) -> Result<String> {
         if let Ok(parsed) = Url::parse(url) {
             let host = parsed.host_str().unwrap_or("unknown");
-            let mut id = format!("{}_smb", host);
+            let mut id = format!("{host}_smb");
 
             // Add share name with underscores for path separators
             if !parsed.path().is_empty() && parsed.path() != "/" {
@@ -338,7 +339,7 @@ impl MountHandler for SmbHandler {
         let host = parsed.host_str().ok_or_else(|| anyhow!("No host in URL"))?;
 
         // Base: /mnt/fuji/{host}_smb
-        let mut mount_point = self.get_mount_base_dir().join(format!("{}_smb", host));
+        let mut mount_point = self.get_mount_base_dir().join(format!("{host}_smb"));
 
         // Sanitize and validate the path from the URL to prevent path traversal
         let path = parsed.path();

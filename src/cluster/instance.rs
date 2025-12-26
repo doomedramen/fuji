@@ -50,6 +50,7 @@ pub struct InstanceManager {
 
 impl InstanceManager {
     /// Create a new instance manager
+    #[must_use]
     pub fn new(config_dir: PathBuf) -> Self {
         // Try to load from existing instance file or create new
         let instance_info = Self::load_or_create(&config_dir);
@@ -60,13 +61,15 @@ impl InstanceManager {
     }
 
     /// Get the current instance ID
+    #[must_use]
     pub fn get_instance_id(&self) -> &str {
         &self.instance_info.id
     }
 
     /// Get the current instance information
     #[allow(dead_code)]
-    pub fn get_instance_info(&self) -> &InstanceInfo {
+    #[must_use]
+    pub const fn get_instance_info(&self) -> &InstanceInfo {
         &self.instance_info
     }
 
@@ -183,6 +186,7 @@ impl InstanceManager {
 
     /// Check if this instance has been running for longer than the specified duration
     #[allow(dead_code)]
+    #[must_use]
     pub fn uptime(&self) -> chrono::Duration {
         Utc::now() - self.instance_info.started_at
     }

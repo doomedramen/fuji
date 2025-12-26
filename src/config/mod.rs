@@ -57,9 +57,10 @@ pub struct MountSyncMetadata {
 
 impl MountConfigWrapper {
     /// Create a new wrapper from a mount config
+    #[must_use]
     pub fn new(mount: MountConfig, instance_id: Option<&str>) -> Self {
         Self {
-            config: mount.clone(),
+            config: mount,
             sync_metadata: instance_id.map(|id| MountSyncMetadata {
                 last_modified_by: Some(id.to_string()),
                 version: 1,
@@ -69,7 +70,8 @@ impl MountConfigWrapper {
 
     /// Get a reference to the mount config
     #[allow(dead_code)]
-    pub fn mount(&self) -> &MountConfig {
+    #[must_use]
+    pub const fn mount(&self) -> &MountConfig {
         &self.config
     }
 
@@ -200,7 +202,7 @@ pub struct PeerInfo {
 }
 
 /// Peer connection status
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PeerStatus {
     /// Peer is connected and healthy
     Connected,
@@ -213,7 +215,7 @@ pub enum PeerStatus {
 }
 
 /// Synchronization metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SyncMetadata {
     /// Last successful sync time
     pub last_sync_at: Option<DateTime<Utc>>,
@@ -226,18 +228,6 @@ pub struct SyncMetadata {
     /// Force sync state tracking
     #[serde(default)]
     pub force_sync_state: ForceSyncState,
-}
-
-impl Default for SyncMetadata {
-    fn default() -> Self {
-        Self {
-            last_sync_at: None,
-            last_modified_by: None,
-            sync_version: 0,
-            pending_conflicts: Vec::new(),
-            force_sync_state: ForceSyncState::default(),
-        }
-    }
 }
 
 /// Configuration sync conflict information
@@ -276,7 +266,7 @@ pub enum ConflictResolution {
 }
 
 /// Force sync state tracking
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ForceSyncState {
     /// Last time a force sync was initiated
     pub last_force_sync_at: Option<DateTime<Utc>>,
@@ -313,19 +303,6 @@ pub enum ForceSyncResult {
         peers_attempted: usize,
         peers_completed: usize,
     },
-}
-
-impl Default for ForceSyncState {
-    fn default() -> Self {
-        Self {
-            last_force_sync_at: None,
-            sync_in_progress: false,
-            last_force_sync_reason: None,
-            initiated_by: None,
-            attempt_count: 0,
-            last_result: None,
-        }
-    }
 }
 
 /// Serialization helper for Duration
@@ -400,7 +377,7 @@ impl Default for GlobalConfig {
 }
 
 /// Default cluster port
-fn default_cluster_port() -> u16 {
+const fn default_cluster_port() -> u16 {
     10080
 }
 
@@ -419,7 +396,7 @@ impl Config {
 
             match fs::read_to_string(&path).await {
                 Ok(content) => {
-                    match toml::from_str::<Config>(&content) {
+                    match toml::from_str::<Self>(&content) {
                         Ok(mut config) => {
                             info!("Loaded configuration from {:?}", path);
                             // Migrate old configurations if needed
@@ -438,7 +415,7 @@ impl Config {
         }
 
         warn!("No configuration file found, using defaults");
-        Ok(Config::default())
+        Ok(Self::default())
     }
 
     /// Save configuration to the preferred location
@@ -451,11 +428,11 @@ impl Config {
         }
 
         let content = toml::to_string_pretty(self)
-            .map_err(|e| anyhow!("Failed to serialize configuration: {}", e))?;
+            .map_err(|e| anyhow!("Failed to serialize configuration: {e}"))?;
 
         fs::write(&config_path, content)
             .await
-            .map_err(|e| anyhow!("Failed to write configuration to {:?}: {}", config_path, e))?;
+            .map_err(|e| anyhow!("Failed to write configuration to {config_path:?}: {e}"))?;
 
         info!("Saved configuration to {:?}", config_path);
         Ok(())
@@ -472,10 +449,10 @@ impl Config {
 
         let content = fs::read_to_string(&config_path)
             .await
-            .map_err(|e| anyhow!("Failed to read config from {:?}: {}", config_path, e))?;
+            .map_err(|e| anyhow!("Failed to read config from {config_path:?}: {e}"))?;
 
-        let mut config = toml::from_str::<Config>(&content)
-            .map_err(|e| anyhow!("Failed to parse config from {:?}: {}", config_path, e))?;
+        let mut config = toml::from_str::<Self>(&content)
+            .map_err(|e| anyhow!("Failed to parse config from {config_path:?}: {e}"))?;
 
         // Migrate old configurations if needed
         Self::migrate(&mut config)?;
@@ -489,15 +466,15 @@ impl Config {
         // Ensure config directory exists
         if let Some(parent) = config_path.parent() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| anyhow!("Failed to create config directory: {}", e))?;
+                .map_err(|e| anyhow!("Failed to create config directory: {e}"))?;
         }
 
         let content = toml::to_string_pretty(self)
-            .map_err(|e| anyhow!("Failed to serialize configuration: {}", e))?;
+            .map_err(|e| anyhow!("Failed to serialize configuration: {e}"))?;
 
         fs::write(&config_path, content)
             .await
-            .map_err(|e| anyhow!("Failed to write configuration to {:?}: {}", config_path, e))?;
+            .map_err(|e| anyhow!("Failed to write configuration to {config_path:?}: {e}"))?;
 
         info!("Saved configuration to {:?}", config_path);
         Ok(())
@@ -515,7 +492,7 @@ impl Config {
     }
 
     /// Migrate old configuration formats
-    fn migrate(config: &mut Config) -> Result<()> {
+    fn migrate(config: &mut Self) -> Result<()> {
         // Add migrations here as needed
         if config.version != "1.0" {
             warn!("Migrating configuration from version {}", config.version);
@@ -529,7 +506,7 @@ impl Config {
     pub fn add_mount(&mut self, mount: MountConfig) {
         let instance_id = self.get_instance_id();
         let wrapper = MountConfigWrapper::new(mount.clone(), instance_id);
-        self.mounts.insert(mount.id.clone(), wrapper);
+        self.mounts.insert(mount.id, wrapper);
     }
 
     /// Remove a mount configuration
@@ -538,6 +515,7 @@ impl Config {
     }
 
     /// Get a mount configuration by ID
+    #[must_use]
     pub fn get_mount(&self, id: &str) -> Option<&MountConfig> {
         self.mounts.get(id).map(|w| &w.config)
     }
@@ -594,6 +572,7 @@ impl Config {
     }
 
     /// Calculate next reconnection delay based on attempts
+    #[must_use]
     pub fn get_reconnection_delay(&self, attempts: u32) -> Duration {
         let base_delay = Duration::milliseconds(self.reconnection.initial_delay_ms as i64);
         let max_delay = Duration::milliseconds(self.reconnection.max_delay_ms as i64);
@@ -634,21 +613,21 @@ impl Config {
 
         // Validate configuration before saving
         self.validate_config()
-            .map_err(|e| anyhow!("Configuration validation failed: {}", e))?;
+            .map_err(|e| anyhow!("Configuration validation failed: {e}"))?;
 
         // Write to temporary file first
         let temp_path = config_path.with_extension("tmp");
         let content = toml::to_string_pretty(self)
-            .map_err(|e| anyhow!("Failed to serialize configuration: {}", e))?;
+            .map_err(|e| anyhow!("Failed to serialize configuration: {e}"))?;
 
         fs::write(&temp_path, content)
             .await
-            .map_err(|e| anyhow!("Failed to write temporary configuration: {}", e))?;
+            .map_err(|e| anyhow!("Failed to write temporary configuration: {e}"))?;
 
         // Atomic rename
         fs::rename(&temp_path, &config_path)
             .await
-            .map_err(|e| anyhow!("Failed to rename temporary configuration: {}", e))?;
+            .map_err(|e| anyhow!("Failed to rename temporary configuration: {e}"))?;
 
         info!("Configuration saved atomically to {:?}", config_path);
         Ok(())
@@ -689,7 +668,7 @@ impl Config {
         let system_mounts = platform.list_system_mounts()?;
 
         // Update mount status based on system state
-        for (_, wrapper) in self.mounts.iter_mut() {
+        for (_, wrapper) in &mut self.mounts {
             let is_mounted = system_mounts
                 .iter()
                 .any(|(point, _)| point == &wrapper.config.mount_point);
@@ -706,11 +685,13 @@ impl Config {
     }
 
     /// Check if clustering is enabled
+    #[must_use]
     pub fn is_cluster_enabled(&self) -> bool {
-        self.cluster.as_ref().map(|c| c.enabled).unwrap_or(false)
+        self.cluster.as_ref().is_some_and(|c| c.enabled)
     }
 
     /// Get instance ID if clustering is enabled
+    #[must_use]
     pub fn get_instance_id(&self) -> Option<&str> {
         self.cluster.as_ref().map(|c| c.instance_id.as_str())
     }
@@ -769,7 +750,8 @@ impl Config {
     }
 
     /// Get cluster configuration
-    pub fn get_cluster_config(&self) -> Option<&ClusterConfig> {
+    #[must_use]
+    pub const fn get_cluster_config(&self) -> Option<&ClusterConfig> {
         self.cluster.as_ref()
     }
 
@@ -865,6 +847,7 @@ impl Config {
     }
 
     /// Get current force sync state
+    #[must_use]
     pub fn get_force_sync_state(&self) -> Option<&ForceSyncState> {
         self.cluster
             .as_ref()

@@ -35,7 +35,7 @@ pub async fn run_check(
         "file_access" => run_file_access_check(context).await,
         "ping" => run_ping_check(context).await,
         "protocol" => run_protocol_check(context).await,
-        _ => Err(anyhow!("Unknown health check: {}", check_name)),
+        _ => Err(anyhow!("Unknown health check: {check_name}")),
     }
 }
 
@@ -138,7 +138,7 @@ async fn run_ping_check(context: HealthCheckContext<'_>) -> Result<bool> {
     )
     .await
     .map_err(|_| anyhow!("Ping command timed out after 10 seconds"))?
-    .map_err(|e| anyhow!("Failed to execute ping: {}", e))??;
+    .map_err(|e| anyhow!("Failed to execute ping: {e}"))??;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

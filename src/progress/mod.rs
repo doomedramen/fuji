@@ -49,31 +49,32 @@ pub enum ProgressPhase {
 impl ProgressPhase {
     /// Get the progress percentage (0.0 to 1.0)
     #[allow(dead_code)]
-    pub fn progress(&self) -> f32 {
+    #[must_use]
+    pub const fn progress(&self) -> f32 {
         match self {
-            ProgressPhase::Starting {
+            Self::Starting {
                 ..
             } => 0.0,
-            ProgressPhase::Validating {
+            Self::Validating {
                 progress,
                 ..
             } => *progress,
-            ProgressPhase::Preparing {
+            Self::Preparing {
                 progress,
                 ..
             } => *progress,
-            ProgressPhase::Executing {
+            Self::Executing {
                 progress,
                 ..
             } => *progress,
-            ProgressPhase::Verifying {
+            Self::Verifying {
                 progress,
                 ..
             } => *progress,
-            ProgressPhase::Completed {
+            Self::Completed {
                 ..
             } => 1.0,
-            ProgressPhase::Failed {
+            Self::Failed {
                 ..
             } => 1.0,
         }
@@ -81,32 +82,33 @@ impl ProgressPhase {
 
     /// Get the message for this phase
     #[allow(dead_code)]
+    #[must_use]
     pub fn message(&self) -> &str {
         match self {
-            ProgressPhase::Starting {
+            Self::Starting {
                 message,
             } => message,
-            ProgressPhase::Validating {
-                message,
-                ..
-            } => message,
-            ProgressPhase::Preparing {
+            Self::Validating {
                 message,
                 ..
             } => message,
-            ProgressPhase::Executing {
+            Self::Preparing {
                 message,
                 ..
             } => message,
-            ProgressPhase::Verifying {
+            Self::Executing {
                 message,
                 ..
             } => message,
-            ProgressPhase::Completed {
+            Self::Verifying {
                 message,
                 ..
             } => message,
-            ProgressPhase::Failed {
+            Self::Completed {
+                message,
+                ..
+            } => message,
+            Self::Failed {
                 message,
                 ..
             } => message,
@@ -114,17 +116,16 @@ impl ProgressPhase {
     }
 
     /// Check if the operation is finished
-    pub fn is_finished(&self) -> bool {
-        matches!(
-            self,
-            ProgressPhase::Completed { .. } | ProgressPhase::Failed { .. }
-        )
+    #[must_use]
+    pub const fn is_finished(&self) -> bool {
+        matches!(self, Self::Completed { .. } | Self::Failed { .. })
     }
 
     /// Check if the operation succeeded
     #[allow(dead_code)]
-    pub fn is_success(&self) -> bool {
-        matches!(self, ProgressPhase::Completed { .. })
+    #[must_use]
+    pub const fn is_success(&self) -> bool {
+        matches!(self, Self::Completed { .. })
     }
 }
 
@@ -169,6 +170,7 @@ struct ProgressState {
 
 impl ProgressReporter {
     /// Create a new progress reporter
+    #[must_use]
     pub fn new(
         operation_type: String,
         target: String,
@@ -182,7 +184,7 @@ impl ProgressReporter {
             operation_type: operation_type.clone(),
             target: target.clone(),
             phase: ProgressPhase::Starting {
-                message: format!("Starting {}...", operation_type),
+                message: format!("Starting {operation_type}..."),
             },
             started_at,
             estimated_duration_ms,
@@ -190,7 +192,7 @@ impl ProgressReporter {
 
         let state = Arc::new(RwLock::new(ProgressState {
             phase: ProgressPhase::Starting {
-                message: format!("Starting {}...", operation_type),
+                message: format!("Starting {operation_type}..."),
             },
         }));
 
@@ -235,15 +237,15 @@ impl ProgressReporter {
             },
             "preparing" => ProgressPhase::Preparing {
                 message: message.to_string(),
-                progress: 0.2 + (progress.clamp(0.0, 1.0) * 0.2),
+                progress: progress.clamp(0.0, 1.0).mul_add(0.2, 0.2),
             },
             "executing" => ProgressPhase::Executing {
                 message: message.to_string(),
-                progress: 0.4 + (progress.clamp(0.0, 1.0) * 0.5),
+                progress: progress.clamp(0.0, 1.0).mul_add(0.5, 0.4),
             },
             "verifying" => ProgressPhase::Verifying {
                 message: message.to_string(),
-                progress: 0.9 + (progress.clamp(0.0, 1.0) * 0.05),
+                progress: progress.clamp(0.0, 1.0).mul_add(0.05, 0.9),
             },
             _ => return,
         };
@@ -294,8 +296,15 @@ pub struct ProgressManager {
     operations: Arc<RwLock<std::collections::HashMap<String, ProgressInfo>>>,
 }
 
+impl Default for ProgressManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProgressManager {
     /// Create a new progress manager
+    #[must_use]
     pub fn new() -> Self {
         Self {
             operations: Arc::new(RwLock::new(std::collections::HashMap::new())),

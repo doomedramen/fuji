@@ -68,12 +68,14 @@ impl Default for ConfigMerger {
 
 impl ConfigMerger {
     /// Create a new config merger
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Create a new config merger with specific instance ID
     #[allow(dead_code)] // Alternative constructor
+    #[must_use]
     pub fn with_instance_id(instance_id: String) -> Self {
         let mut merger = Self::new();
         merger.instance_id = instance_id;
@@ -178,8 +180,7 @@ impl ConfigMerger {
         let sync_version = merged_config
             .cluster
             .as_ref()
-            .map(|c| c.sync_metadata.sync_version)
-            .unwrap_or(0);
+            .map_or(0, |c| c.sync_metadata.sync_version);
 
         Ok(MergedConfig {
             config: merged_config,
@@ -257,25 +258,24 @@ impl ConfigMerger {
                                 resolution: ConflictResolution::UsedInstance(prefer_id.clone()),
                             }),
                         });
-                    } else {
-                        warn!(
-                            "Preferred instance {} not found for mount {}, using latest",
-                            prefer_id, mount_id
-                        );
-                        // Still report the conflict even though we're using latest
-                        return Ok(ResolvedMount {
-                            config: latest.config.clone(),
-                            conflict: Some(SyncConflict {
-                                mount_id: mount_id.to_string(),
-                                conflict_type: ConflictType::ConcurrentModification,
-                                conflicting_instances: same_timestamp
-                                    .iter()
-                                    .map(|v| v.instance_id.clone())
-                                    .collect(),
-                                resolution: ConflictResolution::UsedLatest,
-                            }),
-                        });
                     }
+                    warn!(
+                        "Preferred instance {} not found for mount {}, using latest",
+                        prefer_id, mount_id
+                    );
+                    // Still report the conflict even though we're using latest
+                    return Ok(ResolvedMount {
+                        config: latest.config.clone(),
+                        conflict: Some(SyncConflict {
+                            mount_id: mount_id.to_string(),
+                            conflict_type: ConflictType::ConcurrentModification,
+                            conflicting_instances: same_timestamp
+                                .iter()
+                                .map(|v| v.instance_id.clone())
+                                .collect(),
+                            resolution: ConflictResolution::UsedLatest,
+                        }),
+                    });
                 }
                 ConflictResolutionStrategy::Manual => {
                     debug!("Marking mount {} for manual resolution", mount_id);

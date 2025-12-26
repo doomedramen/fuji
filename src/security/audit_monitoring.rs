@@ -178,6 +178,7 @@ pub struct MonitoringStatistics {
 #[allow(dead_code)]
 impl AuditMonitor {
     /// Create new audit monitor
+    #[must_use]
     pub fn new(config: AuditMonitoringConfig) -> Self {
         Self {
             event_receiver: Arc::new(RwLock::new(None)),
@@ -244,7 +245,7 @@ impl AuditMonitor {
             alert.status = AlertStatus::Investigating;
             info!("Alert {} acknowledged", alert_id);
         } else {
-            return Err(anyhow!("Alert not found: {}", alert_id));
+            return Err(anyhow!("Alert not found: {alert_id}"));
         }
         Ok(())
     }
@@ -255,7 +256,7 @@ impl AuditMonitor {
         if let Some(alert) = alerts.remove(alert_id) {
             info!("Alert {} resolved: {}", alert_id, alert.title);
         } else {
-            return Err(anyhow!("Alert not found: {}", alert_id));
+            return Err(anyhow!("Alert not found: {alert_id}"));
         }
         Ok(())
     }
@@ -334,7 +335,7 @@ impl AuditMonitor {
                         // Calculate events per second
                         let now = Utc::now();
                         if (now - last_minute_time).num_seconds() >= 60 {
-                            stats.events_per_second = last_minute_count as f64 / 60.0;
+                            stats.events_per_second = f64::from(last_minute_count) / 60.0;
                             last_minute_count = 0;
                             last_minute_time = now;
                         }
@@ -455,6 +456,7 @@ pub struct BruteForceDetector {
 }
 
 impl BruteForceDetector {
+    #[must_use]
     pub fn new(config: &AuditMonitoringConfig) -> Self {
         Self {
             config: config.clone(),
@@ -540,6 +542,7 @@ pub struct SuspiciousIPDetector {
 }
 
 impl SuspiciousIPDetector {
+    #[must_use]
     pub fn new(config: &AuditMonitoringConfig) -> Self {
         Self {
             config: config.clone(),
@@ -646,6 +649,7 @@ pub struct PrivilegeEscalationDetector {
 }
 
 impl PrivilegeEscalationDetector {
+    #[must_use]
     pub fn new(config: &AuditMonitoringConfig) -> Self {
         Self {
             config: config.clone(),
@@ -744,6 +748,7 @@ pub struct AnomalyDetector {
 }
 
 impl AnomalyDetector {
+    #[must_use]
     pub fn new(config: &AuditMonitoringConfig) -> Self {
         Self {
             config: config.clone(),
@@ -766,12 +771,12 @@ impl PatternDetector for AnomalyDetector {
 
         // Calculate baseline (average of past hours)
         if hourly_counts.len() > 1 {
-            let counts: Vec<u32> = hourly_counts.values().cloned().collect();
-            let mean = counts.iter().sum::<u32>() as f64 / counts.len() as f64;
+            let counts: Vec<u32> = hourly_counts.values().copied().collect();
+            let mean = f64::from(counts.iter().sum::<u32>()) / counts.len() as f64;
             let std_dev = {
                 let variance = counts
                     .iter()
-                    .map(|&x| (x as f64 - mean).powi(2))
+                    .map(|&x| (f64::from(x) - mean).powi(2))
                     .sum::<f64>()
                     / counts.len() as f64;
                 variance.sqrt()
@@ -779,7 +784,7 @@ impl PatternDetector for AnomalyDetector {
 
             // Check for anomalies (3 standard deviations from mean)
             for (hour, count) in hourly_counts {
-                if (count as f64 - mean).abs() > 3.0 * std_dev {
+                if (f64::from(count) - mean).abs() > 3.0 * std_dev {
                     let alert = SecurityAlert {
                         id: uuid::Uuid::new_v4().to_string(),
                         timestamp: now,
@@ -787,8 +792,7 @@ impl PatternDetector for AnomalyDetector {
                         alert_type: AlertType::AnomalyDetection,
                         title: "Unusual Activity Pattern Detected".to_string(),
                         description: format!(
-                            "Anomalous event count detected for hour {}: {} events (baseline: {:.1} ± {:.1})",
-                            hour, count, mean, std_dev
+                            "Anomalous event count detected for hour {hour}: {count} events (baseline: {mean:.1} ± {std_dev:.1})"
                         ),
                         trigger_events: vec![],
                         recommended_actions: vec![
@@ -800,8 +804,8 @@ impl PatternDetector for AnomalyDetector {
                             let mut meta = HashMap::new();
                             meta.insert("hour".to_string(), hour);
                             meta.insert("event_count".to_string(), count.to_string());
-                            meta.insert("baseline_mean".to_string(), format!("{:.1}", mean));
-                            meta.insert("baseline_stddev".to_string(), format!("{:.1}", std_dev));
+                            meta.insert("baseline_mean".to_string(), format!("{mean:.1}"));
+                            meta.insert("baseline_stddev".to_string(), format!("{std_dev:.1}"));
                             meta
                         },
                     };
@@ -828,6 +832,7 @@ pub struct PolicyViolationDetector {
 }
 
 impl PolicyViolationDetector {
+    #[must_use]
     pub fn new(config: &AuditMonitoringConfig) -> Self {
         Self {
             config: config.clone(),
@@ -891,8 +896,7 @@ impl PatternDetector for PolicyViolationDetector {
                                 alert_type: AlertType::PolicyViolation,
                                 title: "Authentication from Unusual Location".to_string(),
                                 description: format!(
-                                    "Authentication event from potentially unusual IP address: {}",
-                                    ip
+                                    "Authentication event from potentially unusual IP address: {ip}"
                                 ),
                                 trigger_events: vec![event.id.clone()],
                                 recommended_actions: vec![
@@ -950,7 +954,8 @@ impl Default for LogAlertHandler {
 }
 
 impl LogAlertHandler {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             _private: (),
         }
@@ -996,7 +1001,8 @@ impl Default for SystemResponseHandler {
 }
 
 impl SystemResponseHandler {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             _private: (),
         }

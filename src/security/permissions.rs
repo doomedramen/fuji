@@ -52,6 +52,7 @@ pub struct PermissionManager {
 
 impl PermissionManager {
     /// Create a new permission manager
+    #[must_use]
     pub fn new() -> Self {
         Self {
             user_cache: HashMap::new(),
@@ -60,7 +61,8 @@ impl PermissionManager {
     }
 
     /// Set default permission configuration
-    pub fn with_default_config(mut self, config: PermissionConfig) -> Self {
+    #[must_use]
+    pub const fn with_default_config(mut self, config: PermissionConfig) -> Self {
         self.default_config = config;
         self
     }
@@ -85,20 +87,20 @@ impl PermissionManager {
         use std::io::{BufRead, BufReader};
 
         let passwd_file =
-            File::open("/etc/passwd").map_err(|e| anyhow!("Failed to open /etc/passwd: {}", e))?;
+            File::open("/etc/passwd").map_err(|e| anyhow!("Failed to open /etc/passwd: {e}"))?;
         let reader = BufReader::new(passwd_file);
 
         for line in reader.lines() {
-            let line = line.map_err(|e| anyhow!("Failed to read /etc/passwd: {}", e))?;
+            let line = line.map_err(|e| anyhow!("Failed to read /etc/passwd: {e}"))?;
             let parts: Vec<&str> = line.split(':').collect();
 
             if parts.len() >= 7 && parts[0] == username {
                 let uid = parts[2]
                     .parse::<u32>()
-                    .map_err(|_| anyhow!("Invalid UID for user {}", username))?;
+                    .map_err(|_| anyhow!("Invalid UID for user {username}"))?;
                 let gid = parts[3]
                     .parse::<u32>()
-                    .map_err(|_| anyhow!("Invalid GID for user {}", username))?;
+                    .map_err(|_| anyhow!("Invalid GID for user {username}"))?;
 
                 // Get supplementary groups
                 let groups = self.get_user_groups(username)?;
@@ -112,7 +114,7 @@ impl PermissionManager {
             }
         }
 
-        Err(anyhow!("User {} not found", username))
+        Err(anyhow!("User {username} not found"))
     }
 
     /// Get supplementary groups for user
@@ -123,21 +125,21 @@ impl PermissionManager {
             .arg("-G")
             .arg(username)
             .output()
-            .map_err(|e| anyhow!("Failed to execute id command: {}", e))?;
+            .map_err(|e| anyhow!("Failed to execute id command: {e}"))?;
 
         if !output.status.success() {
             return Err(anyhow!("id command failed"));
         }
 
         let output_str = String::from_utf8(output.stdout)
-            .map_err(|e| anyhow!("Failed to parse id output: {}", e))?;
+            .map_err(|e| anyhow!("Failed to parse id output: {e}"))?;
 
         let groups: Result<Vec<Gid>, _> = output_str
             .split_whitespace()
             .map(|g| g.parse::<u32>().map(Gid::from_raw))
             .collect();
 
-        groups.map_err(|e| anyhow!("Failed to parse group IDs: {}", e))
+        groups.map_err(|e| anyhow!("Failed to parse group IDs: {e}"))
     }
 
     /// Create mount point with proper permissions
@@ -248,7 +250,7 @@ impl PermissionManager {
         // Set ownership if specified
         if let (Some(uid), Some(gid)) = (uid, gid) {
             chown(path, Some(uid), Some(gid))
-                .map_err(|e| anyhow!("Failed to set ownership: {}", e))?;
+                .map_err(|e| anyhow!("Failed to set ownership: {e}"))?;
             debug!("Set ownership for {} to {}:{}", path.display(), uid, gid);
         }
 
@@ -262,7 +264,7 @@ impl PermissionManager {
         };
 
         fs::set_permissions(path, fs::Permissions::from_mode(mode))
-            .map_err(|e| anyhow!("Failed to set permissions: {}", e))?;
+            .map_err(|e| anyhow!("Failed to set permissions: {e}"))?;
 
         debug!("Set permissions for {} to {:o}", path.display(), mode);
         Ok(())

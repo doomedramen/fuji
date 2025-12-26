@@ -162,6 +162,7 @@ impl MonitoringManager {
     }
 
     /// Get dependency graph
+    #[must_use]
     pub fn dependency_graph(&self) -> &dependency::DependencyGraph {
         &self.dependency_graph
     }
