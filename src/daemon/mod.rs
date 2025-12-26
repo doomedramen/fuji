@@ -46,7 +46,7 @@ use monitor::MountMonitor;
 /// Main daemon structure
 pub struct Daemon {
     /// Platform-specific operations
-    platform: Box<dyn Platform>,
+    platform: Arc<dyn Platform>,
     /// Configuration
     config: Arc<RwLock<Config>>,
     /// Mount monitor
@@ -88,7 +88,19 @@ struct MountInternalState {
 impl Daemon {
     /// Create a new daemon instance
     pub async fn new(platform: Box<dyn Platform>) -> Result<Self> {
-        let config = Config::load(platform.as_ref()).await?;
+        let platform: Arc<dyn Platform> = Arc::from(platform);
+        let mut config = Config::load(platform.as_ref()).await?;
+
+        // Initialize config file on first use if it doesn't exist
+        let config_path = Config::get_preferred_config_path(platform.as_ref());
+        if !platform.path_exists(&config_path) {
+            info!(
+                "No configuration file found, creating new one at {:?}",
+                config_path
+            );
+            config.save_atomic(platform.as_ref()).await?;
+        }
+
         let config = Arc::new(RwLock::new(config));
         let monitor = Arc::new(MountMonitor::new());
 
@@ -263,7 +275,7 @@ impl Daemon {
         let cluster_state = self.cluster_state.clone();
         let progress_manager = self.progress_manager.clone();
         let retry_coordinator = self.retry_coordinator.clone();
-        let _platform = self.platform.as_ref() as *const dyn Platform;
+        let platform = Arc::clone(&self.platform);
 
         let start_time = self.start_time;
         let server_handle = tokio::spawn(async move {
@@ -278,6 +290,7 @@ impl Daemon {
                     let cluster_state = cluster_state.clone();
                     let progress_manager = progress_manager.clone();
                     let retry_coordinator = retry_coordinator.clone();
+                    let platform = Arc::clone(&platform);
 
                     async move {
                         handle_request(
@@ -291,6 +304,7 @@ impl Daemon {
                             cluster_state,
                             progress_manager,
                             retry_coordinator,
+                            platform,
                             start_time,
                         )
                         .await
@@ -817,6 +831,7 @@ async fn handle_request(
     cluster_state: Option<Arc<ClusterState>>,
     progress_manager: Arc<ProgressManager>,
     retry_coordinator: Arc<MountRetryCoordinator>,
+    platform: Arc<dyn Platform>,
     start_time: Instant,
 ) -> Response {
     match request {
@@ -842,6 +857,7 @@ async fn handle_request(
                 resource_limits,
                 progress_manager,
                 retry_coordinator,
+                platform,
             })
             .await
         }
@@ -849,7 +865,7 @@ async fn handle_request(
         Request::Unmount {
             mount_id,
             force,
-        } => handle_unmount_request(mount_id, force, config).await,
+        } => handle_unmount_request(mount_id, force, config, platform).await,
 
         Request::Status {
             verbose,
@@ -910,19 +926,19 @@ async fn handle_request(
 
         Request::Enable {
             mount_id,
-        } => handle_enable_request(mount_id, config).await,
+        } => handle_enable_request(mount_id, config, platform).await,
 
         Request::Disable {
             mount_id,
-        } => handle_disable_request(mount_id, config).await,
+        } => handle_disable_request(mount_id, config, platform).await,
 
         Request::Remove {
             mount_id,
-        } => handle_remove_request(mount_id, config).await,
+        } => handle_remove_request(mount_id, config, platform).await,
 
         Request::Remount {
             mount_id,
-        } => handle_remount_request(mount_id, config).await,
+        } => handle_remount_request(mount_id, config, platform).await,
 
         Request::GetConfig => handle_get_config_request(config).await,
 
@@ -947,6 +963,7 @@ struct MountRequestParams {
     resource_limits: Arc<ResourceLimitsManager>,
     progress_manager: Arc<ProgressManager>,
     retry_coordinator: Arc<MountRetryCoordinator>,
+    platform: Arc<dyn Platform>,
 }
 
 /// Handle mount request
@@ -1251,7 +1268,29 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
     }
 
     // Save to configuration
-    params.config.write().await.add_mount(mount_config.clone());
+    {
+        let mut cfg = params.config.write().await;
+        cfg.add_mount(mount_config.clone());
+
+        // Persist config to disk - REQUIRED for durability
+        if let Err(e) = cfg.save_atomic(params.platform.as_ref()).await {
+            error!("Failed to persist mount configuration: {}", e);
+            error!(
+                "Check permissions on config directory: {:?}",
+                Config::get_preferred_config_path(params.platform.as_ref())
+            );
+
+            // ROLLBACK: Remove from config (mount hasn't happened yet)
+            cfg.remove_mount(&mount_id);
+
+            return Response::Error(format!(
+                "Failed to save mount configuration: {}. Mount not persisted.",
+                e
+            ));
+        }
+
+        debug!("Mount configuration persisted to disk: {}", mount_id);
+    }
 
     // If enabled, attempt to mount
     if !params.disable {
@@ -1334,6 +1373,7 @@ async fn handle_unmount_request(
     mount_id: String,
     _force: bool,
     config: Arc<RwLock<Config>>,
+    platform: Arc<dyn Platform>,
 ) -> Response {
     let mount = {
         let cfg = config.read().await;
@@ -1356,11 +1396,41 @@ async fn handle_unmount_request(
         }
     }
 
-    // Update configuration
+    // Update configuration and persist
     {
-        let mut cfg = config.write().await;
-        if let Some(m) = cfg.get_mount_mut(&mount_id) {
-            m.disable();
+        let old_status = {
+            let mut cfg = config.write().await;
+            if let Some(m) = cfg.get_mount_mut(&mount_id) {
+                let old_status = m.status.clone();
+                m.disable();
+                Some(old_status)
+            } else {
+                None
+            }
+        };
+
+        if let Some(old_status_value) = old_status {
+            // Persist config to disk - REQUIRED
+            let mut cfg = config.write().await;
+            if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
+                error!("Failed to persist config after unmount: {}", e);
+                error!(
+                    "Check permissions on config directory: {:?}",
+                    Config::get_preferred_config_path(platform.as_ref())
+                );
+
+                // ROLLBACK: Restore status (mount already unmounted, can't undo filesystem change)
+                if let Some(m) = cfg.get_mount_mut(&mount_id) {
+                    m.status = old_status_value;
+                }
+
+                return Response::Error(format!(
+                    "Unmount succeeded but failed to save config: {}. Status not persisted.",
+                    e
+                ));
+            }
+
+            debug!("Unmount configuration persisted to disk: {}", mount_id);
         }
     }
 
@@ -1668,51 +1738,150 @@ async fn handle_discover_request(url: String) -> Response {
 }
 
 /// Handle enable request
-async fn handle_enable_request(mount_id: String, config: Arc<RwLock<Config>>) -> Response {
-    let mut cfg = config.write().await;
-    match cfg.get_mount_mut(&mount_id) {
-        Some(mount) => {
-            mount.enable();
-            Response::Success
+async fn handle_enable_request(
+    mount_id: String,
+    config: Arc<RwLock<Config>>,
+    platform: Arc<dyn Platform>,
+) -> Response {
+    let was_enabled = {
+        let mut cfg = config.write().await;
+        match cfg.get_mount_mut(&mount_id) {
+            Some(mount) => {
+                let was_enabled = mount.enabled;
+                mount.enable();
+                Some(was_enabled)
+            }
+            None => return Response::Error(format!("Mount {mount_id} not found")),
         }
-        None => Response::Error(format!("Mount {mount_id} not found")),
+    };
+
+    if let Some(was_enabled_value) = was_enabled {
+        // Persist config to disk - REQUIRED
+        let mut cfg = config.write().await;
+        if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
+            error!("Failed to persist config after enable: {}", e);
+            error!(
+                "Check permissions on config directory: {:?}",
+                Config::get_preferred_config_path(platform.as_ref())
+            );
+
+            // ROLLBACK: Restore enabled state
+            if let Some(mount) = cfg.get_mount_mut(&mount_id) {
+                mount.enabled = was_enabled_value;
+            }
+
+            return Response::Error(format!(
+                "Failed to save config: {}. Enable not persisted.",
+                e
+            ));
+        }
+
+        debug!("Enable configuration persisted to disk: {}", mount_id);
     }
+
+    Response::Success
 }
 
 /// Handle disable request
-async fn handle_disable_request(mount_id: String, config: Arc<RwLock<Config>>) -> Response {
-    let mut cfg = config.write().await;
-    match cfg.get_mount_mut(&mount_id) {
-        Some(mount) => {
-            mount.disable();
-            Response::Success
+async fn handle_disable_request(
+    mount_id: String,
+    config: Arc<RwLock<Config>>,
+    platform: Arc<dyn Platform>,
+) -> Response {
+    let was_enabled = {
+        let mut cfg = config.write().await;
+        match cfg.get_mount_mut(&mount_id) {
+            Some(mount) => {
+                let was_enabled = mount.enabled;
+                mount.disable();
+                Some(was_enabled)
+            }
+            None => return Response::Error(format!("Mount {mount_id} not found")),
         }
-        None => Response::Error(format!("Mount {mount_id} not found")),
+    };
+
+    if let Some(was_enabled_value) = was_enabled {
+        // Persist config to disk - REQUIRED
+        let mut cfg = config.write().await;
+        if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
+            error!("Failed to persist config after disable: {}", e);
+            error!(
+                "Check permissions on config directory: {:?}",
+                Config::get_preferred_config_path(platform.as_ref())
+            );
+
+            // ROLLBACK: Restore enabled state
+            if let Some(mount) = cfg.get_mount_mut(&mount_id) {
+                mount.enabled = was_enabled_value;
+            }
+
+            return Response::Error(format!(
+                "Failed to save config: {}. Disable not persisted.",
+                e
+            ));
+        }
+
+        debug!("Disable configuration persisted to disk: {}", mount_id);
     }
+
+    Response::Success
 }
 
 /// Handle remove request
-async fn handle_remove_request(mount_id: String, config: Arc<RwLock<Config>>) -> Response {
+async fn handle_remove_request(
+    mount_id: String,
+    config: Arc<RwLock<Config>>,
+    platform: Arc<dyn Platform>,
+) -> Response {
     // Unmount if active
     {
         let cfg = config.read().await;
         if let Some(mount) = cfg.get_mount(&mount_id) {
             if mount.is_active() {
                 drop(cfg);
-                handle_unmount_request(mount_id.clone(), false, Arc::clone(&config)).await;
+                handle_unmount_request(
+                    mount_id.clone(),
+                    false,
+                    Arc::clone(&config),
+                    Arc::clone(&platform),
+                )
+                .await;
             }
         }
     }
 
-    // Remove from configuration
-    config.write().await.remove_mount(&mount_id);
+    // Remove from configuration and persist
+    {
+        let mut cfg = config.write().await;
+        cfg.remove_mount(&mount_id);
+
+        // Persist config to disk
+        if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
+            error!("Failed to persist config after remove: {}", e);
+            error!(
+                "Check permissions on config directory: {:?}",
+                Config::get_preferred_config_path(platform.as_ref())
+            );
+            // Note: Mount already removed from config, continuing anyway
+            warn!(
+                "Remove operation completed but config not persisted: {}",
+                mount_id
+            );
+        } else {
+            debug!("Remove configuration persisted to disk: {}", mount_id);
+        }
+    }
 
     info!("Removed mount {}", mount_id);
     Response::Success
 }
 
 /// Handle remount request
-async fn handle_remount_request(mount_id: String, config: Arc<RwLock<Config>>) -> Response {
+async fn handle_remount_request(
+    mount_id: String,
+    config: Arc<RwLock<Config>>,
+    _platform: Arc<dyn Platform>,
+) -> Response {
     let mount = {
         let cfg = config.read().await;
         match cfg.get_mount(&mount_id) {

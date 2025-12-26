@@ -487,7 +487,7 @@ impl Config {
     }
 
     /// Get the preferred configuration path
-    fn get_preferred_config_path(platform: &dyn Platform) -> PathBuf {
+    pub fn get_preferred_config_path(platform: &dyn Platform) -> PathBuf {
         platform.get_config_dir().join("mounts.toml")
     }
 
