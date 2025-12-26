@@ -158,6 +158,26 @@ name = "multi_protocol_stress_test"
 path = "tests/e2e/multi_protocol_stress_test.rs"
 harness = true
 
+[[test]]
+name = "url_parsing_property_test"
+path = "tests/property/url_parsing_property_test.rs"
+harness = true
+
+[[test]]
+name = "daemon_lifecycle_test"
+path = "tests/unit/daemon_lifecycle_test.rs"
+harness = true
+
+[[test]]
+name = "cli_argument_test"
+path = "tests/unit/cli_argument_test.rs"
+harness = true
+
+[[test]]
+name = "reconnect_logic_test"
+path = "tests/unit/reconnect_logic_test.rs"
+harness = true
+
 [[bench]]
 name = "mount_operations"
 harness = false

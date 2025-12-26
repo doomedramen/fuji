@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 4ad34240e9a79b3623cee5c3a5dd4eff798baaa074926d61aeaab8ca24412cb1 # shrinks to protocol = "smb", username = "aa_", password = "@AAa", hostname = "a.aa", path = "/0"
