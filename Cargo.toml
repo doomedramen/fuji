@@ -218,6 +218,11 @@ name = "mount_options_parsing_test"
 path = "tests/unit/mount_options_parsing_test.rs"
 harness = true
 
+[[test]]
+name = "mount_point_test"
+path = "tests/unit/mount_point_test.rs"
+harness = true
+
 [[bench]]
 name = "mount_operations"
 harness = false
