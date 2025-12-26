@@ -179,9 +179,8 @@ async fn test_check_existing_mount_exists_not_mounted() {
     std::fs::create_dir_all(&existing_dir).unwrap();
 
     // Existing directory should not be mounted
-    let result = validator.check_existing_mount(&existing_dir).await.unwrap();
     // Can't reliably test this without actual mounts, just verify it doesn't error
-    assert!(!result || result); // Always passes, just exercises the code path
+    let _result = validator.check_existing_mount(&existing_dir).await.unwrap();
 }
 
 // ============================================================================
