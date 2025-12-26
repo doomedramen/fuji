@@ -223,6 +223,11 @@ name = "mount_point_test"
 path = "tests/unit/mount_point_test.rs"
 harness = true
 
+[[test]]
+name = "real_world_mounting_test"
+path = "tests/e2e/real_world_mounting_test.rs"
+harness = true
+
 [[bench]]
 name = "mount_operations"
 harness = false
