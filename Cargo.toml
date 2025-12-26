@@ -148,6 +148,11 @@ name = "failure_recovery_test"
 path = "tests/e2e/failure_recovery_test.rs"
 harness = true
 
+[[test]]
+name = "systemd_service_test"
+path = "tests/e2e/systemd_service_test.rs"
+harness = true
+
 [dependencies]
 # Core dependencies
 tokio = { version = "1.35", features = ["full"] }

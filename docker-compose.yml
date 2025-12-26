@@ -80,11 +80,40 @@ services:
       - SYS_ADMIN
       - DAC_OVERRIDE
 
+  systemd-test:
+    image: jrei/systemd-ubuntu:20.04
+    container_name: fuji-systemd-test
+    hostname: systemd-test
+    privileged: true
+    volumes:
+      - .:/app:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - systemd-test-etc:/etc
+    networks:
+      - fuji-test
+    environment:
+      - RUST_LOG=debug
+    depends_on:
+      nfs-server:
+        condition: service_healthy
+      smb-server:
+        condition: service_healthy
+    # systemd is the init system
+    command: /lib/systemd/systemd
+    cap_add:
+      - SYS_ADMIN
+      - DAC_OVERRIDE
+    tmpfs:
+      - /run
+      - /run/lock
+      - /tmp
+
 volumes:
   nfs-exports:
   smb-shares:
   cargo-cache:
   target-cache:
+  systemd-test-etc:
 
 networks:
   fuji-test:
