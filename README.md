@@ -90,8 +90,19 @@ Mounts are organized under `/mnt/fuji/{hostname}_{protocol}/path`.
 # Mount a network share
 fuji mount <url> [--mount-point <path>] [--options <opts>]
 
+# Mount with additional flags
+fuji mount <url> --disable              # Add mount but don't activate it
+fuji mount <url> --no-persist           # Temporary mount (not saved to config)
+
 # Unmount by ID
 fuji unmount <mount-id>
+
+# Enable/disable mounts
+fuji enable <mount-id>
+fuji disable <mount-id>
+
+# Remove mount configuration
+fuji remove <mount-id>
 
 # List all configured mounts
 fuji list
@@ -103,7 +114,9 @@ fuji status [--json]
 ### Daemon Management
 ```bash
 # Start daemon
-fuji daemon start [-d]  # -d for foreground
+fuji daemon start [-d]              # -d for foreground
+fuji daemon start --ephemeral       # Don't persist config changes (testing mode)
+fuji daemon start --no-automount    # Don't auto-mount enabled shares on startup
 
 # Stop daemon
 fuji daemon stop
@@ -172,6 +185,33 @@ Config locations (checked in order):
 Socket locations:
 - `/run/fuji.sock`
 - `/tmp/fuji.sock`
+
+### Configuration Persistence
+
+By default, Fuji persists all mount operations to disk:
+- **Mount**: Creates new entry in `mounts.toml`
+- **Unmount**: Marks mount as disabled (keeps configuration)
+- **Enable/Disable**: Updates mount state in config
+- **Remove**: Deletes mount from config file
+
+Config changes are saved atomically to prevent corruption.
+
+#### Ephemeral Mode
+
+For testing or temporary use, disable persistence:
+
+```bash
+# Start daemon in ephemeral mode (no config changes saved)
+fuji daemon start --ephemeral
+
+# Or create temporary mounts (this mount only, not saved)
+fuji mount nfs://server/share --no-persist
+```
+
+Use cases:
+- **Testing**: Try mounts without modifying config
+- **Temporary Access**: One-time file transfers
+- **CI/CD**: Automated testing environments
 
 ## Development
 
