@@ -192,11 +192,12 @@ async fn test_file_hash_computation() -> Result<()> {
 }
 
 #[tokio::test]
+#[cfg(target_os = "linux")]
 async fn test_library_path_detection() -> Result<()> {
     let config = IntegrityConfig::default();
     let checker = RuntimeIntegrityChecker::new(config)?;
 
-    // Test finding common libraries
+    // Test finding common Linux libraries
     let common_libraries = vec!["libc.so.6", "libpthread.so.0", "libm.so.6"];
     let mut found_count = 0;
 
