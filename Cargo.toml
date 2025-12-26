@@ -178,6 +178,21 @@ name = "reconnect_logic_test"
 path = "tests/unit/reconnect_logic_test.rs"
 harness = true
 
+[[test]]
+name = "mount_driver_integration_test"
+path = "tests/integration/mount_driver_integration_test.rs"
+harness = true
+
+[[test]]
+name = "cli_commands_test"
+path = "tests/e2e/cli_commands_test.rs"
+harness = true
+
+[[test]]
+name = "daemon_health_test"
+path = "tests/e2e/daemon_health_test.rs"
+harness = true
+
 [[bench]]
 name = "mount_operations"
 harness = false

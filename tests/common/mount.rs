@@ -133,6 +133,13 @@ impl TestMount {
         self
     }
 
+    /// Disable automatic unmount on drop (by reference)
+    ///
+    /// Useful when you want to keep the mount after the test
+    pub fn disable_auto_unmount(&mut self) {
+        self.auto_unmount = false;
+    }
+
     /// Manually unmount the share
     pub async fn unmount(mut self) -> Result<()> {
         self.auto_unmount = false; // Prevent double unmount in Drop
