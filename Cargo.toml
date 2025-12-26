@@ -153,6 +153,11 @@ name = "systemd_service_test"
 path = "tests/e2e/systemd_service_test.rs"
 harness = true
 
+[[test]]
+name = "multi_protocol_stress_test"
+path = "tests/e2e/multi_protocol_stress_test.rs"
+harness = true
+
 [dependencies]
 # Core dependencies
 tokio = { version = "1.35", features = ["full"] }
@@ -227,6 +232,7 @@ mockall = "0.12"
 criterion = "0.5"
 proptest = "1.4"
 sha2 = "0.10"
+futures = "0.3"
 
 [profile.release]
 lto = true
