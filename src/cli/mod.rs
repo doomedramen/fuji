@@ -1788,6 +1788,17 @@ const fn format_health_state(state: &crate::monitoring::HealthState) -> &'static
 }
 
 /// Systemd service file template
+///
+/// Security Note: This template uses relaxed security settings because fuji
+/// performs mount operations which require:
+/// - CAP_SYS_ADMIN capability for mount(2) syscall
+/// - No namespace isolation (ProtectSystem/ProtectHome create conflicting mount namespaces)
+/// - Full filesystem access to create mount points
+///
+/// While this reduces sandboxing, fuji implements its own security layers:
+/// - Seccomp filtering for syscall restrictions
+/// - Command allowlisting for mount operations
+/// - Path validation to prevent traversal attacks
 const SYSTEMD_SERVICE_TEMPLATE: &str = r"[Unit]
 Description=Fuji Network File System Manager
 Documentation=https://github.com/doomedramen/fuji
@@ -1805,13 +1816,19 @@ Group={group}
 WorkingDirectory={work_dir}
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=RUST_LOG=info
+Environment=HOME={work_dir}
 
-# Security settings
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/var/lib/fuji /etc/fuji /run/fuji
+# Security settings (relaxed for mount operations)
+# Note: fuji needs CAP_SYS_ADMIN for mount operations
+# PrivateNamespaces are incompatible with mount operations
+NoNewPrivileges=false
+PrivateTmp=false
+ProtectSystem=false
+ProtectHome=false
+
+# Capabilities needed for mounting
+AmbientCapabilities=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_CHOWN
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_CHOWN CAP_NET_BIND_SERVICE
 
 # Resource limits
 LimitNOFILE=65536

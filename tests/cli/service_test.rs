@@ -74,7 +74,6 @@ fn test_service_generate_to_file() {
     assert!(content.contains("User=testuser"));
     assert!(content.contains("Group=testuser"));
     assert!(content.contains("WorkingDirectory=/opt/fuji"));
-    assert!(content.contains("ReadWritePaths=/var/lib/fuji"));
     assert!(content.contains("Type=simple"));
     assert!(content.contains("ExecStart="));
     assert!(content.contains("daemon start"));
@@ -143,11 +142,14 @@ fn test_service_file_format() {
     assert!(content.contains("User="));
     assert!(content.contains("WantedBy="));
 
-    // Verify security settings
-    assert!(content.contains("NoNewPrivileges=true"));
-    assert!(content.contains("PrivateTmp=true"));
-    assert!(content.contains("ProtectSystem=strict"));
-    assert!(content.contains("ProtectHome=true"));
+    // Verify security settings (relaxed for mount operations)
+    assert!(content.contains("NoNewPrivileges=false"));
+    assert!(content.contains("PrivateTmp=false"));
+    assert!(content.contains("ProtectSystem=false"));
+    assert!(content.contains("ProtectHome=false"));
+    assert!(content.contains("AmbientCapabilities=CAP_SYS_ADMIN"));
+    assert!(content.contains("CapabilityBoundingSet=CAP_SYS_ADMIN"));
+    assert!(content.contains("Environment=HOME="));
 
     // Verify custom options are applied
     assert!(content.contains("User=formatuser"));
