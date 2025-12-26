@@ -469,27 +469,39 @@ async fn test_concurrent_nfs_and_smb_mounts() {
     let nfs_file = nfs_mount_point.join("concurrent_test.txt");
     let smb_file = smb_mount_point.join("concurrent_test.txt");
 
-    fs::write(&nfs_file, "NFS concurrent write").expect("NFS write failed");
-    fs::write(&smb_file, "SMB concurrent write").expect("SMB write failed");
+    fs::write(&nfs_file, "NFS concurrent write").expect("Failed to write to NFS");
+    fs::write(&smb_file, "SMB concurrent write").expect("Failed to write to SMB");
 
-    // Verify both
-    let nfs_content = fs::read_to_string(&nfs_file).expect("NFS read failed");
-    let smb_content = fs::read_to_string(&smb_file).expect("SMB read failed");
+    println!("✓ Files written to both mounts");
 
-    assert_eq!(nfs_content, "NFS concurrent write");
-    assert_eq!(smb_content, "SMB concurrent write");
+    // Verify both files exist and have correct content
+    println!("Verifying file existence and content...");
+    assert!(nfs_file.exists(), "NFS test file does not exist");
+    assert!(smb_file.exists(), "SMB test file does not exist");
 
-    println!("✓ Concurrent operations verified");
+    let nfs_content = fs::read_to_string(&nfs_file).expect("Failed to read from NFS");
+    let smb_content = fs::read_to_string(&smb_file).expect("Failed to read from SMB");
+
+    assert_eq!(
+        nfs_content, "NFS concurrent write",
+        "NFS file content mismatch"
+    );
+    assert_eq!(
+        smb_content, "SMB concurrent write",
+        "SMB file content mismatch"
+    );
+
+    println!("✓ Both files verified - concurrent operations successful");
 
     // Cleanup
     daemon
         .unmount(&nfs_id, false)
         .await
-        .expect("NFS unmount failed");
+        .expect("Failed to unmount NFS");
     daemon
         .unmount(&smb_id, false)
         .await
-        .expect("SMB unmount failed");
+        .expect("Failed to unmount SMB");
 
     println!("\n=== ✓ Concurrent Mounts Test PASSED ===\n");
 }
