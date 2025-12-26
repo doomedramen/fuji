@@ -193,6 +193,21 @@ name = "daemon_health_test"
 path = "tests/e2e/daemon_health_test.rs"
 harness = true
 
+[[test]]
+name = "health_checks_test"
+path = "tests/unit/health_checks_test.rs"
+harness = true
+
+[[test]]
+name = "socket_protocol_test"
+path = "tests/unit/socket_protocol_test.rs"
+harness = true
+
+[[test]]
+name = "state_machine_test"
+path = "tests/unit/state_machine_test.rs"
+harness = true
+
 [[bench]]
 name = "mount_operations"
 harness = false

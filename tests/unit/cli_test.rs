@@ -87,7 +87,10 @@ fn test_mount_command_with_options() {
         assert!(disable);
         assert!(dry_run);
         assert!(progress);
-        assert_eq!(options, Some(vec!["debug,uid=1000".to_string()]));
+        assert_eq!(
+            options,
+            Some(vec!["debug".to_string(), "uid=1000".to_string()])
+        );
     } else {
         panic!("Expected mount command");
     }
