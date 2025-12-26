@@ -498,6 +498,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Performance test - run manually with --ignored"]
     async fn test_benchmark() {
         let params = KeyDerivationFunction::PBKDF2Sha256.fast_parameters();
         let password = b"benchmark_password";

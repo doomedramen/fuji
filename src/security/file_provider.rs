@@ -928,6 +928,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Performance test - run manually with --ignored"]
     async fn test_performance() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test_perf.enc");
@@ -993,6 +994,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Performance test - run manually with --ignored"]
     async fn test_performance_comparison() {
         let temp_dir = TempDir::new().unwrap();
 
