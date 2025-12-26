@@ -19,6 +19,7 @@ pub enum Request {
         disable: bool,
         dry_run: bool,
         progress: bool,
+        no_persist: bool,
     },
 
     /// Unmount a share
@@ -252,6 +253,7 @@ mod tests {
             disable: false,
             dry_run: true,
             progress: false,
+            no_persist: false,
         };
 
         let json = request.to_json().unwrap();

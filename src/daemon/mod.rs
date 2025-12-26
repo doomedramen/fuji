@@ -59,6 +59,8 @@ pub struct Daemon {
     shutdown_rx: Arc<RwLock<Option<oneshot::Receiver<()>>>>,
     /// Daemon start time for uptime tracking
     start_time: Instant,
+    /// Whether to run in ephemeral mode (don't persist config changes)
+    ephemeral: bool,
     /// Instance manager for cluster identification
     instance_manager: Option<Arc<InstanceManager>>,
     /// Cluster state for multi-instance synchronization
@@ -89,7 +91,7 @@ impl Daemon {
     /// Create a new daemon instance
     pub async fn new(platform: Box<dyn Platform>) -> Result<Self> {
         let platform: Arc<dyn Platform> = Arc::from(platform);
-        let mut config = Config::load(platform.as_ref()).await?;
+        let config = Config::load(platform.as_ref()).await?;
 
         // Initialize config file on first use if it doesn't exist
         let config_path = Config::get_preferred_config_path(platform.as_ref());
@@ -197,6 +199,7 @@ impl Daemon {
             resource_limits,
             shutdown_rx: Arc::new(RwLock::new(None)),
             start_time,
+            ephemeral: false,
             instance_manager,
             cluster_state,
             transport,
@@ -213,8 +216,16 @@ impl Daemon {
         detach: bool,
         no_automount: bool,
         disable_resource_limits: bool,
+        ephemeral: bool,
     ) -> Result<()> {
-        info!("Starting Fuji daemon");
+        // Store ephemeral mode setting
+        self.ephemeral = ephemeral;
+
+        if ephemeral {
+            info!("Starting Fuji daemon in ephemeral mode (config changes will not persist)");
+        } else {
+            info!("Starting Fuji daemon");
+        }
 
         // Get socket path
         let socket_path = if let Some(path) = socket_path {
@@ -278,6 +289,7 @@ impl Daemon {
         let platform = Arc::clone(&self.platform);
 
         let start_time = self.start_time;
+        let ephemeral = self.ephemeral;
         let server_handle = tokio::spawn(async move {
             server
                 .run(move |request| {
@@ -306,6 +318,7 @@ impl Daemon {
                             retry_coordinator,
                             platform,
                             start_time,
+                            ephemeral,
                         )
                         .await
                     }
@@ -833,6 +846,7 @@ async fn handle_request(
     retry_coordinator: Arc<MountRetryCoordinator>,
     platform: Arc<dyn Platform>,
     start_time: Instant,
+    ephemeral: bool,
 ) -> Response {
     match request {
         Request::Ping => Response::Pong,
@@ -844,6 +858,7 @@ async fn handle_request(
             disable,
             dry_run,
             progress,
+            no_persist,
         } => {
             handle_mount_request(MountRequestParams {
                 url,
@@ -852,6 +867,7 @@ async fn handle_request(
                 disable,
                 dry_run,
                 progress,
+                ephemeral: ephemeral || no_persist, // Either daemon-wide ephemeral or per-mount no-persist
                 config,
                 path_security,
                 resource_limits,
@@ -865,7 +881,7 @@ async fn handle_request(
         Request::Unmount {
             mount_id,
             force,
-        } => handle_unmount_request(mount_id, force, config, platform).await,
+        } => handle_unmount_request(mount_id, force, config, platform, ephemeral).await,
 
         Request::Status {
             verbose,
@@ -926,15 +942,15 @@ async fn handle_request(
 
         Request::Enable {
             mount_id,
-        } => handle_enable_request(mount_id, config, platform).await,
+        } => handle_enable_request(mount_id, config, platform, ephemeral).await,
 
         Request::Disable {
             mount_id,
-        } => handle_disable_request(mount_id, config, platform).await,
+        } => handle_disable_request(mount_id, config, platform, ephemeral).await,
 
         Request::Remove {
             mount_id,
-        } => handle_remove_request(mount_id, config, platform).await,
+        } => handle_remove_request(mount_id, config, platform, ephemeral).await,
 
         Request::Remount {
             mount_id,
@@ -958,6 +974,7 @@ struct MountRequestParams {
     disable: bool,
     dry_run: bool,
     progress: bool,
+    ephemeral: bool,
     config: Arc<RwLock<Config>>,
     path_security: Arc<PathSecurityValidator>,
     resource_limits: Arc<ResourceLimitsManager>,
@@ -1272,24 +1289,31 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
         let mut cfg = params.config.write().await;
         cfg.add_mount(mount_config.clone());
 
-        // Persist config to disk - REQUIRED for durability
-        if let Err(e) = cfg.save_atomic(params.platform.as_ref()).await {
-            error!("Failed to persist mount configuration: {}", e);
-            error!(
-                "Check permissions on config directory: {:?}",
-                Config::get_preferred_config_path(params.platform.as_ref())
+        // Persist config to disk - REQUIRED for durability (unless in ephemeral mode)
+        if !params.ephemeral {
+            if let Err(e) = cfg.save_atomic(params.platform.as_ref()).await {
+                error!("Failed to persist mount configuration: {}", e);
+                error!(
+                    "Check permissions on config directory: {:?}",
+                    Config::get_preferred_config_path(params.platform.as_ref())
+                );
+
+                // ROLLBACK: Remove from config (mount hasn't happened yet)
+                cfg.remove_mount(&mount_id);
+
+                return Response::Error(format!(
+                    "Failed to save mount configuration: {}. Mount not persisted.",
+                    e
+                ));
+            }
+
+            debug!("Mount configuration persisted to disk: {}", mount_id);
+        } else {
+            debug!(
+                "Mount configuration added (ephemeral mode - not persisted): {}",
+                mount_id
             );
-
-            // ROLLBACK: Remove from config (mount hasn't happened yet)
-            cfg.remove_mount(&mount_id);
-
-            return Response::Error(format!(
-                "Failed to save mount configuration: {}. Mount not persisted.",
-                e
-            ));
         }
-
-        debug!("Mount configuration persisted to disk: {}", mount_id);
     }
 
     // If enabled, attempt to mount
@@ -1374,6 +1398,7 @@ async fn handle_unmount_request(
     _force: bool,
     config: Arc<RwLock<Config>>,
     platform: Arc<dyn Platform>,
+    ephemeral: bool,
 ) -> Response {
     let mount = {
         let cfg = config.read().await;
@@ -1410,27 +1435,34 @@ async fn handle_unmount_request(
         };
 
         if let Some(old_status_value) = old_status {
-            // Persist config to disk - REQUIRED
-            let mut cfg = config.write().await;
-            if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
-                error!("Failed to persist config after unmount: {}", e);
-                error!(
-                    "Check permissions on config directory: {:?}",
-                    Config::get_preferred_config_path(platform.as_ref())
-                );
+            // Persist config to disk - REQUIRED (unless in ephemeral mode)
+            if !ephemeral {
+                let mut cfg = config.write().await;
+                if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
+                    error!("Failed to persist config after unmount: {}", e);
+                    error!(
+                        "Check permissions on config directory: {:?}",
+                        Config::get_preferred_config_path(platform.as_ref())
+                    );
 
-                // ROLLBACK: Restore status (mount already unmounted, can't undo filesystem change)
-                if let Some(m) = cfg.get_mount_mut(&mount_id) {
-                    m.status = old_status_value;
+                    // ROLLBACK: Restore status (mount already unmounted, can't undo filesystem change)
+                    if let Some(m) = cfg.get_mount_mut(&mount_id) {
+                        m.status = old_status_value;
+                    }
+
+                    return Response::Error(format!(
+                        "Unmount succeeded but failed to save config: {}. Status not persisted.",
+                        e
+                    ));
                 }
 
-                return Response::Error(format!(
-                    "Unmount succeeded but failed to save config: {}. Status not persisted.",
-                    e
-                ));
+                debug!("Unmount configuration persisted to disk: {}", mount_id);
+            } else {
+                debug!(
+                    "Unmount configuration (ephemeral mode - not persisted): {}",
+                    mount_id
+                );
             }
-
-            debug!("Unmount configuration persisted to disk: {}", mount_id);
         }
     }
 
@@ -1742,6 +1774,7 @@ async fn handle_enable_request(
     mount_id: String,
     config: Arc<RwLock<Config>>,
     platform: Arc<dyn Platform>,
+    ephemeral: bool,
 ) -> Response {
     let was_enabled = {
         let mut cfg = config.write().await;
@@ -1756,27 +1789,34 @@ async fn handle_enable_request(
     };
 
     if let Some(was_enabled_value) = was_enabled {
-        // Persist config to disk - REQUIRED
-        let mut cfg = config.write().await;
-        if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
-            error!("Failed to persist config after enable: {}", e);
-            error!(
-                "Check permissions on config directory: {:?}",
-                Config::get_preferred_config_path(platform.as_ref())
-            );
+        // Persist config to disk - REQUIRED (unless in ephemeral mode)
+        if !ephemeral {
+            let mut cfg = config.write().await;
+            if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
+                error!("Failed to persist config after enable: {}", e);
+                error!(
+                    "Check permissions on config directory: {:?}",
+                    Config::get_preferred_config_path(platform.as_ref())
+                );
 
-            // ROLLBACK: Restore enabled state
-            if let Some(mount) = cfg.get_mount_mut(&mount_id) {
-                mount.enabled = was_enabled_value;
+                // ROLLBACK: Restore enabled state
+                if let Some(mount) = cfg.get_mount_mut(&mount_id) {
+                    mount.enabled = was_enabled_value;
+                }
+
+                return Response::Error(format!(
+                    "Failed to save config: {}. Enable not persisted.",
+                    e
+                ));
             }
 
-            return Response::Error(format!(
-                "Failed to save config: {}. Enable not persisted.",
-                e
-            ));
+            debug!("Enable configuration persisted to disk: {}", mount_id);
+        } else {
+            debug!(
+                "Enable configuration (ephemeral mode - not persisted): {}",
+                mount_id
+            );
         }
-
-        debug!("Enable configuration persisted to disk: {}", mount_id);
     }
 
     Response::Success
@@ -1787,6 +1827,7 @@ async fn handle_disable_request(
     mount_id: String,
     config: Arc<RwLock<Config>>,
     platform: Arc<dyn Platform>,
+    ephemeral: bool,
 ) -> Response {
     let was_enabled = {
         let mut cfg = config.write().await;
@@ -1801,27 +1842,34 @@ async fn handle_disable_request(
     };
 
     if let Some(was_enabled_value) = was_enabled {
-        // Persist config to disk - REQUIRED
-        let mut cfg = config.write().await;
-        if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
-            error!("Failed to persist config after disable: {}", e);
-            error!(
-                "Check permissions on config directory: {:?}",
-                Config::get_preferred_config_path(platform.as_ref())
-            );
+        // Persist config to disk - REQUIRED (unless in ephemeral mode)
+        if !ephemeral {
+            let mut cfg = config.write().await;
+            if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
+                error!("Failed to persist config after disable: {}", e);
+                error!(
+                    "Check permissions on config directory: {:?}",
+                    Config::get_preferred_config_path(platform.as_ref())
+                );
 
-            // ROLLBACK: Restore enabled state
-            if let Some(mount) = cfg.get_mount_mut(&mount_id) {
-                mount.enabled = was_enabled_value;
+                // ROLLBACK: Restore enabled state
+                if let Some(mount) = cfg.get_mount_mut(&mount_id) {
+                    mount.enabled = was_enabled_value;
+                }
+
+                return Response::Error(format!(
+                    "Failed to save config: {}. Disable not persisted.",
+                    e
+                ));
             }
 
-            return Response::Error(format!(
-                "Failed to save config: {}. Disable not persisted.",
-                e
-            ));
+            debug!("Disable configuration persisted to disk: {}", mount_id);
+        } else {
+            debug!(
+                "Disable configuration (ephemeral mode - not persisted): {}",
+                mount_id
+            );
         }
-
-        debug!("Disable configuration persisted to disk: {}", mount_id);
     }
 
     Response::Success
@@ -1832,6 +1880,7 @@ async fn handle_remove_request(
     mount_id: String,
     config: Arc<RwLock<Config>>,
     platform: Arc<dyn Platform>,
+    ephemeral: bool,
 ) -> Response {
     // Unmount if active
     {
@@ -1844,6 +1893,7 @@ async fn handle_remove_request(
                     false,
                     Arc::clone(&config),
                     Arc::clone(&platform),
+                    ephemeral,
                 )
                 .await;
             }
@@ -1855,20 +1905,27 @@ async fn handle_remove_request(
         let mut cfg = config.write().await;
         cfg.remove_mount(&mount_id);
 
-        // Persist config to disk
-        if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
-            error!("Failed to persist config after remove: {}", e);
-            error!(
-                "Check permissions on config directory: {:?}",
-                Config::get_preferred_config_path(platform.as_ref())
-            );
-            // Note: Mount already removed from config, continuing anyway
-            warn!(
-                "Remove operation completed but config not persisted: {}",
+        // Persist config to disk (unless in ephemeral mode)
+        if !ephemeral {
+            if let Err(e) = cfg.save_atomic(platform.as_ref()).await {
+                error!("Failed to persist config after remove: {}", e);
+                error!(
+                    "Check permissions on config directory: {:?}",
+                    Config::get_preferred_config_path(platform.as_ref())
+                );
+                // Note: Mount already removed from config, continuing anyway
+                warn!(
+                    "Remove operation completed but config not persisted: {}",
+                    mount_id
+                );
+            } else {
+                debug!("Remove configuration persisted to disk: {}", mount_id);
+            }
+        } else {
+            debug!(
+                "Remove configuration (ephemeral mode - not persisted): {}",
                 mount_id
             );
-        } else {
-            debug!("Remove configuration persisted to disk: {}", mount_id);
         }
     }
 

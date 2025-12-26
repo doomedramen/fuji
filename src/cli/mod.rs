@@ -62,6 +62,10 @@ pub enum Commands {
         /// Show progress during mount operation
         #[arg(short, long)]
         progress: bool,
+
+        /// Don't persist this mount to config (temporary mount)
+        #[arg(long)]
+        no_persist: bool,
     },
 
     /// Unmount a share
@@ -230,6 +234,10 @@ pub enum DaemonCommand {
         /// Disable resource limits monitoring
         #[arg(long)]
         disable_resource_limits: bool,
+
+        /// Run in ephemeral mode (don't persist config changes to disk)
+        #[arg(long)]
+        ephemeral: bool,
     },
 
     /// Stop the daemon
@@ -319,6 +327,7 @@ pub async fn run(cli: Cli, platform: Box<dyn Platform>) -> Result<()> {
             disable,
             dry_run,
             progress,
+            no_persist,
         } => {
             handle_mount(
                 url,
@@ -327,6 +336,7 @@ pub async fn run(cli: Cli, platform: Box<dyn Platform>) -> Result<()> {
                 disable,
                 dry_run,
                 progress,
+                no_persist,
                 platform.as_ref(),
             )
             .await
@@ -427,6 +437,7 @@ async fn handle_mount(
     disable: bool,
     dry_run: bool,
     progress: bool,
+    no_persist: bool,
     platform: &dyn Platform,
 ) -> Result<()> {
     let request = Request::Mount {
@@ -436,6 +447,7 @@ async fn handle_mount(
         disable,
         dry_run,
         progress,
+        no_persist,
     };
 
     let client = create_socket_client(platform).await?;
@@ -894,11 +906,18 @@ async fn handle_daemon(command: DaemonCommand, platform: Box<dyn Platform>) -> R
         DaemonCommand::Start {
             no_automount,
             disable_resource_limits,
+            ephemeral,
         } => {
             // Start the daemon directly (not through socket)
             let mut daemon = crate::daemon::Daemon::new(platform).await?;
             daemon
-                .start(None, false, no_automount, disable_resource_limits)
+                .start(
+                    None,
+                    false,
+                    no_automount,
+                    disable_resource_limits,
+                    ephemeral,
+                )
                 .await
         }
         DaemonCommand::Stop => {
@@ -1512,6 +1531,9 @@ pub enum BatchOperation {
         dry_run: bool,
         #[serde(default)]
         progress: bool,
+        #[serde(default)]
+        #[serde(rename = "no-persist")]
+        no_persist: bool,
     },
     /// Unmount a share
     Unmount {
@@ -1607,6 +1629,7 @@ async fn handle_batch(
                 disable,
                 dry_run,
                 progress,
+                no_persist,
             } => {
                 handle_mount(
                     url.clone(),
@@ -1615,6 +1638,7 @@ async fn handle_batch(
                     *disable,
                     *dry_run,
                     *progress,
+                    *no_persist,
                     platform.as_ref(),
                 )
                 .await

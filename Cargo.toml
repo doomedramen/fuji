@@ -164,6 +164,11 @@ path = "tests/property/url_parsing_property_test.rs"
 harness = true
 
 [[test]]
+name = "config_roundtrip_test"
+path = "tests/property/config_roundtrip_test.rs"
+harness = true
+
+[[test]]
 name = "daemon_lifecycle_test"
 path = "tests/unit/daemon_lifecycle_test.rs"
 harness = true
@@ -181,6 +186,11 @@ harness = true
 [[test]]
 name = "mount_driver_integration_test"
 path = "tests/integration/mount_driver_integration_test.rs"
+harness = true
+
+[[test]]
+name = "daemon_config_persistence_test"
+path = "tests/integration/daemon_config_persistence_test.rs"
 harness = true
 
 [[test]]
@@ -221,6 +231,11 @@ harness = true
 [[test]]
 name = "mount_point_test"
 path = "tests/unit/mount_point_test.rs"
+harness = true
+
+[[test]]
+name = "config_persistence_test"
+path = "tests/unit/config_persistence_test.rs"
 harness = true
 
 [[test]]
