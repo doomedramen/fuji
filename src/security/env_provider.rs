@@ -81,7 +81,7 @@ impl EnvironmentCredentialProvider {
     }
 
     /// Get credential from environment (with caching)
-    fn get_from_env(&mut self, mount_id: &str) -> Option<Credential> {
+    fn get_from_env(&self, mount_id: &str) -> Option<Credential> {
         let sanitized = self.sanitize_mount_id(mount_id);
         let var_name = format!("{}{}", self.prefix, sanitized);
 
