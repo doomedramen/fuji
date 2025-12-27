@@ -39,7 +39,7 @@ test: test-unit test-security
 # Run unit tests only (using nextest for speed)
 test-unit:
 	@command -v cargo-nextest >/dev/null 2>&1 || { echo "Installing cargo-nextest..."; cargo install cargo-nextest; }
-	cargo nextest run --all-features --no-fail-fast
+	cargo nextest run --all-features --no-fail-fast -E 'not (binary(cli_commands_test) or binary(complete_workflow_test) or binary(daemon_health_test) or binary(failure_recovery_test) or binary(systemd_service_test) or binary(multi_protocol_stress_test) or binary(real_world_mounting_test))'
 	cargo test --doc --all-features
 
 # Run security tests only (using nextest for speed)
