@@ -695,3 +695,31 @@ fn test_concurrent_handler_access() {
         handle.join().unwrap();
     }
 }
+
+#[test]
+fn test_nfs_default_options_include_timeouts() {
+    let handler = NfsHandler::new();
+    let options = handler.get_default_options();
+
+    // Verify NFS timeout options are present for fast failure
+    assert!(
+        options.contains(&"timeo=10".to_string()),
+        "Should include timeo=10 for 1-second RPC timeout"
+    );
+    assert!(
+        options.contains(&"retrans=2".to_string()),
+        "Should include retrans=2 for limited retransmission attempts"
+    );
+    assert!(
+        options.contains(&"soft".to_string()),
+        "Should include soft option for fail-fast behavior"
+    );
+    assert!(
+        options.contains(&"_netdev".to_string()),
+        "Should include _netdev for proper network device handling"
+    );
+    assert!(
+        options.contains(&"nolock".to_string()),
+        "Should still include nolock option"
+    );
+}

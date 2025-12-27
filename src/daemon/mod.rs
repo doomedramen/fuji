@@ -432,6 +432,13 @@ impl Daemon {
     async fn cleanup(&self, socket_path: &Path, pid_file: &Path) -> Result<()> {
         info!("Cleaning up daemon resources");
 
+        // NOTE: We do NOT save config here by design!
+        // Config is only saved AFTER successful mount operations to ensure
+        // failed or in-progress mounts are never persisted to disk.
+        // This means if daemon is killed between mount success and config save,
+        // the mount is lost - but this is acceptable to maintain the guarantee
+        // that only successfully mounted shares appear in config.
+
         // Unmount all active mounts
         let config = self.config.read().await;
         for mount in config.get_active_mounts() {
@@ -1284,37 +1291,9 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
         };
     }
 
-    // Save to configuration
-    {
-        let mut cfg = params.config.write().await;
-        cfg.add_mount(mount_config.clone());
-
-        // Persist config to disk - REQUIRED for durability (unless in ephemeral mode)
-        if !params.ephemeral {
-            if let Err(e) = cfg.save_atomic(params.platform.as_ref()).await {
-                error!("Failed to persist mount configuration: {}", e);
-                error!(
-                    "Check permissions on config directory: {:?}",
-                    Config::get_preferred_config_path(params.platform.as_ref())
-                );
-
-                // ROLLBACK: Remove from config (mount hasn't happened yet)
-                cfg.remove_mount(&mount_id);
-
-                return Response::Error(format!(
-                    "Failed to save mount configuration: {}. Mount not persisted.",
-                    e
-                ));
-            }
-
-            debug!("Mount configuration persisted to disk: {}", mount_id);
-        } else {
-            debug!(
-                "Mount configuration added (ephemeral mode - not persisted): {}",
-                mount_id
-            );
-        }
-    }
+    // NOTE: We do NOT add to config yet - only after successful mount!
+    // This ensures failed or in-progress mounts never appear in config,
+    // even if concurrent operations save the config.
 
     // If enabled, attempt to mount
     if !params.disable {
@@ -1364,14 +1343,16 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
                 reporter.fail(&e.to_string()).await;
             }
 
+            // Mount failed - it was never added to config, so no rollback needed
             return Response::Error(e.to_string());
         }
 
-        // Update status
-        if let Err(status_err) =
-            Daemon::update_mount_status(params.config.clone(), &mount_id, MountStatus::Active).await
+        // Mount succeeded! Now add to config with Active status
         {
-            error!("Failed to update mount status: {}", status_err);
+            let mut cfg = params.config.write().await;
+            mount_config.update_status(MountStatus::Active);
+            cfg.add_mount(mount_config.clone());
+            debug!("Mount succeeded - added to config: {}", mount_id);
         }
 
         info!(
@@ -1384,6 +1365,58 @@ async fn handle_mount_request(params: MountRequestParams) -> Response {
         if let Some(ref reporter) = progress_reporter {
             reporter.complete("Mount completed successfully").await;
         }
+    } else {
+        // Mount is disabled - add to config with Disabled status
+        {
+            let mut cfg = params.config.write().await;
+            // mount_config already has status=Disabled from creation
+            cfg.add_mount(mount_config.clone());
+            debug!("Mount added to config as disabled: {}", mount_id);
+        }
+    }
+
+    // Persist configuration to disk AFTER successful mount (or if disabled)
+    if !params.ephemeral {
+        let cfg = params.config.read().await;
+        if let Err(e) = cfg.save_atomic(params.platform.as_ref()).await {
+            error!("Failed to persist mount configuration: {}", e);
+            error!(
+                "Check permissions on config directory: {:?}",
+                Config::get_preferred_config_path(params.platform.as_ref())
+            );
+
+            // ROLLBACK: Remove from config and unmount if active
+            {
+                let mut cfg_write = params.config.write().await;
+                cfg_write.remove_mount(&mount_id);
+            }
+
+            // If mount was successful, unmount it since we can't persist
+            if !params.disable {
+                warn!(
+                    "Rolling back successful mount due to config save failure: {}",
+                    mount_id
+                );
+                let protocol = mount_config.url.split("://").next().unwrap_or("");
+                if let Ok(handler) = get_mount_handler(protocol) {
+                    if let Err(unmount_err) = handler.unmount(&mount_config.mount_point).await {
+                        error!("Failed to unmount during rollback: {}", unmount_err);
+                    }
+                }
+            }
+
+            return Response::Error(format!(
+                "Failed to save mount configuration: {}. Mount rolled back.",
+                e
+            ));
+        }
+
+        debug!("Mount configuration persisted to disk: {}", mount_id);
+    } else {
+        debug!(
+            "Mount configuration added (ephemeral mode - not persisted): {}",
+            mount_id
+        );
     }
 
     Response::MountSuccess {

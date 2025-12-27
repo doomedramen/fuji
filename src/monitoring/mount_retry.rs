@@ -372,10 +372,10 @@ const fn default_retry_policy_for_mount_type(mount_type: &crate::mount::MountTyp
         MountType::Nfs {
             ..
         } => RetryPolicy {
-            max_attempts: 5,
-            initial_delay: StdDuration::from_secs(2),
-            max_delay: StdDuration::from_secs(30),
-            multiplier: 2.0,
+            max_attempts: 3,
+            initial_delay: StdDuration::from_millis(500),
+            max_delay: StdDuration::from_secs(5),
+            multiplier: 1.5,
             jitter: 0.1,
             reset_after: StdDuration::from_secs(600),
         },
@@ -504,8 +504,8 @@ mod tests {
             options: vec![],
         });
 
-        assert_eq!(nfs_policy.max_attempts, 5);
-        assert_eq!(nfs_policy.initial_delay, StdDuration::from_secs(2));
-        assert_eq!(nfs_policy.multiplier, 2.0);
+        assert_eq!(nfs_policy.max_attempts, 3);
+        assert_eq!(nfs_policy.initial_delay, StdDuration::from_millis(500));
+        assert_eq!(nfs_policy.multiplier, 1.5);
     }
 }

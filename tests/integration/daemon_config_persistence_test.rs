@@ -324,3 +324,87 @@ async fn test_config_file_uses_atomic_write() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_failed_mount_does_not_persist() -> Result<()> {
+    // Given: Config with one successful mount already saved
+    let temp_dir = TempDir::new()?;
+    let mut config = Config::default();
+
+    let successful_mount = create_test_mount(
+        "successful-mount",
+        "nfs://server/existing-share",
+        "/mnt/existing",
+        true,
+    );
+    config.add_mount(successful_mount);
+    config.save_to_dir(temp_dir.path()).await?;
+
+    // When: A new mount is added to in-memory config (simulating daemon adding before mount attempt)
+    let failed_mount = create_test_mount(
+        "failed-mount",
+        "nfs://server/non-existent-share",
+        "/mnt/failed",
+        true,
+    );
+    config.add_mount(failed_mount);
+
+    // Verify it's in memory
+    assert_eq!(config.mounts.len(), 2);
+    assert!(config.get_mount("failed-mount").is_some());
+
+    // Simulate mount failure: daemon would rollback by removing from in-memory config
+    config.remove_mount("failed-mount");
+
+    // Don't save config (mount failed, so we don't persist)
+    // This simulates the daemon's rollback behavior
+
+    // Then: Reload config from disk - should only have the successful mount
+    let reloaded = Config::load_with_dir(temp_dir.path()).await?;
+
+    assert_eq!(
+        reloaded.mounts.len(),
+        1,
+        "Failed mount should not be persisted to config"
+    );
+    assert!(
+        reloaded.get_mount("successful-mount").is_some(),
+        "Successful mount should still exist"
+    );
+    assert!(
+        reloaded.get_mount("failed-mount").is_none(),
+        "Failed mount should not exist in persisted config"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_successful_mount_persists_after_attempt() -> Result<()> {
+    // Given: Empty config
+    let temp_dir = TempDir::new()?;
+    let mut config = Config::default();
+    config.save_to_dir(temp_dir.path()).await?;
+
+    // When: Mount is added to in-memory config and mount succeeds
+    let successful_mount = create_test_mount("new-mount", "nfs://server/share", "/mnt/new", true);
+    config.add_mount(successful_mount);
+
+    // Simulate successful mount: save config after mount succeeds
+    config.save_to_dir(temp_dir.path()).await?;
+
+    // Then: Reload config - should contain the successful mount
+    let reloaded = Config::load_with_dir(temp_dir.path()).await?;
+
+    assert_eq!(
+        reloaded.mounts.len(),
+        1,
+        "Successful mount should be persisted"
+    );
+    assert!(
+        reloaded.get_mount("new-mount").is_some(),
+        "Mount should exist in persisted config"
+    );
+
+    Ok(())
+}
