@@ -237,7 +237,9 @@ impl Daemon {
 
         // Ensure socket directory exists
         if let Some(parent) = socket_path.parent() {
-            self.platform.ensure_dir_exists(parent)?;
+            let platform = self.platform.clone();
+            let parent = parent.to_path_buf();
+            tokio::task::spawn_blocking(move || platform.ensure_dir_exists(&parent)).await??;
         }
 
         // Setup signal handlers
@@ -245,7 +247,11 @@ impl Daemon {
 
         // Write PID file
         let pid_file = socket_path.with_extension("pid");
-        self.platform.write_pid_file(&pid_file)?;
+        {
+            let platform = self.platform.clone();
+            let pid_file = pid_file.clone();
+            tokio::task::spawn_blocking(move || platform.write_pid_file(&pid_file)).await??;
+        }
 
         // Daemonize if requested
         if detach {
