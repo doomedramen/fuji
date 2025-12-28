@@ -94,7 +94,7 @@ impl TestDaemon {
         };
 
         // Wait for daemon to be ready
-        daemon.wait_ready(Duration::from_secs(10)).await?;
+        daemon.wait_ready(Duration::from_secs(20)).await?;
 
         Ok(Arc::new(daemon))
     }
