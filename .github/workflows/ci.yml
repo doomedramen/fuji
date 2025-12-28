@@ -51,7 +51,7 @@ jobs:
           tool: cargo-nextest
 
       - name: Run unit and integration tests
-        run: cargo nextest run --all-features --no-fail-fast -E 'not (binary(cli_commands_test) or binary(complete_workflow_test) or binary(daemon_health_test) or binary(failure_recovery_test) or binary(systemd_service_test) or binary(multi_protocol_stress_test) or binary(real_world_mounting_test) or binary(mount_driver_integration_test))'
+        run: cargo nextest run --all-features --no-fail-fast -E "not (binary(cli_commands_test) or binary(complete_workflow_test) or binary(daemon_health_test) or binary(failure_recovery_test) or binary(systemd_service_test) or binary(multi_protocol_stress_test) or binary(real_world_mounting_test) or binary(mount_driver_integration_test))"
 
       - name: Run doc tests
         run: cargo test --doc --all-features
