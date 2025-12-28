@@ -703,8 +703,8 @@ fn test_nfs_default_options_include_timeouts() {
 
     // Verify NFS timeout options are present for fast failure
     assert!(
-        options.contains(&"timeo=10".to_string()),
-        "Should include timeo=10 for 1-second RPC timeout"
+        options.contains(&"timeo=50".to_string()),
+        "Should include timeo=50 for 5-second RPC timeout"
     );
     assert!(
         options.contains(&"retrans=2".to_string()),

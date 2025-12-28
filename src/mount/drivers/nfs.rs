@@ -310,7 +310,7 @@ impl MountHandler for NfsHandler {
     fn get_default_options(&self) -> Vec<String> {
         vec![
             "nolock".to_string(),    // No remote locking (avoids rpc.statd requirement)
-            "timeo=10".to_string(),  // RPC timeout: 1 second (10 * 0.1s)
+            "timeo=50".to_string(),  // RPC timeout: 5 seconds (50 * 0.1s)
             "retrans=2".to_string(), // Retransmission attempts before failing
             "soft".to_string(),      // Fail fast instead of hanging indefinitely
             "_netdev".to_string(),   // Proper network device handling
