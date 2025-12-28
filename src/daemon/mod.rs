@@ -239,7 +239,11 @@ impl Daemon {
         if let Some(parent) = socket_path.parent() {
             let platform = self.platform.clone();
             let parent = parent.to_path_buf();
-            tokio::task::spawn_blocking(move || platform.ensure_dir_exists(&parent)).await??;
+            match tokio::task::spawn_blocking(move || platform.ensure_dir_exists(&parent)).await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => return Err(e),
+                Err(e) => return Err(anyhow::anyhow!("Spawn blocking task failed: {}", e)),
+            }
         }
 
         // Setup signal handlers
@@ -250,7 +254,11 @@ impl Daemon {
         {
             let platform = self.platform.clone();
             let pid_file = pid_file.clone();
-            tokio::task::spawn_blocking(move || platform.write_pid_file(&pid_file)).await??;
+            match tokio::task::spawn_blocking(move || platform.write_pid_file(&pid_file)).await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => return Err(e),
+                Err(e) => return Err(anyhow::anyhow!("Spawn blocking task failed: {}", e)),
+            }
         }
 
         // Daemonize if requested
