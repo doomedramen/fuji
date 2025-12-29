@@ -345,18 +345,8 @@ impl SocketServer {
             tokio::fs::remove_file(&socket_path).await?;
         }
 
-        let socket_path_buf = socket_path.as_ref().to_path_buf();
-        info!("Attempting to bind socket: {:?}", socket_path_buf);
-        let socket_path_buf_clone = socket_path_buf.clone();
-        let listener = tokio::task::spawn_blocking(move || {
-            info!("Socket bind task starting");
-            let result = UnixListener::bind(&socket_path_buf_clone);
-            info!("Socket bind result: {:?}", result.is_ok());
-            result
-        })
-        .await
-        .map_err(|e| anyhow!("Spawn blocking task failed for socket bind: {}", e))?
-        .map_err(|e| anyhow!("Failed to bind to socket {:?}: {}", socket_path_buf, e))?;
+        let listener = UnixListener::bind(&socket_path)
+            .map_err(|e| anyhow!("Failed to bind to socket {:?}: {}", socket_path.as_ref(), e))?;
 
         info!("Socket server listening on: {:?}", socket_path.as_ref());
         info!(

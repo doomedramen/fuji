@@ -148,27 +148,9 @@ impl TestDaemon {
 
             if start.elapsed() >= timeout {
                 // Collect daemon logs for debugging
-                if let Some(process) = &self.process {
+                if let Some(_process) = &self.process {
                     eprintln!("Daemon failed to start within {:?}", timeout);
-                    
-                    // Try to capture daemon output to help debug CI failures
-                    match tokio::time::timeout(Duration::from_secs(2), process.wait()).await {
-                        Ok(status) => {
-                            eprintln!("Daemon process exited with status: {}", status);
-                        }
-                        Err(_) => {
-                            // Process didn't exit, try to read output
-                            if let Ok(output) = process.wait_with_output().await {
-                                eprintln!("Daemon stdout:\n{}", String::from_utf8_lossy(&output.stdout));
-                                eprintln!("Daemon stderr:\n{}", String::from_utf8_lossy(&output.stderr));
-                            } else {
-                                eprintln!("Could not capture daemon output");
-                            }
-                        }
-                    }
                 }
-                anyhow::bail!("Daemon did not become ready within {:?}", timeout);
-            }
                 anyhow::bail!("Daemon did not become ready within {:?}", timeout);
             }
 
