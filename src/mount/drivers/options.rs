@@ -42,17 +42,13 @@ impl Default for OptionsValidationConfig {
             strict_mode: true,
             custom_allowed_options: vec![],
             blocked_options: vec![
-                "exec".to_string(),    // Allow execution of binaries
-                "suid".to_string(),    // Set UID on execution
-                "dev".to_string(),     // Allow device files
-                "nodev".to_string(),   // Disallow device files (blocked for security)
-                "nosuid".to_string(), // No setuid bits (actually safe, but in blocked list for demo)
-                "noexec".to_string(), // No execution (actually safe, but in blocked list for demo)
-                "user=".to_string(),  // Allow any user to mount (exact match only)
-                "users".to_string(),  // Allow any user to mount
-                "owner".to_string(),  // Allow owner to mount
-                "_netdev".to_string(), // Network device (requires special handling)
-                "acl".to_string(),    // Access Control Lists (can be complex)
+                "exec".to_string(),  // Allow execution of binaries
+                "suid".to_string(),  // Set UID on execution
+                "dev".to_string(),   // Allow device files
+                "user=".to_string(), // Allow any user to mount (exact match only)
+                "users".to_string(), // Allow any user to mount
+                "owner".to_string(), // Allow owner to mount
+                "acl".to_string(),   // Access Control Lists (can be complex)
             ],
             max_options_count: 50,
             max_option_length: 256,
@@ -87,6 +83,11 @@ impl MountOptionsValidator {
             "noauto".to_string(),      // Don't mount automatically
             "defaults".to_string(),    // Default options
             "nofail".to_string(),      // Don't report failure for this FS
+            "noatime".to_string(),     // Don't update access times
+            "nosuid".to_string(),      // No setuid bits (security hardening)
+            "nodev".to_string(),       // Disallow device files (security hardening)
+            "noexec".to_string(),      // No execution (security hardening)
+            "_netdev".to_string(),     // Network device (wait for network before mount)
             "x-gvfs-show".to_string(), // Show in file managers
             "comment".to_string(),     // Comment option
         ]);
@@ -99,6 +100,7 @@ impl MountOptionsValidator {
             "nointr".to_string(),  // Disallow interrupts
             "proto".to_string(),   // Protocol version
             "vers".to_string(),    // NFS version
+            "nfsvers".to_string(), // NFS version (alias for vers)
             "port".to_string(),    // Port number
             "rsize".to_string(),   // Read block size
             "wsize".to_string(),   // Write block size
@@ -111,6 +113,7 @@ impl MountOptionsValidator {
             "lock".to_string(),    // Enable locking
             "nolock".to_string(),  // Disable locking
             "sec".to_string(),     // Security flavor
+            "fsc".to_string(),     // Local caching (cachefilesd)
         ]);
 
         // Populate SMB/CIFS-specific options
@@ -455,6 +458,99 @@ mod tests {
                 .is_err()
         );
         // x-gvfs-show should now be allowed since it starts with x-
+    }
+
+    #[test]
+    fn test_security_hardening_options_allowed() {
+        let validator = create_test_validator();
+
+        // Security-hardening options should be allowed, not blocked
+        assert!(
+            validator
+                .validate_options(
+                    "nfs",
+                    &[
+                        "nosuid".to_string(),
+                        "nodev".to_string(),
+                        "noexec".to_string(),
+                    ]
+                )
+                .is_ok(),
+            "Security-hardening options (nosuid, nodev, noexec) should be allowed"
+        );
+    }
+
+    #[test]
+    fn test_netdev_option_allowed() {
+        let validator = create_test_validator();
+
+        // _netdev is essential for network mounts and should not be blocked
+        assert!(
+            validator
+                .validate_options("nfs", &["_netdev".to_string()])
+                .is_ok(),
+            "_netdev should be allowed for network mounts"
+        );
+    }
+
+    #[test]
+    fn test_nfs_default_options_pass_validation() {
+        let validator = create_test_validator();
+
+        // These are the default NFS options from NfsHandler::get_default_options()
+        let default_options = vec![
+            "nolock".to_string(),
+            "timeo=50".to_string(),
+            "retrans=2".to_string(),
+            "soft".to_string(),
+            "_netdev".to_string(),
+        ];
+
+        assert!(
+            validator.validate_options("nfs", &default_options).is_ok(),
+            "NFS default options must pass validation"
+        );
+    }
+
+    #[test]
+    fn test_real_world_nfs_options() {
+        let validator = create_test_validator();
+
+        // Real-world NFS mount options (from fstab)
+        assert!(
+            validator
+                .validate_options(
+                    "nfs",
+                    &[
+                        "nfsvers=3".to_string(),
+                        "soft".to_string(),
+                        "_netdev".to_string(),
+                        "timeo=50".to_string(),
+                        "retrans=5".to_string(),
+                        "noatime".to_string(),
+                        "fsc".to_string(),
+                    ]
+                )
+                .is_ok(),
+            "Real-world NFS fstab options should pass validation"
+        );
+
+        assert!(
+            validator
+                .validate_options(
+                    "nfs",
+                    &[
+                        "nfsvers=3".to_string(),
+                        "hard".to_string(),
+                        "_netdev".to_string(),
+                        "timeo=50".to_string(),
+                        "retrans=5".to_string(),
+                        "noatime".to_string(),
+                    ]
+                )
+                .is_ok(),
+            "Real-world NFS fstab options (hard mount) should pass validation"
+        );
     }
 
     #[test]
