@@ -50,7 +50,7 @@ pre-push:
         fi
       glob: "*.rs"
       fail_text: "Clippy found issues. Fix them before pushing."
-      timeout: 120
+      timeout: 120s
 
     # Library unit tests (reuses clippy artifacts when run sequentially)
     test-unit:
@@ -66,7 +66,7 @@ pre-push:
         fi
       glob: "*.rs"
       fail_text: "Unit tests failed."
-      timeout: 300
+      timeout: 300s
 
     # Note: Release build moved to CI to save time locally
     # Run manually with: make build
