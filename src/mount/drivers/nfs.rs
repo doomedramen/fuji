@@ -12,6 +12,24 @@ use tokio::fs;
 use tracing::{debug, error, info, warn};
 use url::Url;
 
+/// Check if two NFS mount option keys conflict with each other.
+/// For example, "soft" and "hard" are mutually exclusive.
+fn is_conflicting_nfs_option(a: &str, b: &str) -> bool {
+    const CONFLICTS: &[(&str, &str)] = &[
+        ("soft", "hard"),
+        ("bg", "fg"),
+        ("lock", "nolock"),
+        ("tcp", "udp"),
+        ("ro", "rw"),
+        ("sync", "async"),
+        ("intr", "nointr"),
+        ("auto", "noauto"),
+    ];
+    CONFLICTS
+        .iter()
+        .any(|(x, y)| (a == *x && b == *y) || (a == *y && b == *x))
+}
+
 pub struct NfsHandler;
 
 impl Default for NfsHandler {
@@ -150,11 +168,20 @@ impl MountHandler for NfsHandler {
 
                 // Validate and prepare mount options
                 let validator = MountOptionsValidator::new()?;
-                let mut mount_options = options.clone();
 
-                // Add default options if none specified
-                if mount_options.is_empty() {
-                    mount_options.extend(self.get_default_options());
+                // Always start with defaults, then merge user options on top
+                let mut mount_options = self.get_default_options();
+                if !options.is_empty() {
+                    for user_opt in options {
+                        let user_key = user_opt.split('=').next().unwrap_or(user_opt);
+                        // Remove any default that conflicts with this user option
+                        mount_options.retain(|default_opt| {
+                            let default_key = default_opt.split('=').next().unwrap_or(default_opt);
+                            default_key != user_key
+                                && !is_conflicting_nfs_option(default_key, user_key)
+                        });
+                        mount_options.push(user_opt.clone());
+                    }
                 }
 
                 // Validate all options
@@ -352,5 +379,124 @@ impl MountHandler for NfsHandler {
         }
 
         Ok(mount_point)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_conflicting_nfs_option() {
+        assert!(is_conflicting_nfs_option("soft", "hard"));
+        assert!(is_conflicting_nfs_option("hard", "soft"));
+        assert!(is_conflicting_nfs_option("lock", "nolock"));
+        assert!(is_conflicting_nfs_option("ro", "rw"));
+        assert!(is_conflicting_nfs_option("sync", "async"));
+        assert!(is_conflicting_nfs_option("bg", "fg"));
+        assert!(is_conflicting_nfs_option("tcp", "udp"));
+        assert!(is_conflicting_nfs_option("intr", "nointr"));
+        assert!(is_conflicting_nfs_option("auto", "noauto"));
+
+        // Non-conflicting pairs
+        assert!(!is_conflicting_nfs_option("soft", "nolock"));
+        assert!(!is_conflicting_nfs_option("vers", "timeo"));
+        assert!(!is_conflicting_nfs_option("ro", "nolock"));
+    }
+
+    #[test]
+    fn test_merge_user_options_with_defaults() {
+        let handler = NfsHandler::new();
+        let defaults = handler.get_default_options();
+
+        // Simulate the merge logic from mount()
+        let user_options = vec!["vers=3".to_string()];
+        let mut mount_options = defaults.clone();
+        for user_opt in &user_options {
+            let user_key = user_opt.split('=').next().unwrap_or(user_opt);
+            mount_options.retain(|default_opt| {
+                let default_key = default_opt.split('=').next().unwrap_or(default_opt);
+                default_key != user_key && !is_conflicting_nfs_option(default_key, user_key)
+            });
+            mount_options.push(user_opt.clone());
+        }
+
+        // All defaults should still be present, plus vers=3
+        assert!(mount_options.contains(&"nolock".to_string()));
+        assert!(mount_options.contains(&"timeo=50".to_string()));
+        assert!(mount_options.contains(&"retrans=2".to_string()));
+        assert!(mount_options.contains(&"soft".to_string()));
+        assert!(mount_options.contains(&"_netdev".to_string()));
+        assert!(mount_options.contains(&"vers=3".to_string()));
+        assert_eq!(mount_options.len(), 6);
+    }
+
+    #[test]
+    fn test_merge_user_option_overrides_default() {
+        let handler = NfsHandler::new();
+        let defaults = handler.get_default_options();
+
+        // User passes "hard" which should replace default "soft"
+        let user_options = vec!["hard".to_string()];
+        let mut mount_options = defaults.clone();
+        for user_opt in &user_options {
+            let user_key = user_opt.split('=').next().unwrap_or(user_opt);
+            mount_options.retain(|default_opt| {
+                let default_key = default_opt.split('=').next().unwrap_or(default_opt);
+                default_key != user_key && !is_conflicting_nfs_option(default_key, user_key)
+            });
+            mount_options.push(user_opt.clone());
+        }
+
+        assert!(mount_options.contains(&"hard".to_string()));
+        assert!(!mount_options.contains(&"soft".to_string()));
+        // Other defaults still present
+        assert!(mount_options.contains(&"nolock".to_string()));
+        assert!(mount_options.contains(&"timeo=50".to_string()));
+    }
+
+    #[test]
+    fn test_merge_user_option_overrides_key_value() {
+        let handler = NfsHandler::new();
+        let defaults = handler.get_default_options();
+
+        // User passes "timeo=100" which should replace default "timeo=50"
+        let user_options = vec!["timeo=100".to_string()];
+        let mut mount_options = defaults.clone();
+        for user_opt in &user_options {
+            let user_key = user_opt.split('=').next().unwrap_or(user_opt);
+            mount_options.retain(|default_opt| {
+                let default_key = default_opt.split('=').next().unwrap_or(default_opt);
+                default_key != user_key && !is_conflicting_nfs_option(default_key, user_key)
+            });
+            mount_options.push(user_opt.clone());
+        }
+
+        assert!(mount_options.contains(&"timeo=100".to_string()));
+        assert!(!mount_options.contains(&"timeo=50".to_string()));
+        assert!(mount_options.contains(&"soft".to_string()));
+        assert!(mount_options.contains(&"nolock".to_string()));
+    }
+
+    #[test]
+    fn test_merge_empty_user_options_keeps_defaults() {
+        let handler = NfsHandler::new();
+        let defaults = handler.get_default_options();
+
+        // No user options — defaults should be unchanged
+        let user_options: Vec<String> = vec![];
+        let mut mount_options = defaults.clone();
+        if !user_options.is_empty() {
+            for user_opt in &user_options {
+                let user_key = user_opt.split('=').next().unwrap_or(user_opt);
+                mount_options.retain(|default_opt| {
+                    let default_key = default_opt.split('=').next().unwrap_or(default_opt);
+                    default_key != user_key && !is_conflicting_nfs_option(default_key, user_key)
+                });
+                mount_options.push(user_opt.clone());
+            }
+        }
+
+        assert_eq!(mount_options, defaults);
     }
 }

@@ -554,6 +554,28 @@ mod tests {
     }
 
     #[test]
+    fn test_nfs_defaults_with_user_vers3() {
+        // Simulates merged options: defaults + user's vers=3
+        let validator = create_test_validator();
+        assert!(
+            validator
+                .validate_options(
+                    "nfs",
+                    &[
+                        "nolock".to_string(),
+                        "timeo=50".to_string(),
+                        "retrans=2".to_string(),
+                        "soft".to_string(),
+                        "_netdev".to_string(),
+                        "vers=3".to_string(),
+                    ]
+                )
+                .is_ok(),
+            "NFS defaults merged with user vers=3 should pass validation"
+        );
+    }
+
+    #[test]
     fn test_custom_options() {
         let validator = create_test_validator();
 
